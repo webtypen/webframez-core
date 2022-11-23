@@ -1,0 +1,34 @@
+{
+  "name": "@webtypen/webframez-core",
+  "version": "0.0.1",
+  "description": "The core package of the typescript based webframez (web-framework) by webtypen.de",
+  "homepage": "https://webtypen.de/",
+  "license": "MIT",
+  "main": "index.js",
+  "author": {
+    "name": "Benedict Romp",
+    "email": "b.romp@webtypen.de",
+    "url": "https://webtypen.de/"
+  },
+  "bugs": {
+    "url": "https://github.com/webtypen/webframez-core/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/webtypen/webframez-core.git"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^8.2.0",
+    "express": "^4.17.1",
+    "express-fileupload": "^1.2.0",
+    "glob": "^7.1.6",
+    "jsonwebtoken": "^8.5.1",
+    "lodash": "^4.17.20",
+    "moment": "^2.29.1",
+    "mysql": "^2.18.1",
+    "nodemon": "^2.0.6",
+    "passport": "^0.4.1",
+    "passport-jwt": "^4.0.0"
+  }
+}
