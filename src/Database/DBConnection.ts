@@ -1,4 +1,5 @@
 import { DBDrivers } from "./DBDriver";
+// @ts-ignore
 import dbconfig from "../../../../../config/database";
 import { QueryBuilder } from "./QueryBuilder";
 
@@ -37,6 +38,10 @@ class DBConnectionFacade {
   async getConnection(connectionName?: string) {
     if (!connectionName) {
       connectionName = dbconfig.defaultConnection;
+    }
+
+    if (!connectionName) {
+      return null;
     }
 
     if (

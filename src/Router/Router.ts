@@ -1,6 +1,7 @@
 import qs from "qs";
 import { IncomingMessage, ServerResponse } from "http";
 import { Response } from "./Response";
+// @ts-ignore
 import { Kernel } from "../../../../../app/Kernel";
 
 type RouteObject = {
