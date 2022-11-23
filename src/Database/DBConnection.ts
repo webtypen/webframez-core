@@ -1,5 +1,5 @@
 import { DBDrivers } from "./DBDriver";
-import dbconfig from "../../../../config/database";
+import dbconfig from "../../../../../config/database";
 import { QueryBuilder } from "./QueryBuilder";
 
 class DBConnectionFacade {
