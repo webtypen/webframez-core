@@ -296,7 +296,7 @@ class RouterFacade {
                 (bodyPlain.trim().substring(0, 1) === "[" || bodyPlain.trim().substring(0, 1) === "{")
                   ? JSON.parse(bodyPlain)
                   : bodyPlain
-                  ? qs_1.default.parse(bodyPlain)
+                  ? qs.parse(bodyPlain)
                   : {},
             bodyPlain: bodyPlain,
             params: route.params,
