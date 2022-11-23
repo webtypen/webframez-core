@@ -4,5 +4,6 @@ export * from "./WebApplication";
 export * from "./Router/Route";
 export * from "./Router/Request";
 export * from "./Router/Response";
+export * from "./Database/BaseDBDriver";
 export * from "./Database/Model";
 export * from "./Database/QueryBuilder";
