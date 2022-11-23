@@ -112,6 +112,16 @@ class RouterFacade {
       return this.dissolveRoute(this.routesPUT, req.url);
     } else if (req.method === "DELETE") {
       return this.dissolveRoute(this.routesDELETE, req.url);
+    } else if (req.method === "OPTIONS") {
+      if (req.headers['access-control-request-method'] === 'GET') {
+        return this.dissolveRoute(this.routesGET, req.url);
+      } else if(req.headers['access-control-request-method'] === 'POST') {
+        return this.dissolveRoute(this.routesPOST, req.url);
+      } else if(req.headers['access-control-request-method'] === 'PUT') {
+        return this.dissolveRoute(this.routesPUT, req.url);
+      } else if(req.headers['access-control-request-method'] === 'DELETE') {
+        return this.dissolveRoute(this.routesDELETE, req.url);
+      }
     }
     return null;
   }
@@ -240,6 +250,14 @@ class RouterFacade {
           return;
         }
       }
+    }
+
+    // Handle OPTIONS-Request
+    if (req.method === "OPTIONS") {
+        res.statusCode = 200;
+        res.setHeader('Content-Length', '0');
+        res.end();
+        return;
     }
 
     // Resolve route-component (handle controller definition)
