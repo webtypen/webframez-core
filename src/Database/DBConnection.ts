@@ -1,6 +1,6 @@
-import { DBDrivers } from "./DBDriver";
 // @ts-ignore
 import dbconfig from "../../../../../config/database";
+import { DBDrivers } from "./DBDrivers";
 import { QueryBuilder } from "./QueryBuilder";
 
 class DBConnectionFacade {
