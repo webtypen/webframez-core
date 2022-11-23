@@ -290,7 +290,14 @@ class RouterFacade {
       try {
         await route.component(
           {
-            body: bodyPlain ? qs.parse(bodyPlain) : {},
+            body:
+                bodyPlain &&
+                req.headers["content-type"] === "application/json" &&
+                (bodyPlain.trim().substring(0, 1) === "[" || bodyPlain.trim().substring(0, 1) === "{")
+                  ? JSON.parse(bodyPlain)
+                  : bodyPlain
+                  ? qs_1.default.parse(bodyPlain)
+                  : {},
             bodyPlain: bodyPlain,
             params: route.params,
             httpVersionMajor: req.httpVersionMajor,
