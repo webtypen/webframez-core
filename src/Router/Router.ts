@@ -1,7 +1,7 @@
 import qs from "qs";
 import { IncomingMessage, ServerResponse } from "http";
 import { Response } from "./Response";
-import { Kernel } from "../../../../app/Kernel";
+import { Kernel } from "../../../../../app/Kernel";
 
 type RouteObject = {
   path: string;
