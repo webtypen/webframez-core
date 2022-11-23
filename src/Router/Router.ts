@@ -179,8 +179,10 @@ class RouterFacade {
    * @param res
    */
   async handleRequest(req: IncomingMessage, res: ServerResponse) {
-    const route = this.dissolve(req);
-
+    const route = this.dissolve(req);    
+    const response = new Response();
+    response.setServerResponse(res);
+    
     // Check-Middleware
     if (
       route &&
@@ -198,6 +200,7 @@ class RouterFacade {
           );
         }
 
+
         try {
           await new Promise((resolve, reject) => {
             try {
@@ -207,7 +210,7 @@ class RouterFacade {
                   reject({ status: status, data: data });
                 },
                 req,
-                res
+                response
               );
             } catch (e) {
               console.error(e);
@@ -280,7 +283,7 @@ class RouterFacade {
             url: req.url,
             method: req.method,
           },
-          new Response().setServerResponse(res)
+          response
         );
         res.end();
       } catch (e) {
