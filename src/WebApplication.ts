@@ -8,7 +8,9 @@ export class WebApplication {
    * Init the routes and start the http-server
    */
   boot(options?: any) {
-    Router.init();
+    Router.init({
+      basename: options && options.basename ? options.basename : null,
+    });
 
     const port = options && options.port ? options.port : 3000;
     this.server = http
