@@ -113,13 +113,13 @@ class RouterFacade {
     } else if (req.method === "DELETE") {
       return this.dissolveRoute(this.routesDELETE, req.url);
     } else if (req.method === "OPTIONS") {
-      if (req.headers['access-control-request-method'] === 'GET') {
+      if (req.headers["access-control-request-method"] === "GET") {
         return this.dissolveRoute(this.routesGET, req.url);
-      } else if(req.headers['access-control-request-method'] === 'POST') {
+      } else if (req.headers["access-control-request-method"] === "POST") {
         return this.dissolveRoute(this.routesPOST, req.url);
-      } else if(req.headers['access-control-request-method'] === 'PUT') {
+      } else if (req.headers["access-control-request-method"] === "PUT") {
         return this.dissolveRoute(this.routesPUT, req.url);
-      } else if(req.headers['access-control-request-method'] === 'DELETE') {
+      } else if (req.headers["access-control-request-method"] === "DELETE") {
         return this.dissolveRoute(this.routesDELETE, req.url);
       }
     }
@@ -189,10 +189,10 @@ class RouterFacade {
    * @param res
    */
   async handleRequest(req: IncomingMessage, res: ServerResponse) {
-    const route = this.dissolve(req);    
+    const route = this.dissolve(req);
     const response = new Response();
     response.setServerResponse(res);
-    
+
     // Check-Middleware
     if (
       route &&
@@ -209,7 +209,6 @@ class RouterFacade {
             "Unknown middleware `" + middlewareKey + "` ..."
           );
         }
-
 
         try {
           await new Promise((resolve, reject) => {
@@ -254,10 +253,10 @@ class RouterFacade {
 
     // Handle OPTIONS-Request
     if (req.method === "OPTIONS") {
-        res.statusCode = 200;
-        res.setHeader('Content-Length', '0');
-        res.end();
-        return;
+      res.statusCode = 200;
+      res.setHeader("Content-Length", "0");
+      res.end();
+      return;
     }
 
     // Resolve route-component (handle controller definition)
@@ -291,13 +290,14 @@ class RouterFacade {
         await route.component(
           {
             body:
-                bodyPlain &&
-                req.headers["content-type"] === "application/json" &&
-                (bodyPlain.trim().substring(0, 1) === "[" || bodyPlain.trim().substring(0, 1) === "{")
-                  ? JSON.parse(bodyPlain)
-                  : bodyPlain
-                  ? qs.parse(bodyPlain)
-                  : {},
+              bodyPlain &&
+              req.headers["content-type"] === "application/json" &&
+              (bodyPlain.trim().substring(0, 1) === "[" ||
+                bodyPlain.trim().substring(0, 1) === "{")
+                ? JSON.parse(bodyPlain)
+                : bodyPlain
+                ? qs.parse(bodyPlain)
+                : {},
             bodyPlain: bodyPlain,
             params: route.params,
             httpVersionMajor: req.httpVersionMajor,
