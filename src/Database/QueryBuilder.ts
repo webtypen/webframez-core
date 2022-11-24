@@ -10,10 +10,12 @@ export class QueryBuilder {
 
   setModelMapping(model?: any | null) {
     this.modelMapping = model;
+    return this;
   }
 
   table(table: string) {
     this.queryTable = table;
+    return this;
   }
 
   where(column: any, operator: any, value: any) {
@@ -23,6 +25,7 @@ export class QueryBuilder {
       operator: operator,
       value: value,
     });
+    return this;
   }
 
   async get(options?: any) {
