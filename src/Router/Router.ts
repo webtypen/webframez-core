@@ -13,6 +13,11 @@ type RouteObject = {
 
 class RouterFacade {
   /**
+   * Basename
+   */
+  basename: string | null = null;
+
+  /**
    * GET Route Store
    */
   routesGET: {
@@ -64,7 +69,9 @@ class RouterFacade {
    * Load the application-routes
    *
    */
-  init() {
+  init(options?: any) {
+    this.basename = options && options.basename ? options.basename : null;
+
     // Load routes
     require(process.cwd() + "/app/routes");
   }
@@ -78,6 +85,10 @@ class RouterFacade {
    * @param options
    */
   register(type: string, path: string, component: any, options: object) {
+    if (this.basename) {
+      path = this.basename + path;
+    }
+
     if (type === "GET") {
       this.routesGET[path] = {
         path: path,
