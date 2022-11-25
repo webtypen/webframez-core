@@ -207,13 +207,46 @@ class RouterFacade {
    * @param res
    */
   async handleRequest(req: IncomingMessage, res: ServerResponse) {
+    if (!this.kernel) {
+      throw new Error("Missing Kernel in Router ...");
+    }
+
     const route = this.dissolve(req);
     const response = new Response();
     response.setServerResponse(res);
 
-    if (!this.kernel) {
-      throw new Error("Missing Kernel in Router ...");
-    }
+    // Load Body
+    let body: any = [];
+    const bodyPlain: any = await new Promise((resolve: Function) => {
+      req
+        .on("data", (chunk) => {
+          body.push(chunk);
+        })
+        .on("end", () => {
+          resolve(Buffer.concat(body).toString());
+        });
+    });
+
+    const request = {
+      body:
+        bodyPlain &&
+        req.headers["content-type"] === "application/json" &&
+        (bodyPlain.trim().substring(0, 1) === "[" ||
+          bodyPlain.trim().substring(0, 1) === "{")
+          ? JSON.parse(bodyPlain)
+          : bodyPlain
+          ? qs.parse(bodyPlain)
+          : {},
+      bodyPlain: bodyPlain,
+      params: route && route.params ? route.params : {},
+      httpVersionMajor: req.httpVersionMajor,
+      httpVersionMinor: req.httpVersionMinor,
+      httpVersion: req.httpVersion,
+      headers: req.headers,
+      rawHeaders: req.rawHeaders,
+      url: req.url,
+      method: req.method,
+    };
 
     // Check-Middleware
     if (
@@ -240,7 +273,7 @@ class RouterFacade {
                 (status: number, data: any) => {
                   reject({ status: status, data: data });
                 },
-                req,
+                request,
                 response
               );
             } catch (e) {
@@ -297,41 +330,8 @@ class RouterFacade {
     }
 
     if (route && route.component !== undefined) {
-      let body: any = [];
-      const bodyPlain: any = await new Promise((resolve: Function) => {
-        req
-          .on("data", (chunk) => {
-            body.push(chunk);
-          })
-          .on("end", () => {
-            resolve(Buffer.concat(body).toString());
-          });
-      });
-
       try {
-        await route.component(
-          {
-            body:
-              bodyPlain &&
-              req.headers["content-type"] === "application/json" &&
-              (bodyPlain.trim().substring(0, 1) === "[" ||
-                bodyPlain.trim().substring(0, 1) === "{")
-                ? JSON.parse(bodyPlain)
-                : bodyPlain
-                ? qs.parse(bodyPlain)
-                : {},
-            bodyPlain: bodyPlain,
-            params: route.params,
-            httpVersionMajor: req.httpVersionMajor,
-            httpVersionMinor: req.httpVersionMinor,
-            httpVersion: req.httpVersion,
-            headers: req.headers,
-            rawHeaders: req.rawHeaders,
-            url: req.url,
-            method: req.method,
-          },
-          response
-        );
+        await route.component(request, response);
         res.end();
       } catch (e) {
         console.error(e);
