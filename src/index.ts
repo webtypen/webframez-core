@@ -1,4 +1,6 @@
-export * from "./BaseKernel";
+export * from "./Config";
+export * from "./BaseKernelWeb";
+export * from "./BaseKernelConsole";
 export * from "./Controller/Controller";
 export * from "./Database/Model";
 export * from "./WebApplication";

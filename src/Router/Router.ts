@@ -1,8 +1,7 @@
 import qs from "qs";
 import { IncomingMessage, ServerResponse } from "http";
 import { Response } from "./Response";
-// @ts-ignore
-import { Kernel } from "../../../../../app/Kernel";
+import { Config } from "../Config";
 
 type RouteObject = {
   path: string;
@@ -16,6 +15,11 @@ class RouterFacade {
    * Basename
    */
   basename: string | null = null;
+
+  /**
+   * Kernel-Class
+   */
+  kernel: any | null = null;
 
   /**
    * GET Route Store
@@ -71,9 +75,12 @@ class RouterFacade {
    */
   init(options?: any) {
     this.basename = options && options.basename ? options.basename : null;
+    this.kernel = options && options.kernel ? options.kernel : null;
 
     // Load routes
+    console.log("loadRoutes");
     require(process.cwd() + "/app/routes");
+    console.log("finishRoutes");
   }
 
   /**
@@ -204,6 +211,10 @@ class RouterFacade {
     const response = new Response();
     response.setServerResponse(res);
 
+    if (!this.kernel) {
+      throw new Error("Missing Kernel in Router ...");
+    }
+
     // Check-Middleware
     if (
       route &&
@@ -212,7 +223,7 @@ class RouterFacade {
       route.options.middleware.length > 0
     ) {
       for (let middlewareKey of route.options.middleware) {
-        const middleware = Kernel.middleware[middlewareKey];
+        const middleware = this.kernel.middleware[middlewareKey];
         if (!middleware) {
           return this.sendError(
             res,
@@ -273,7 +284,7 @@ class RouterFacade {
     // Resolve route-component (handle controller definition)
     if (route && typeof route.component === "string") {
       const split = route.component.split("@");
-      const controller = Kernel.controller[split[0]];
+      const controller = this.kernel.controller[split[0]];
       if (!controller) {
         res.writeHead(500, { "Content-Type": "text/html" });
         res.end("Controller `" + split[0] + "` not found ...");
@@ -328,6 +339,12 @@ class RouterFacade {
       }
     } else {
       this.sendError(res, 404);
+    }
+  }
+
+  requestConsoleLog(req: IncomingMessage) {
+    if (Config.get("router.requests.logConsole") !== true) {
+      return;
     }
   }
 }

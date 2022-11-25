@@ -1,5 +1,5 @@
 // @ts-ignore
-import dbconfig from "../../../../../config/database";
+import { Config } from "../Config";
 import { DBDrivers } from "./DBDrivers";
 import { QueryBuilder } from "./QueryBuilder";
 
@@ -7,6 +7,12 @@ class DBConnectionFacade {
   connections: { [key: string]: any } = {};
 
   getConnectionConfig(connection: string) {
+    const dbconfig = Config.get("database");
+
+    if (!dbconfig) {
+      throw new Error("Missing database-config ...");
+    }
+
     if (!connection) {
       connection = dbconfig.defaultConnection;
     }
@@ -36,6 +42,12 @@ class DBConnectionFacade {
   }
 
   async getConnection(connectionName?: string) {
+    const dbconfig = Config.get("database");
+
+    if (!dbconfig) {
+      throw new Error("Missing database-config ...");
+    }
+
     if (!connectionName) {
       connectionName = dbconfig.defaultConnection;
     }
