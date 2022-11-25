@@ -1,3 +1,4 @@
+import fs from "fs";
 import qs from "qs";
 import { IncomingMessage, ServerResponse } from "http";
 import { Response } from "./Response";
@@ -348,7 +349,10 @@ class RouterFacade {
   }
 
   requestConsoleLog(req: IncomingMessage, httpCode: number) {
-    if (Config.get("application.router.requests.logConsole") !== true) {
+    if (
+      Config.get("application.router.requests.logConsole") !== true &&
+      !Config.get("application.router.requests.logFile")
+    ) {
       return;
     }
 
@@ -363,30 +367,48 @@ class RouterFacade {
       : req.socket && req.socket.remoteAddress
       ? req.socket.remoteAddress
       : null;
-
-    console.log(
+    const logString =
       '{ date: "' +
-        date.getFullYear() +
-        "-" +
-        (month < 10 ? "0" + month : month) +
-        "-" +
-        date.getDate() +
-        " " +
-        (date.getHours() + 1) +
-        ":" +
-        date.getMinutes() +
-        ":" +
-        date.getSeconds() +
-        '", method: "' +
-        req.method +
-        '", url: "' +
-        req.url +
-        '", ip: "' +
-        ip +
-        '", httpcode: ' +
-        httpCode.toString() +
-        " }"
-    );
+      date.getFullYear() +
+      "-" +
+      (month < 10 ? "0" + month : month) +
+      "-" +
+      date.getDate() +
+      " " +
+      (date.getHours() + 1) +
+      ":" +
+      date.getMinutes() +
+      ":" +
+      date.getSeconds() +
+      '", method: "' +
+      req.method +
+      '", url: "' +
+      req.url +
+      '", ip: "' +
+      ip +
+      '", httpcode: ' +
+      httpCode.toString() +
+      " }";
+
+    if (Config.get("application.router.requests.logConsole")) {
+      console.log(logString);
+    }
+
+    if (Config.get("application.router.requests.logFile")) {
+      try {
+        const filepath = Config.get("application.router.requests.logFile");
+        if (filepath && filepath.trim() !== "") {
+          fs.appendFileSync(
+            filepath.trim().substring(0, 1) === "/"
+              ? filepath
+              : process.cwd() + "/" + filepath,
+            logString + "\n"
+          );
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
   }
 }
 
