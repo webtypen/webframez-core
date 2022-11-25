@@ -78,9 +78,7 @@ class RouterFacade {
     this.kernel = options && options.kernel ? options.kernel : null;
 
     // Load routes
-    console.log("loadRoutes");
     require(process.cwd() + "/app/routes");
-    console.log("finishRoutes");
   }
 
   /**
@@ -208,6 +206,7 @@ class RouterFacade {
    */
   async handleRequest(req: IncomingMessage, res: ServerResponse) {
     if (!this.kernel) {
+      res.end();
       throw new Error("Missing Kernel in Router ...");
     }
 
@@ -258,6 +257,7 @@ class RouterFacade {
       for (let middlewareKey of route.options.middleware) {
         const middleware = this.kernel.middleware[middlewareKey];
         if (!middleware) {
+          this.requestConsoleLog(req, 500);
           return this.sendError(
             res,
             500,
@@ -279,6 +279,7 @@ class RouterFacade {
             } catch (e) {
               console.error(e);
 
+              this.requestConsoleLog(req, 500);
               return this.sendError(
                 res,
                 500,
@@ -311,6 +312,7 @@ class RouterFacade {
       res.statusCode = 200;
       res.setHeader("Content-Length", "0");
       res.end();
+      this.requestConsoleLog(req, 200);
       return;
     }
 
@@ -333,17 +335,20 @@ class RouterFacade {
       try {
         await route.component(request, response);
         res.end();
+        this.requestConsoleLog(req, 200);
       } catch (e) {
         console.error(e);
         this.sendError(res, 500);
+        this.requestConsoleLog(req, 500);
       }
     } else {
       this.sendError(res, 404);
+      this.requestConsoleLog(req, 404);
     }
   }
 
-  requestConsoleLog(req: IncomingMessage) {
-    if (Config.get("router.requests.logConsole") !== true) {
+  requestConsoleLog(req: IncomingMessage, httpCode: number) {
+    if (Config.get("application.router.requests.logConsole") !== true) {
       return;
     }
 
@@ -378,7 +383,9 @@ class RouterFacade {
         req.url +
         '", ip: "' +
         ip +
-        '" }'
+        '", httpcode: ' +
+        httpCode.toString() +
+        " }"
     );
   }
 }
