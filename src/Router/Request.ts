@@ -1,4 +1,5 @@
 export type Request = {
+  [key: string]: any;
   body?: any;
   bodyPlain?: any;
   params: object;

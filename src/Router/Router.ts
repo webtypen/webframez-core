@@ -346,6 +346,40 @@ class RouterFacade {
     if (Config.get("router.requests.logConsole") !== true) {
       return;
     }
+
+    const date = new Date();
+    const month = date.getMonth() + 1;
+    const ip = req.headers["x-forwarded-for"]
+      ? req.headers["x-forwarded-for"]
+      : req.headers["x-forwarded"]
+      ? req.headers["x-forwarded"]
+      : req.headers["forwarded-for"]
+      ? req.headers["forwarded-for"]
+      : req.socket && req.socket.remoteAddress
+      ? req.socket.remoteAddress
+      : null;
+
+    console.log(
+      '{ date: "' +
+        date.getFullYear() +
+        "-" +
+        (month < 10 ? "0" + month : month) +
+        "-" +
+        date.getDate() +
+        " " +
+        (date.getHours() + 1) +
+        ":" +
+        date.getMinutes() +
+        ":" +
+        date.getSeconds() +
+        '", method: "' +
+        req.method +
+        '", url: "' +
+        req.url +
+        '", ip: "' +
+        ip +
+        '" }'
+    );
   }
 }
 
