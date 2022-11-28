@@ -329,7 +329,7 @@ class RouterFacade {
 
       // Set Controller method as route-component
       const controllerInstance = new controller();
-      route.component = controllerInstance[split[1]];
+      route.component = controllerInstance[split[1]].bind(controllerInstance);
     }
 
     if (route && route.component !== undefined) {
