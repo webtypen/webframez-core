@@ -1,6 +1,6 @@
 const { Command } = require("commander");
-import { Config } from "@webtypen/webframez-core";
-import { BuildFinishCommand } from "./app/Commands/BuildFinishCommand";
+import { Config } from "./Config";
+import { BuildFinishCommand } from "./Commands/BuildFinishCommand";
 
 export class ConsoleApplication {
     /**
