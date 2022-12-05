@@ -30,7 +30,7 @@ export class BuildFinishCommand extends ConsoleCommand {
                 execSync("rm " + buildDir + "/" + file);
             }
 
-            if (fs.existsSync(buildDir + "/" + file)) {
+            if (fs.existsSync(process.cwd() + "/" + file)) {
                 execSync("cp " + process.cwd() + "/" + file + " " + buildDir + "/" + file);
             }
         }
