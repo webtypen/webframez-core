@@ -6,6 +6,8 @@ export class QueryBuilder {
   query: any[] = [];
   queryTable: string = "";
   sort: any[] = [];
+  limit: number | null = null;
+  offest: number | null = null;
   mode = "get";
   modelMapping = null;
 
@@ -36,6 +38,16 @@ export class QueryBuilder {
     });
     return this;
   }
+  
+  take(count: number | null) {
+    this.limit = count;
+    return this; 
+  }
+  
+  offset(count: number | null) {
+    this.offset = count;
+    return this; 
+  }
 
   async get(options?: any) {
     this.mode = "get";
@@ -64,6 +76,23 @@ export class QueryBuilder {
 
     return result && this.modelMapping !== null
       ? DBConnection.mapDataToModel(this.modelMapping, result)
+      : null;
+  }
+  
+  async paginate(count: number, options?: any) {
+    this.mode = "paginate";
+
+    const result = await DBConnection.runQuery(this);
+    if (options && options.disableModelMapping) {
+      return result && result.length > 0 ? result : null;
+    }
+
+    return result && result.length > 0 && this.modelMapping !== null
+      ? result.map((el: Model) =>
+          DBConnection.mapDataToModel(this.modelMapping, el)
+        )
+      : result && result.length > 0
+      ? result
       : null;
   }
 
