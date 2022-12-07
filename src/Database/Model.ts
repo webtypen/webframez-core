@@ -56,7 +56,7 @@ export class Model {
    * @param options?
    * @returns QueryBulder
    */
-  static first(options?: any): QueryBuilder {
+  static async first(options?: any): QueryBuilder {
     const model = new this();
     const queryBuilder = new QueryBuilder();
     queryBuilder.setModelMapping(this);
@@ -70,7 +70,7 @@ export class Model {
    * @param options?
    * @returns QueryBulder
    */
-  static get(options?: any): QueryBuilder {
+  static async get(options?: any): QueryBuilder {
     const model = new this();
     const queryBuilder = new QueryBuilder();
     queryBuilder.setModelMapping(this);
@@ -85,7 +85,7 @@ export class Model {
    * @param options?
    * @returns QueryBulder
    */
-  static paginate(count: number, options?: any): QueryBuilder {
+  static async paginate(count: number, options?: any): QueryBuilder {
     const model = new this();
     const queryBuilder = new QueryBuilder();
     queryBuilder.setModelMapping(this);
