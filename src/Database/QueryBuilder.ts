@@ -5,6 +5,7 @@ export class QueryBuilder {
   database: string | null = null;
   query: any[] = [];
   queryTable: string = "";
+  sort: any[] = [];
   mode = "get";
   modelMapping = null;
 
@@ -24,6 +25,14 @@ export class QueryBuilder {
       column: column,
       operator: operator,
       value: value,
+    });
+    return this;
+  }
+  
+  orderBy(column: any, sort: any) {
+    this.query.sort({
+      column: column,
+      sort: sort,
     });
     return this;
   }
