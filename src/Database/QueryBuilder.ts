@@ -32,7 +32,7 @@ export class QueryBuilder {
   }
   
   orderBy(column: any, sort: any) {
-    this.query.sort({
+    this.sort.push({
       column: column,
       sort: sort,
     });
