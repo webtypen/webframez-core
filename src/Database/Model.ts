@@ -78,6 +78,21 @@ export class Model {
 
     return await queryBuilder.get(options);
   }
+  
+  /**
+   * Creates a new query-builder object and executes paginate()
+   * @param count
+   * @param options?
+   * @returns QueryBulder
+   */
+  static paginate(count: number, options?: any): QueryBuilder {
+    const model = new this();
+    const queryBuilder = new QueryBuilder();
+    queryBuilder.setModelMapping(this);
+    queryBuilder.table(model.__table);
+
+    return await queryBuilder.paginate(count, options);
+  }
 
   /**
    * Executes a database-aggregation (mostly used by no-sql connections)
