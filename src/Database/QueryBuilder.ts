@@ -81,6 +81,14 @@ export class QueryBuilder {
   
   async paginate(count: number, options?: any) {
     this.mode = "paginate";
+    this.take(count);
+    
+    if (options && options.offset !== undefined && options.offset !== null && options.offset !== false) {
+        this.offset(parseInt(options.offset));
+    } else {
+        // @ToDo: Load offset from request
+        this.offset(null);
+    }
 
     const result = await DBConnection.runQuery(this);
     if (options && options.disableModelMapping) {
