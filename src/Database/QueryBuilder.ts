@@ -7,7 +7,7 @@ export class QueryBuilder {
   queryTable: string = "";
   sort: any[] = [];
   limit: number | null = null;
-  offest: number | null = null;
+  offset: number | null = null;
   mode = "get";
   modelMapping = null;
 
