@@ -1,5 +1,4 @@
-export declare class WebApplication {
-    private server;
+export declare class ConsoleApplication {
     /**
      * Init the routes and start the http-server
      */

@@ -10,6 +10,14 @@ type RouteObject = {
 };
 declare class RouterFacade {
     /**
+     * Basename
+     */
+    basename: string | null;
+    /**
+     * Kernel-Class
+     */
+    kernel: any | null;
+    /**
      * GET Route Store
      */
     routesGET: {
@@ -57,7 +65,7 @@ declare class RouterFacade {
      * Load the application-routes
      *
      */
-    init(): void;
+    init(options?: any): void;
     /**
      * Register a route
      *
@@ -95,6 +103,7 @@ declare class RouterFacade {
      * @param res
      */
     handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void>;
+    requestConsoleLog(req: IncomingMessage, httpCode: number): void;
 }
 export declare const Router: RouterFacade;
 export {};

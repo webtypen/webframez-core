@@ -16,6 +16,32 @@ export declare class Model {
      */
     static where(column: any, operator: any, value: any): QueryBuilder;
     /**
+     * Creates a new query-builder object and adds a orderBy-clause
+     * @param column
+     * @param sort
+     * @returns QueryBulder
+     */
+    static orderBy(column: any, sort: any): QueryBuilder;
+    /**
+     * Creates a new query-builder object and executes first()
+     * @param options?
+     * @returns QueryBulder
+     */
+    static first(options?: any): Promise<any>;
+    /**
+     * Creates a new query-builder object and executes get()
+     * @param options?
+     * @returns QueryBulder
+     */
+    static get(options?: any): Promise<any>;
+    /**
+     * Creates a new query-builder object and executes paginate()
+     * @param count
+     * @param options?
+     * @returns QueryBulder
+     */
+    static paginate(count: number, options?: any): Promise<any>;
+    /**
      * Executes a database-aggregation (mostly used by no-sql connections)
      * @param aggregation
      * @returns any

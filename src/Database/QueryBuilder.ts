@@ -6,8 +6,8 @@ export class QueryBuilder {
   query: any[] = [];
   queryTable: string = "";
   sort: any[] = [];
-  limit: number | null = null;
-  offset: number | null = null;
+  limitCount: number | null = null;
+  offsetCount: number | null = null;
   mode = "get";
   modelMapping = null;
 
@@ -40,12 +40,12 @@ export class QueryBuilder {
   }
   
   take(count: number | null) {
-    this.limit = count;
+    this.limitCount = count;
     return this; 
   }
   
   offset(count: number | null) {
-    this.offset = count;
+    this.offsetCount = count;
     return this; 
   }
 
