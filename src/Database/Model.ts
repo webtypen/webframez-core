@@ -34,6 +34,50 @@ export class Model {
 
     return queryBuilder;
   }
+  
+  /**
+   * Creates a new query-builder object and adds a orderBy-clause
+   * @param column
+   * @param sort
+   * @returns QueryBulder
+   */
+  static orderBy(column: any, sort: any): QueryBuilder {
+    const model = new this();
+    const queryBuilder = new QueryBuilder();
+    queryBuilder.setModelMapping(this);
+    queryBuilder.table(model.__table);
+    queryBuilder.orderBy(column, sort);
+
+    return queryBuilder;
+  }
+  
+  /**
+   * Creates a new query-builder object and executes first()
+   * @param options?
+   * @returns QueryBulder
+   */
+  static first(options?: any): QueryBuilder {
+    const model = new this();
+    const queryBuilder = new QueryBuilder();
+    queryBuilder.setModelMapping(this);
+    queryBuilder.table(model.__table);
+
+    return await queryBuilder.first(options);
+  }
+  
+  /**
+   * Creates a new query-builder object and executes get()
+   * @param options?
+   * @returns QueryBulder
+   */
+  static get(options?: any): QueryBuilder {
+    const model = new this();
+    const queryBuilder = new QueryBuilder();
+    queryBuilder.setModelMapping(this);
+    queryBuilder.table(model.__table);
+
+    return await queryBuilder.get(options);
+  }
 
   /**
    * Executes a database-aggregation (mostly used by no-sql connections)
