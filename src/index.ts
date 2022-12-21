@@ -1,4 +1,6 @@
 export * from "./Config";
+export * from "./Functions/StringFunctions";
+export * from "./Functions/NumericFunctions";
 export * from "./BaseKernelWeb";
 export * from "./BaseKernelConsole";
 export * from "./Controller/Controller";
