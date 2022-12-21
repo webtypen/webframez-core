@@ -103,6 +103,12 @@ export class QueryBuilder {
       ? result
       : null;
   }
+  
+  async count(options?: any) {
+    this.mode = "count";
+
+    return await DBConnection.runQuery(this);
+  }
 
   async delete(options?: { mode: string }) {
     this.mode =
