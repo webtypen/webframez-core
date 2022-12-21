@@ -5,6 +5,7 @@ export * from "./BaseKernelWeb";
 export * from "./BaseKernelConsole";
 export * from "./Controller/Controller";
 export * from "./Database/Model";
+export * from "./Database/DBConnection";
 export * from "./ConsoleApplication";
 export * from "./WebApplication";
 export * from "./Router/Route";
