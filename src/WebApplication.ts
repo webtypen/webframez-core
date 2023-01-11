@@ -26,7 +26,7 @@ export class WebApplication {
         Router.handleRequest(req, res);
       });
     
-    this.listen(port, () => {
+    this.server.listen(port, () => {
         console.log(
           "Server started and listening on port " +
             port +
