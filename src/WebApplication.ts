@@ -24,8 +24,9 @@ export class WebApplication {
     this.server = http
       .createServer((req, res) => {
         Router.handleRequest(req, res);
-      })
-      .listen(port, () => {
+      });
+    
+    this.listen(port, () => {
         console.log(
           "Server started and listening on port " +
             port +
@@ -34,7 +35,6 @@ export class WebApplication {
               : "")
         );
       });
-
-      return this.server;
+    return this.server;
   }
 }
