@@ -136,13 +136,13 @@ class RouterFacade {
     } else if (req.method === "DELETE") {
       return this.dissolveRoute(this.routesDELETE, req.url);
     } else if (req.method === "OPTIONS") {
-      if (req.method === "GET" || (req.headers && req.headers["access-control-request-method"] === "GET")) {
+      if (req.headers["access-control-request-method"] === "GET") {
         return this.dissolveRoute(this.routesGET, req.url);
-      } else if (req.method === "POST" || (req.headers && req.headers["access-control-request-method"] === "POST")) {
+      } else if (req.headers["access-control-request-method"] === "POST") {
         return this.dissolveRoute(this.routesPOST, req.url);
-      } else if (req.method === "PUT" || (req.headers && req.headers["access-control-request-method"] === "PUT")) {
+      } else if (req.headers["access-control-request-method"] === "PUT") {
         return this.dissolveRoute(this.routesPUT, req.url);
-      } else if (req.method === "DELETE" || (req.headers && req.headers["access-control-request-method"] === "DELETE")) {
+      } else if (req.headers["access-control-request-method"] === "DELETE") {
         return this.dissolveRoute(this.routesDELETE, req.url);
       }
     }
@@ -211,7 +211,7 @@ class RouterFacade {
       customRequest = {
         method: options.event.requestContext.http.method,
         url: options.event.requestContext.http.path,
-        headers: options.event.requestContext.headers,
+        headers: options.event.headers,
       };
     }
 
