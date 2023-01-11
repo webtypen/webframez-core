@@ -1,12 +1,9 @@
-import http, { Server } from "http";
 import { Config } from "./Config";
 import { Router } from "./Router/Router";
 
 export class LambdaApplication {
-  private server!: Server;
-
   /**
-   * Init the routes and start the http-server
+   * Init the routes and handle the request
    */
   boot(event: any, context: any, options?: any) {
     if (options && options.config) {
@@ -21,6 +18,6 @@ export class LambdaApplication {
       basename: options && options.basename ? options.basename : null,
     });
 
-    return { status: "success", mode: "lambda", event: event };
+    return Router.handleRequest(null, null, { event: event });
   }
 }
