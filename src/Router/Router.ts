@@ -256,8 +256,13 @@ class RouterFacade {
               (bodyPlain.trim().substring(0, 1) === "[" || bodyPlain.trim().substring(0, 1) === "{")
                 ? JSON.parse(bodyPlain)
                 : bodyPlain
-                ? qs.parse(bodyPlain)
+                ? qs.parse(
+                    options && options.event && options.event.isBase64Encoded
+                      ? Buffer.from(bodyPlain, "base64").toString("utf-8")
+                      : bodyPlain
+                  )
                 : {},
+
             bodyPlain: bodyPlain,
             params: route && route.params ? route.params : {},
             headers: customRequest.headers,
