@@ -31,7 +31,7 @@ export class Response {
    * @returns
    */
   status(status: number): Response {
-    this.statusCode = 200;
+    this.statusCode = status;
 
     if (!this.res) {
       return this;
