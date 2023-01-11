@@ -294,6 +294,7 @@ class RouterFacade {
             return {
               statusCode: 500,
               body: JSON.stringify({ status: "error", message: "Unknown middleware `" + middlewareKey + "` ..." }),
+              headers: response.headers,
             };
           } else if (req && res) {
             this.requestConsoleLog(req, 500);
@@ -319,6 +320,7 @@ class RouterFacade {
                 return {
                   statusCode: 500,
                   body: JSON.stringify({ status: "error", message: "Middleware run error `" + middlewareKey + "` ..." }),
+                  headers: response.headers,
                 };
               } else if (req && res) {
                 this.requestConsoleLog(req, 500);
@@ -329,7 +331,7 @@ class RouterFacade {
         } catch (e: any) {
           // Send Middleware-Abort
           if (this.mode === "aws-lambda") {
-            return { statusCode: 500, body: JSON.stringify({ status: "error", message: e.data }) };
+            return { statusCode: 500, body: JSON.stringify({ status: "error", message: e.data }), headers: response.headers };
           } else if (res) {
             res.writeHead(e.status, typeof e.data === "object" ? { "Content-Type": "application/json" } : { "Content-Type": "text/html" });
             res.end(typeof e.data === "object" ? JSON.stringify(e.data) : e.data ? e.data : " ");
@@ -362,7 +364,11 @@ class RouterFacade {
       const controller = this.kernel.controller[split[0]];
       if (!controller) {
         if (this.mode === "aws-lambda") {
-          return { statusCode: 500, body: JSON.stringify({ status: "error", message: "Controller `" + split[0] + "` not found ..." }) };
+          return {
+            statusCode: 500,
+            body: JSON.stringify({ status: "error", message: "Controller `" + split[0] + "` not found ..." }),
+            headers: response.headers,
+          };
         } else if (res) {
           res.writeHead(500, { "Content-Type": "text/html" });
           res.end("Controller `" + split[0] + "` not found ...");
@@ -381,14 +387,18 @@ class RouterFacade {
         await route.component(request, response);
 
         if (this.mode === "aws-lambda") {
-          return { statusCode: response.statusCode, body: JSON.stringify(response.content) };
+          return { statusCode: response.statusCode, body: JSON.stringify(response.content), headers: response.headers };
         } else if (res && req) {
           res.end();
           this.requestConsoleLog(req, response.statusCode);
         }
       } catch (e) {
         if (this.mode === "aws-lambda") {
-          return { statusCode: 500, body: JSON.stringify({ status: "error", message: "Error running the component ..." }) };
+          return {
+            statusCode: 500,
+            body: JSON.stringify({ status: "error", message: "Error running the component ..." }),
+            headers: response.headers,
+          };
         } else if (res && req) {
           this.sendError(res, 500);
           this.requestConsoleLog(req, 500);
@@ -396,7 +406,11 @@ class RouterFacade {
       }
     } else {
       if (this.mode === "aws-lambda") {
-        return { statusCode: 500, body: JSON.stringify({ status: "error", message: "Route component not found ..." }) };
+        return {
+          statusCode: 500,
+          body: JSON.stringify({ status: "error", message: "Route component not found ..." }),
+          headers: response.headers,
+        };
       } else if (res && req) {
         this.sendError(res, 404);
         this.requestConsoleLog(req, 404);
