@@ -34,5 +34,7 @@ export class WebApplication {
               : "")
         );
       });
+
+      return this.server;
   }
 }
