@@ -7,6 +7,7 @@ export * from "./Controller/Controller";
 export * from "./Database/Model";
 export * from "./Database/DBConnection";
 export * from "./ConsoleApplication";
+export * from "./LambdaApplication";
 export * from "./WebApplication";
 export * from "./Router/Route";
 export * from "./Router/Request";

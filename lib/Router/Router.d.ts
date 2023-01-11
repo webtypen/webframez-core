@@ -18,6 +18,10 @@ declare class RouterFacade {
      */
     kernel: any | null;
     /**
+     * Mode
+     */
+    mode: any | null;
+    /**
      * GET Route Store
      */
     routesGET: {

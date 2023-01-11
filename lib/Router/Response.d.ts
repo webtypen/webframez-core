@@ -2,6 +2,12 @@
 import { ServerResponse } from "http";
 export declare class Response {
     res?: ServerResponse;
+    content?: any | null | undefined;
+    /**
+     * Mode
+     */
+    mode: any | null;
+    constructor(options?: any | null | undefined);
     /**
      * Sets the ServerResponse (res) Object (nodejs/http module)
      * @param res
@@ -29,5 +35,5 @@ export declare class Response {
      *
      * @param content
      */
-    send(content: any): void;
+    send(content: any): this;
 }

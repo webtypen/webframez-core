@@ -16,6 +16,7 @@ export declare class QueryBuilder {
     get(options?: any): Promise<any>;
     first(options?: any): Promise<any>;
     paginate(count: number, options?: any): Promise<any>;
+    count(options?: any): Promise<any>;
     delete(options?: {
         mode: string;
     }): Promise<boolean>;
