@@ -2,6 +2,7 @@ import { ServerResponse } from "http";
 
 export class Response {
   res?: ServerResponse;
+  statusCode: number = 200;
   content?: any | null | undefined;
 
   /**
@@ -30,6 +31,8 @@ export class Response {
    * @returns
    */
   status(status: number): Response {
+    this.statusCode = 200;
+
     if (!this.res) {
       return this;
     }

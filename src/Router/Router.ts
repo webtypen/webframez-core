@@ -373,14 +373,12 @@ class RouterFacade {
         await route.component(request, response);
 
         if (this.mode === "aws-lambda") {
-          return { statusCode: 200, body: JSON.stringify(response.content) };
+          return { statusCode: response.statusCode, body: JSON.stringify(response.content) };
         } else if (res && req) {
           res.end();
-          this.requestConsoleLog(req, 200);
+          this.requestConsoleLog(req, response.statusCode);
         }
       } catch (e) {
-        console.error(e);
-
         if (this.mode === "aws-lambda") {
           return { statusCode: 500, body: JSON.stringify({ status: "error", message: "Error running the component ..." }) };
         } else if (res && req) {

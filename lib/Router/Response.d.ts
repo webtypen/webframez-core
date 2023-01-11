@@ -2,6 +2,7 @@
 import { ServerResponse } from "http";
 export declare class Response {
     res?: ServerResponse;
+    statusCode: number;
     content?: any | null | undefined;
     /**
      * Mode
