@@ -233,7 +233,7 @@ class RouterFacade {
     const bodyPlain: any =
       this.mode === "aws-lambda"
         ? options && options.event && options.event.body
-          ? Buffer.concat(options.event.body).toString()
+          ? options.event.body
           : null
         : req
         ? await new Promise((resolve: Function) => {
