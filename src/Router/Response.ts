@@ -2,6 +2,16 @@ import { ServerResponse } from "http";
 
 export class Response {
   res?: ServerResponse;
+  content?: any | null | undefined;
+
+  /**
+   * Mode
+   */
+  mode: any | null = null;
+
+  constructor(options?: any | null | undefined) {
+    this.mode = options && options.mode ? options.mode : null;
+  }
 
   /**
    * Sets the ServerResponse (res) Object (nodejs/http module)
@@ -51,11 +61,18 @@ export class Response {
    * @param content
    */
   send(content: any) {
-    if (typeof content === "object") {
-      this.res?.setHeader("Content-Type", "application/json");
-      this.res?.write(JSON.stringify(content));
+    this.content = content;
+
+    if (this.mode === "aws-lambda") {
+      // Do nothing ... Store content in variable and use it later ...
     } else {
-      this.res?.write(content);
+      if (typeof content === "object") {
+        this.res?.setHeader("Content-Type", "application/json");
+        this.res?.write(JSON.stringify(content));
+      } else {
+        this.res?.write(content);
+      }
     }
+    return this;
   }
 }

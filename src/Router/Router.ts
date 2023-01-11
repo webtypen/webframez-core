@@ -23,6 +23,11 @@ class RouterFacade {
   kernel: any | null = null;
 
   /**
+   * Mode
+   */
+  mode: any | null = null;
+
+  /**
    * GET Route Store
    */
   routesGET: {
@@ -77,6 +82,7 @@ class RouterFacade {
   init(options?: any) {
     this.basename = options && options.basename ? options.basename : null;
     this.kernel = options && options.kernel ? options.kernel : null;
+    this.mode = options && options.mode ? options.mode : null;
 
     // Load routes
     require(process.cwd() + "/app/routes");
@@ -212,7 +218,7 @@ class RouterFacade {
     }
 
     const route = this.dissolve(req);
-    const response = new Response();
+    const response = new Response({ mode: this.mode });
     response.setServerResponse(res);
 
     // Load Body

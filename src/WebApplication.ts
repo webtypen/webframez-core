@@ -16,25 +16,25 @@ export class WebApplication {
     }
 
     Router.init({
+      mode: options.mode ? options.mode : null,
       kernel: options && options.kernel ? options.kernel : null,
       basename: options && options.basename ? options.basename : null,
     });
 
     const port = options && options.port ? options.port : 3000;
-    this.server = http
-      .createServer((req, res) => {
-        Router.handleRequest(req, res);
-      });
-    
+    this.server = http.createServer((req, res) => {
+      Router.handleRequest(req, res);
+    });
+
     this.server.listen(port, () => {
-        console.log(
-          "Server started and listening on port " +
-            port +
-            (options && options.basename
-              ? " (Basename: " + options && options.basename + ")"
-              : "")
-        );
-      });
+      console.log(
+        "Server started and listening on port " +
+          port +
+          (options && options.basename
+            ? " (Basename: " + options && options.basename + ")"
+            : "")
+      );
+    });
     return this.server;
   }
 }
