@@ -4,6 +4,9 @@ export declare class Response {
     res?: ServerResponse;
     statusCode: number;
     content?: any | null | undefined;
+    headers: {
+        [key: string]: string;
+    };
     /**
      * Mode
      */

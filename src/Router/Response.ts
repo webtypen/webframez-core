@@ -4,6 +4,7 @@ export class Response {
   res?: ServerResponse;
   statusCode: number = 200;
   content?: any | null | undefined;
+  headers: { [key: string]: string } = {};
 
   /**
    * Mode
@@ -49,6 +50,8 @@ export class Response {
    * @returns
    */
   header(type: string, value: string) {
+    this.headers[type] = value;
+
     if (!this.res) {
       return this;
     }
