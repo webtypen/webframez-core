@@ -85,7 +85,7 @@ declare class RouterFacade {
      * @param req
      * @returns
      */
-    dissolve(req: IncomingMessage): RouteObject | null;
+    dissolve(req: IncomingMessage | any | null): RouteObject | null;
     /**
      * Dissolves the matching route based on the request-url and an object of routes
      *
@@ -106,7 +106,10 @@ declare class RouterFacade {
      * @param req
      * @param res
      */
-    handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void>;
+    handleRequest(req: null | IncomingMessage, res: null | ServerResponse, options?: any): Promise<void | {
+        statusCode: number;
+        body: string;
+    }>;
     requestConsoleLog(req: IncomingMessage, httpCode: number): void;
 }
 export declare const Router: RouterFacade;
