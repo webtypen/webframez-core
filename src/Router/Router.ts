@@ -287,6 +287,7 @@ class RouterFacade {
             rawHeaders: req.rawHeaders,
             url: req.url,
             method: req.method,
+            socket: req.socket,
           }
         : null;
 
