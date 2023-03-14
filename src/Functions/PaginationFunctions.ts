@@ -1,4 +1,4 @@
-import { DBConnection } from "@webtypen/webframez-core";
+import { DBConnection } from "../Database/DBConnection";
 
 export const paginationList = async (options: any, aggregation?: any, aggregationOptional?: any) => {
     const page = options.page && parseInt(options.page) > 0 ? parseInt(options.page) : 0;
