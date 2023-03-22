@@ -266,6 +266,23 @@ class RouterFacade {
           })
         : null;
 
+    const urlParams: any = {};
+    if (req.url.indexOf("?") > 0) {
+      const temp = req.url.substring(req.url.indexOf("?") + 1);
+      if (temp && temp.trim() !== "") {
+        const entries = temp.split("=");
+        for (let entry of entries) {
+          if (entry.indexOf("=") > 0) {
+            urlParams[entry.substring(0, entry.indexOf("="))] = entry.substring(
+              entry.indexOf("=") + 1
+            );
+          } else {
+            urlParams[entry] = true;
+          }
+        }
+      }
+    }
+
     const request =
       this.mode === "aws-lambda" && customRequest
         ? {
@@ -285,6 +302,7 @@ class RouterFacade {
 
             bodyPlain: bodyPlain,
             params: route && route.params ? route.params : {},
+            urlParams: urlParams,
             headers: customRequest.headers,
             method: customRequest.method,
           }
@@ -301,6 +319,7 @@ class RouterFacade {
                 : {},
             bodyPlain: bodyPlain,
             params: route && route.params ? route.params : {},
+            urlParams: urlParams,
             httpVersionMajor: req.httpVersionMajor,
             httpVersionMinor: req.httpVersionMinor,
             httpVersion: req.httpVersion,
