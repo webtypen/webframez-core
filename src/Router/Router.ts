@@ -270,7 +270,7 @@ class RouterFacade {
     if (req && req.url && req.url.indexOf("?") > 0) {
       const temp = req.url.substring(req.url.indexOf("?") + 1);
       if (temp && temp.trim() !== "") {
-        const entries = temp.split("=");
+        const entries = temp.split("&");
         for (let entry of entries) {
           if (entry.indexOf("=") > 0) {
             urlParams[entry.substring(0, entry.indexOf("="))] = entry.substring(
