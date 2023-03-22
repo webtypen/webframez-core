@@ -267,7 +267,7 @@ class RouterFacade {
         : null;
 
     const urlParams: any = {};
-    if (req.url.indexOf("?") > 0) {
+    if (req && req.url && req.url.indexOf("?") > 0) {
       const temp = req.url.substring(req.url.indexOf("?") + 1);
       if (temp && temp.trim() !== "") {
         const entries = temp.split("=");
