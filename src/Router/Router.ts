@@ -472,20 +472,21 @@ class RouterFacade {
         if (this.mode === "aws-lambda") {
           return {
             statusCode: response.statusCode,
-            body: JSON.stringify(response.content),
+            body: typeof response.content === "object" ? JSON.stringify(response.content) : response.content,
             headers: response.headers,
           };
         } else if (res && req) {
           res.end();
           this.requestConsoleLog(req, response.statusCode);
         }
-      } catch (e) {
+      } catch (e: any) {
         if (this.mode === "aws-lambda") {
           return {
             statusCode: 500,
             body: JSON.stringify({
               status: "error",
               message: "Error running the component ...",
+              error: e.toString(),
             }),
             headers: response.headers,
           };
