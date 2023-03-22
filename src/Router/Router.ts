@@ -127,23 +127,30 @@ class RouterFacade {
       return null;
     }
 
+    const cleanUrl =
+      req.url.indexOf("?") > 0
+        ? req.url.substring(0, req.url.indexOf("?"))
+        : req.url.indexOf("#") > 0
+        ? req.url.substring(0, req.url.indexOf("#"))
+        : req.url;
+
     if (req.method === "GET") {
-      return this.dissolveRoute(this.routesGET, req.url);
+      return this.dissolveRoute(this.routesGET, cleanUrl);
     } else if (req.method === "POST") {
-      return this.dissolveRoute(this.routesPOST, req.url);
+      return this.dissolveRoute(this.routesPOST, cleanUrl);
     } else if (req.method === "PUT") {
-      return this.dissolveRoute(this.routesPUT, req.url);
+      return this.dissolveRoute(this.routesPUT, cleanUrl);
     } else if (req.method === "DELETE") {
-      return this.dissolveRoute(this.routesDELETE, req.url);
+      return this.dissolveRoute(this.routesDELETE, cleanUrl);
     } else if (req.method === "OPTIONS") {
       if (req.headers["access-control-request-method"] === "GET") {
-        return this.dissolveRoute(this.routesGET, req.url);
+        return this.dissolveRoute(this.routesGET, cleanUrl);
       } else if (req.headers["access-control-request-method"] === "POST") {
-        return this.dissolveRoute(this.routesPOST, req.url);
+        return this.dissolveRoute(this.routesPOST, cleanUrl);
       } else if (req.headers["access-control-request-method"] === "PUT") {
-        return this.dissolveRoute(this.routesPUT, req.url);
+        return this.dissolveRoute(this.routesPUT, cleanUrl);
       } else if (req.headers["access-control-request-method"] === "DELETE") {
-        return this.dissolveRoute(this.routesDELETE, req.url);
+        return this.dissolveRoute(this.routesDELETE, cleanUrl);
       }
     }
     return null;
@@ -196,7 +203,13 @@ class RouterFacade {
    */
   sendError(res: ServerResponse, code: number, message?: string) {
     res.writeHead(code, { "Content-Type": "text/html" });
-    res.end(message ? message : code === 404 ? "Oops! Page not found ..." : "Oops! There was an unexpected error ...");
+    res.end(
+      message
+        ? message
+        : code === 404
+        ? "Oops! Page not found ..."
+        : "Oops! There was an unexpected error ..."
+    );
   }
 
   /**
@@ -205,7 +218,11 @@ class RouterFacade {
    * @param req
    * @param res
    */
-  async handleRequest(req: null | IncomingMessage, res: null | ServerResponse, options?: any) {
+  async handleRequest(
+    req: null | IncomingMessage,
+    res: null | ServerResponse,
+    options?: any
+  ) {
     let customRequest = null;
     if (!req && this.mode === "aws-lambda" && options && options.event) {
       customRequest = {
@@ -222,7 +239,9 @@ class RouterFacade {
       throw new Error("Missing Kernel in Router ...");
     }
 
-    const route = this.dissolve(customRequest !== null && this.mode === "aws-lambda" ? customRequest : req);
+    const route = this.dissolve(
+      customRequest !== null && this.mode === "aws-lambda" ? customRequest : req
+    );
     const response = new Response({ mode: this.mode });
     if (res) {
       response.setServerResponse(res);
@@ -253,7 +272,8 @@ class RouterFacade {
             body:
               bodyPlain &&
               customRequest.headers["content-type"] === "application/json" &&
-              (bodyPlain.trim().substring(0, 1) === "[" || bodyPlain.trim().substring(0, 1) === "{")
+              (bodyPlain.trim().substring(0, 1) === "[" ||
+                bodyPlain.trim().substring(0, 1) === "{")
                 ? JSON.parse(bodyPlain)
                 : bodyPlain
                 ? qs.parse(
@@ -273,7 +293,8 @@ class RouterFacade {
             body:
               bodyPlain &&
               req.headers["content-type"] === "application/json" &&
-              (bodyPlain.trim().substring(0, 1) === "[" || bodyPlain.trim().substring(0, 1) === "{")
+              (bodyPlain.trim().substring(0, 1) === "[" ||
+                bodyPlain.trim().substring(0, 1) === "{")
                 ? JSON.parse(bodyPlain)
                 : bodyPlain
                 ? qs.parse(bodyPlain)
@@ -292,19 +313,31 @@ class RouterFacade {
         : null;
 
     // Check-Middleware
-    if (route && route.options && route.options.middleware && route.options.middleware.length > 0) {
+    if (
+      route &&
+      route.options &&
+      route.options.middleware &&
+      route.options.middleware.length > 0
+    ) {
       for (let middlewareKey of route.options.middleware) {
         const middleware = this.kernel.middleware[middlewareKey];
         if (!middleware) {
           if (this.mode === "aws-lambda") {
             return {
               statusCode: 500,
-              body: JSON.stringify({ status: "error", message: "Unknown middleware `" + middlewareKey + "` ..." }),
+              body: JSON.stringify({
+                status: "error",
+                message: "Unknown middleware `" + middlewareKey + "` ...",
+              }),
               headers: response.headers,
             };
           } else if (req && res) {
             this.requestConsoleLog(req, 500);
-            return this.sendError(res, 500, "Unknown middleware `" + middlewareKey + "` ...");
+            return this.sendError(
+              res,
+              500,
+              "Unknown middleware `" + middlewareKey + "` ..."
+            );
           }
         }
 
@@ -325,22 +358,44 @@ class RouterFacade {
               if (this.mode === "aws-lambda") {
                 return {
                   statusCode: 500,
-                  body: JSON.stringify({ status: "error", message: "Middleware run error `" + middlewareKey + "` ..." }),
+                  body: JSON.stringify({
+                    status: "error",
+                    message: "Middleware run error `" + middlewareKey + "` ...",
+                  }),
                   headers: response.headers,
                 };
               } else if (req && res) {
                 this.requestConsoleLog(req, 500);
-                return this.sendError(res, 500, "Error in middleware `" + middlewareKey + "` ...");
+                return this.sendError(
+                  res,
+                  500,
+                  "Error in middleware `" + middlewareKey + "` ..."
+                );
               }
             }
           });
         } catch (e: any) {
           // Send Middleware-Abort
           if (this.mode === "aws-lambda") {
-            return { statusCode: 500, body: JSON.stringify({ status: "error", message: e.data }), headers: response.headers };
+            return {
+              statusCode: 500,
+              body: JSON.stringify({ status: "error", message: e.data }),
+              headers: response.headers,
+            };
           } else if (res) {
-            res.writeHead(e.status, typeof e.data === "object" ? { "Content-Type": "application/json" } : { "Content-Type": "text/html" });
-            res.end(typeof e.data === "object" ? JSON.stringify(e.data) : e.data ? e.data : " ");
+            res.writeHead(
+              e.status,
+              typeof e.data === "object"
+                ? { "Content-Type": "application/json" }
+                : { "Content-Type": "text/html" }
+            );
+            res.end(
+              typeof e.data === "object"
+                ? JSON.stringify(e.data)
+                : e.data
+                ? e.data
+                : " "
+            );
           }
           return;
         }
@@ -372,7 +427,10 @@ class RouterFacade {
         if (this.mode === "aws-lambda") {
           return {
             statusCode: 500,
-            body: JSON.stringify({ status: "error", message: "Controller `" + split[0] + "` not found ..." }),
+            body: JSON.stringify({
+              status: "error",
+              message: "Controller `" + split[0] + "` not found ...",
+            }),
             headers: response.headers,
           };
         } else if (res) {
@@ -393,7 +451,11 @@ class RouterFacade {
         await route.component(request, response);
 
         if (this.mode === "aws-lambda") {
-          return { statusCode: response.statusCode, body: JSON.stringify(response.content), headers: response.headers };
+          return {
+            statusCode: response.statusCode,
+            body: JSON.stringify(response.content),
+            headers: response.headers,
+          };
         } else if (res && req) {
           res.end();
           this.requestConsoleLog(req, response.statusCode);
@@ -402,7 +464,10 @@ class RouterFacade {
         if (this.mode === "aws-lambda") {
           return {
             statusCode: 500,
-            body: JSON.stringify({ status: "error", message: "Error running the component ..." }),
+            body: JSON.stringify({
+              status: "error",
+              message: "Error running the component ...",
+            }),
             headers: response.headers,
           };
         } else if (res && req) {
@@ -414,7 +479,10 @@ class RouterFacade {
       if (this.mode === "aws-lambda") {
         return {
           statusCode: 500,
-          body: JSON.stringify({ status: "error", message: "Route component not found ..." }),
+          body: JSON.stringify({
+            status: "error",
+            message: "Route component not found ...",
+          }),
           headers: response.headers,
         };
       } else if (res && req) {
@@ -425,7 +493,10 @@ class RouterFacade {
   }
 
   requestConsoleLog(req: IncomingMessage, httpCode: number) {
-    if (Config.get("application.router.requests.logConsole") !== true && !Config.get("application.router.requests.logFile")) {
+    if (
+      Config.get("application.router.requests.logConsole") !== true &&
+      !Config.get("application.router.requests.logFile")
+    ) {
       return;
     }
 
@@ -471,7 +542,12 @@ class RouterFacade {
       try {
         const filepath = Config.get("application.router.requests.logFile");
         if (filepath && filepath.trim() !== "") {
-          fs.appendFileSync(filepath.trim().substring(0, 1) === "/" ? filepath : process.cwd() + "/" + filepath, logString + "\n");
+          fs.appendFileSync(
+            filepath.trim().substring(0, 1) === "/"
+              ? filepath
+              : process.cwd() + "/" + filepath,
+            logString + "\n"
+          );
         }
       } catch (e) {
         console.error(e);
