@@ -227,8 +227,14 @@ class RouterFacade {
     if (!req && this.mode === "aws-lambda" && options && options.event) {
       customRequest = {
         method: options.event.requestContext.http.method,
-        url: options.event.requestContext.http.path,
+        url:
+          options.event.rawPath +
+          (options.event.rawQueryString  && options.event.rawQueryString.trim() !== '' ?
+            "?" + options.event.rawQueryString
+            : ""
+          ),
         headers: options.event.headers,
+        urlParams: options.event.queryStringParameters ? options.event.queryStringParameters : {},
       };
     }
 
@@ -267,17 +273,19 @@ class RouterFacade {
         : null;
 
     const urlParams: any = {};
-    if (req && req.url && req.url.indexOf("?") > 0) {
-      const temp = req.url.substring(req.url.indexOf("?") + 1);
-      if (temp && temp.trim() !== "") {
-        const entries = temp.split("&");
-        for (let entry of entries) {
-          if (entry.indexOf("=") > 0) {
-            urlParams[entry.substring(0, entry.indexOf("="))] = entry.substring(
-              entry.indexOf("=") + 1
-            );
-          } else {
-            urlParams[entry] = true;
+    if (!customRequest) {
+      if (req && req.url && req.url.indexOf("?") > 0) {
+        const temp = req.url.substring(req.url.indexOf("?") + 1);
+        if (temp && temp.trim() !== "") {
+          const entries = temp.split("&");
+          for (let entry of entries) {
+            if (entry.indexOf("=") > 0) {
+              urlParams[entry.substring(0, entry.indexOf("="))] = entry.substring(
+                entry.indexOf("=") + 1
+              );
+            } else {
+              urlParams[entry] = true;
+            }
           }
         }
       }
@@ -299,10 +307,10 @@ class RouterFacade {
                       : bodyPlain
                   )
                 : {},
-
             bodyPlain: bodyPlain,
             params: route && route.params ? route.params : {},
-            urlParams: urlParams,
+            url: customRequest.url,
+            urlParams: customRequest.urlParams,
             headers: customRequest.headers,
             method: customRequest.method,
           }
