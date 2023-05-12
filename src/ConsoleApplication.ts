@@ -45,7 +45,12 @@ export class ConsoleApplication {
         }
         consoleCommand.action(async () => {
           const service = await new command();
-          return await service.handle();
+          const result = await service.handle();
+          
+          if (options && options.onEnd) {
+              await options.onEnd(command.signature);
+          }
+          return result;
         });
         program.addCommand(consoleCommand);
       }
