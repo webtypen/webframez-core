@@ -468,6 +468,10 @@ class RouterFacade {
         return;
       }
 
+      if (!controllerInstance || !split || !split[1] || !controllerInstance[split[1]]) {
+        throw new Error("controllerInstance " + split[1] + " not found ...");
+      }
+      
       // Set Controller method as route-component
       const controllerInstance = new controller();
       route.component = controllerInstance[split[1]].bind(controllerInstance);
