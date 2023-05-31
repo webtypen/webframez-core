@@ -108,7 +108,7 @@ declare class RouterFacade {
      */
     handleRequest(req: null | IncomingMessage, res: null | ServerResponse, options?: any): Promise<void | {
         statusCode: number;
-        body: string;
+        body: any;
         headers: {
             [key: string]: string;
         };

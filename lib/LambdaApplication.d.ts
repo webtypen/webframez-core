@@ -4,7 +4,7 @@ export declare class LambdaApplication {
      */
     boot(event: any, context: any, options?: any): Promise<void | {
         statusCode: number;
-        body: string;
+        body: any;
         headers: {
             [key: string]: string;
         };

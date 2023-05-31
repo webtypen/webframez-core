@@ -1,6 +1,7 @@
 export * from "./Config";
 export * from "./Functions/StringFunctions";
 export * from "./Functions/NumericFunctions";
+export * from "./Functions/PaginationFunctions";
 export * from "./Commands/ConsoleCommand";
 export * from "./BaseKernelWeb";
 export * from "./BaseKernelConsole";
