@@ -3,38 +3,36 @@ import { Config } from "./Config";
 import { Router } from "./Router/Router";
 
 export class WebApplication {
-  private server!: Server;
+    private server!: Server;
 
-  /**
-   * Init the routes and start the http-server
-   */
-  boot(options?: any) {
-    if (options && options.config) {
-      for (let key in options.config) {
-        Config.register(key, options.config[key]);
-      }
+    /**
+     * Init the routes and start the http-server
+     */
+    boot(options?: any) {
+        if (options && options.config) {
+            for (let key in options.config) {
+                Config.register(key, options.config[key]);
+            }
+        }
+
+        Router.init({
+            mode: options && options.mode ? options.mode : null,
+            kernel: options && options.kernel ? options.kernel : null,
+            basename: options && options.basename ? options.basename : null,
+        });
+
+        const port = options && options.port ? options.port : 3000;
+        this.server = http.createServer((req, res) => {
+            Router.handleRequest(req, res);
+        });
+
+        this.server.listen(port, () => {
+            console.log(
+                "Server started and listening on port " +
+                    port +
+                    (options && options.basename ? " (Basename: " + options && options.basename + ")" : "")
+            );
+        });
+        return this.server;
     }
-
-    Router.init({
-      mode: options.mode ? options.mode : null,
-      kernel: options && options.kernel ? options.kernel : null,
-      basename: options && options.basename ? options.basename : null,
-    });
-
-    const port = options && options.port ? options.port : 3000;
-    this.server = http.createServer((req, res) => {
-      Router.handleRequest(req, res);
-    });
-
-    this.server.listen(port, () => {
-      console.log(
-        "Server started and listening on port " +
-          port +
-          (options && options.basename
-            ? " (Basename: " + options && options.basename + ")"
-            : "")
-      );
-    });
-    return this.server;
-  }
 }
