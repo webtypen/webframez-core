@@ -72,7 +72,7 @@ export class Response {
     if (this.mode === "aws-lambda") {
       // Do nothing ... Store content in variable and use it later ...
     } else {
-      if (typeof content === "object") {
+      if (typeof content === "object" && !Buffer.isBuffer(content)) {
         this.res?.setHeader("Content-Type", "application/json");
         this.res?.write(JSON.stringify(content));
       } else {
