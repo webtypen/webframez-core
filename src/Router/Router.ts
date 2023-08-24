@@ -508,7 +508,7 @@ class RouterFacade {
     }
 
     async handleResponseAfter(response: Response, req: IncomingMessage, payload: any) {
-        response.handleAfterEvents(req, payload);
+        response.handleEvents("after", req, payload);
     }
 
     requestConsoleLog(req: IncomingMessage, httpCode: number) {
