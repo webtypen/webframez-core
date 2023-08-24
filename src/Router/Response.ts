@@ -1,10 +1,11 @@
-import { ServerResponse } from "http";
+import { IncomingMessage, ServerResponse } from "http";
 
 export class Response {
   res?: ServerResponse;
   statusCode: number = 200;
   content?: any | null | undefined;
-  headers: { [key: string]: string } = {};
+  headers: { [key: string]: any } = {};
+  events: any = { after: [] };
 
   /**
    * Mode
@@ -80,5 +81,28 @@ export class Response {
       }
     }
     return this;
+  }
+
+  async registerEvent(eventKey: string, func: any) {
+    this.events[eventKey].push({ function: func }):
+  }
+  
+  /**
+   * Runs the registered events for an event-type
+   *
+   * @param eventKey
+   * @param req
+   * @param payload
+   */
+  async handleEvents(eventKey: string, req: IncomingMessage, payload: any) {
+    if (!this.events || !this.events[eventKey] || this.events[eventKey].length < 1) {
+      return;
+    }
+
+    for (let i in this.events[eventKey]) {
+      if (this.events[eventKey](i).function && typeof this.events[eventKey](i).function === "function") {
+        this.events[eventKey](i).function(req, payload);
+      }
+    }
   }
 }
