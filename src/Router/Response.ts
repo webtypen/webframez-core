@@ -100,8 +100,8 @@ export class Response {
     }
 
     for (let i in this.events[eventKey]) {
-      if (this.events[eventKey](i).function && typeof this.events[eventKey](i).function === "function") {
-        this.events[eventKey](i).function(req, payload);
+      if (this.events[eventKey][i].function && typeof this.events[eventKey][i].function === "function") {
+        this.events[eventKey][i].function(req, payload);
       }
     }
   }
