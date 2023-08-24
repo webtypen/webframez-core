@@ -335,7 +335,7 @@ class RouterFacade {
             for (let middlewareKey of route.options.middleware) {
                 const middleware = this.kernel.middleware[middlewareKey];
                 if (!middleware) {
-                    this.handleResponseAfter(response, req, { status: 500 });
+                    this.handleResponseAfter(response, request, { status: 500 });
                     
                     if (this.mode === "aws-lambda") {
                         return {
@@ -366,7 +366,7 @@ class RouterFacade {
                         } catch (e) {
                             console.error(e);
 
-                            this.handleResponseAfter(response, req, { status: 500 });
+                            this.handleResponseAfter(response, request, { status: 500 });
                             if (this.mode === "aws-lambda") {
                                 return {
                                     statusCode: 500,
@@ -383,7 +383,7 @@ class RouterFacade {
                         }
                     });
                 } catch (e: any) {
-                    this.handleResponseAfter(response, req, { status: 500, error: typeof e.data === "object" ? JSON.stringify(e.data) : e.data ? e.data : undefined });
+                    this.handleResponseAfter(response, request, { status: 500, error: typeof e.data === "object" ? JSON.stringify(e.data) : e.data ? e.data : undefined });
                     
                     // Send Middleware-Abort
                     if (this.mode === "aws-lambda") {
@@ -426,7 +426,7 @@ class RouterFacade {
             const split = route.component.split("@");
             const controller = this.kernel.controller[split[0]];
             if (!controller) {
-                this.handleResponseAfter(response, req, { status: 500, error: "Controller `" + split[0] + "` not found ..." });
+                this.handleResponseAfter(response, request, { status: 500, error: "Controller `" + split[0] + "` not found ..." });
                 
                 if (this.mode === "aws-lambda") {
                     return {
@@ -447,7 +447,7 @@ class RouterFacade {
             // Set Controller method as route-component
             const controllerInstance = new controller();
             if (!controllerInstance || !split || !split[1] || !controllerInstance[split[1]]) {
-                this.handleResponseAfter(response, req, { status: 500, error: "controllerInstance `" + split[1] + "` not found ..." });
+                this.handleResponseAfter(response, request, { status: 500, error: "controllerInstance `" + split[1] + "` not found ..." });
                 throw new Error("controllerInstance " + split[1] + " not found ...");
             }
             route.component = controllerInstance[split[1]].bind(controllerInstance);
@@ -457,7 +457,7 @@ class RouterFacade {
             try {
                 await route.component(request, response);
 
-                this.handleResponseAfter(response, req, { status: response.statusCode });
+                this.handleResponseAfter(response, request, { status: response.statusCode });
                 if (this.mode === "aws-lambda") {
                     return {
                         statusCode: response.statusCode,
@@ -473,7 +473,7 @@ class RouterFacade {
                     console.error(e);
                 }
 
-                this.handleResponseAfter(response, req, { status: 500, error: e && e.stack && e.stack.toString().trim() !== '' ? e.stack : e && e.toString() !== '' ? e.toString() : "Error running the component ..." });
+                this.handleResponseAfter(response, request, { status: 500, error: e && e.stack && e.stack.toString().trim() !== '' ? e.stack : e && e.toString() !== '' ? e.toString() : "Error running the component ..." });
                 if (this.mode === "aws-lambda") {
                     return {
                         statusCode: 500,
@@ -490,7 +490,7 @@ class RouterFacade {
                 }
             }
         } else {
-            this.handleResponseAfter(response, req, { status: 500, error: "Route component not found ..." });
+            this.handleResponseAfter(response, request, { status: 500, error: "Route component not found ..." });
             if (this.mode === "aws-lambda") {
                 return {
                     statusCode: 500,
