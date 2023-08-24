@@ -84,7 +84,7 @@ export class Response {
   }
 
   async registerEvent(eventKey: string, func: any) {
-    this.events[eventKey].push({ function: func }):
+    this.events[eventKey].push({ function: func });
   }
   
   /**
