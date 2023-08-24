@@ -490,7 +490,7 @@ class RouterFacade {
                 }
             }
         } else {
-            this.handleResponseAfter(response, req, { status: 500, error: e && e.stack && e.stack.toString().trim() !== '' ? e.stack : e && e.toString() !== '' ? e.toString() : "Route component not found ..." });
+            this.handleResponseAfter(response, req, { status: 500, error: "Route component not found ..." });
             if (this.mode === "aws-lambda") {
                 return {
                     statusCode: 500,
