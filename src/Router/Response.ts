@@ -1,4 +1,4 @@
-import { IncomingMessage, ServerResponse } from "http";
+import { ServerResponse } from "http";
 
 export class Response {
   res?: ServerResponse;
@@ -94,7 +94,7 @@ export class Response {
    * @param req
    * @param payload
    */
-  async handleEvents(eventKey: string, req: IncomingMessage, payload: any) {
+  async handleEvents(eventKey: string, req: any, payload: any) {
     if (!this.events || !this.events[eventKey] || this.events[eventKey].length < 1) {
       return;
     }
