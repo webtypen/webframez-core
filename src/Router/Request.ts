@@ -10,4 +10,5 @@ export type Request = {
   rawHeaders: object;
   url: string;
   method: string;
+  on?: any;
 };
