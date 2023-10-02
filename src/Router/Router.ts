@@ -305,6 +305,7 @@ class RouterFacade {
                       urlParams: customRequest.urlParams,
                       headers: customRequest.headers,
                       method: customRequest.method,
+                      on: req ? req.on : undefined,
                   }
                 : req
                 ? {
@@ -327,6 +328,7 @@ class RouterFacade {
                       url: req.url,
                       method: req.method,
                       socket: req.socket,
+                      on: req.on,
                   }
                 : null;
 
