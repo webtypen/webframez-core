@@ -11,4 +11,5 @@ export type Request = {
   url: string;
   method: string;
   on?: any;
+  request?: any;
 };
