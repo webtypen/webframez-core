@@ -6,6 +6,7 @@ export class Response {
   content?: any | null | undefined;
   headers: { [key: string]: any } = {};
   events: any = { after: [] };
+  autoEnd: boolean = true;
 
   /**
    * Mode
@@ -17,9 +18,19 @@ export class Response {
   }
 
   /**
+   * Set Response-Auto-End
+   * @param status
+   * @returns Response
+   */
+  setAutoEnd(status: boolean) {
+    this.autoEnd = status;
+    return this;
+  }
+
+  /**
    * Sets the ServerResponse (res) Object (nodejs/http module)
    * @param res
-   * @returns
+   * @returns Response
    */
   setServerResponse(res: ServerResponse) {
     this.res = res;
@@ -30,7 +41,7 @@ export class Response {
    * Set the http-status-code
    *
    * @param status
-   * @returns
+   * @returns Response
    */
   status(status: number): Response {
     this.statusCode = status;
@@ -48,7 +59,7 @@ export class Response {
    *
    * @param type
    * @param value
-   * @returns
+   * @returns Response
    */
   header(type: string, value: string) {
     this.headers[type] = value;
@@ -66,6 +77,7 @@ export class Response {
    * Any objects will be stringified to JSON
    *
    * @param content
+   * @returns Response
    */
   send(content: any) {
     this.content = content;
