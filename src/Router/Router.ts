@@ -469,7 +469,9 @@ class RouterFacade {
                         headers: response.headers,
                     };
                 } else if (res && req) {
-                    res.end();
+                    if (response.autoEnd) {
+                        res.end();
+                    }
                     this.requestConsoleLog(req, response.statusCode);
                 }
             } catch (e: any) {
