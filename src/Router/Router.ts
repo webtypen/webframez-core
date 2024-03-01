@@ -222,7 +222,7 @@ class RouterFacade {
      * Parses JSON without exception
      */
     parseJson(jsonObject: any) {
-        let json = null;
+        let json: any = {};
         try {
             json = JSON.parse(jsonObject);
         } catch(e: any) {
