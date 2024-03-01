@@ -219,6 +219,19 @@ class RouterFacade {
     }
 
     /**
+     * Parses JSON without exception
+     */
+    parseJson(jsonObject: any) {
+        let json = null;
+        try {
+            json = JSON.parse(jsonObject);
+        } catch(e: any) {
+            console.error(e);
+        }
+        return json;
+    }
+
+    /**
      * Processes a request
      *
      * @param req
@@ -291,7 +304,7 @@ class RouterFacade {
                           bodyPlain &&
                           customRequest.headers["content-type"] === "application/json" &&
                           (bodyPlain.trim().substring(0, 1) === "[" || bodyPlain.trim().substring(0, 1) === "{")
-                              ? JSON.parse(bodyPlain)
+                              ? this.parseJson(bodyPlain)
                               : bodyPlain
                               ? qs.parse(
                                     options && options.event && options.event.isBase64Encoded
@@ -314,7 +327,7 @@ class RouterFacade {
                           bodyPlain &&
                           req.headers["content-type"] === "application/json" &&
                           (bodyPlain.trim().substring(0, 1) === "[" || bodyPlain.trim().substring(0, 1) === "{")
-                              ? JSON.parse(bodyPlain)
+                              ? this.parseJson(bodyPlain)
                               : bodyPlain
                               ? qs.parse(bodyPlain)
                               : {},
