@@ -249,20 +249,20 @@ class RouterFacade {
                 urlParams: options.event.queryStringParameters ? options.event.queryStringParameters : {},
             };
         }
-
+    
         if (!this.kernel) {
             if (res) {
                 res.end();
             }
             throw new Error("Missing Kernel in Router ...");
         }
-
+    
         const route = this.dissolve(customRequest !== null && this.mode === "aws-lambda" ? customRequest : req);
         const response = new Response({ mode: this.mode });
         if (res) {
             response.setServerResponse(res);
         }
-
+    
         // Load Body
         let body: any = [];
         const bodyPlain: any =
@@ -279,7 +279,7 @@ class RouterFacade {
                       });
                   })
                 : null;
-
+    
         const urlParams: any = {};
         if (!customRequest) {
             if (req && req.url && req.url.indexOf("?") > 0) {
@@ -296,7 +296,13 @@ class RouterFacade {
                 }
             }
         }
-
+    
+        // Multipart/Form-Data Handling
+        const files = {};
+        if (req && req.headers['content-type'] && req.headers['content-type'].startsWith('multipart/form-data')) {
+            await this.handleMultipart(req, files);
+        }
+    
         const request =
             this.mode === "aws-lambda" && customRequest
                 ? {
@@ -320,6 +326,7 @@ class RouterFacade {
                       method: customRequest.method,
                       on: req ? req.on : undefined,
                       request: req,
+                      files, // Dateien werden hier hinzugefügt
                   }
                 : req
                 ? {
@@ -344,6 +351,7 @@ class RouterFacade {
                       socket: req.socket,
                       on: req.on,
                       request: req,
+                      files, // Dateien werden hier hinzugefügt
                   }
                 : null;
 
@@ -586,6 +594,52 @@ class RouterFacade {
                 console.error(e);
             }
         }
+    }
+
+    async handleMultipart(req, files) {
+        const boundary = req.headers['content-type'].split('=')[1];
+        const chunks = [];
+    
+        req.on('data', chunk => {
+            chunks.push(chunk);
+        });
+    
+        await new Promise((resolve) => {
+            req.on('end', () => {
+                const buffer = Buffer.concat(chunks);
+                const parts = buffer.toString().split(`--${boundary}`);
+                parts.forEach(part => {
+                    if (part.includes('Content-Disposition')) {
+                        const [header, body] = part.split('\r\n\r\n');
+                        const match = header.match(/name="([^"]+)"/);
+                        const name = match && match[1];
+                        if (name) {
+                            if (header.includes('filename')) {
+                                const filenameMatch = header.match(/filename="([^"]+)"/);
+                                const filename = filenameMatch && filenameMatch[1];
+                                if (filename) {
+                                    const contentTypeMatch = header.match(/Content-Type: (.+)/);
+                                    const contentType = contentTypeMatch && contentTypeMatch[1];
+                                    const fileBuffer = Buffer.from(body.split('\r\n')[0], 'binary');
+                                    const filePath = path.join(__dirname, 'uploads', filename);
+    
+                                    // Verzeichnis erstellen, falls nicht vorhanden
+                                    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    
+                                    fs.writeFileSync(filePath, fileBuffer);
+                                    files[name] = {
+                                        filename,
+                                        contentType,
+                                        path: filePath,
+                                    };
+                                }
+                            }
+                        }
+                    }
+                });
+                resolve();
+            });
+        });
     }
 }
 
