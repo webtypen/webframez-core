@@ -596,9 +596,9 @@ class RouterFacade {
         }
     }
 
-    async handleMultipart(req, files) {
-        const boundary = req.headers['content-type'].split('=')[1];
-        const chunks = [];
+    async handleMultipart(req: any, files: any) {
+        const boundary: any = req.headers['content-type'].split('=')[1];
+        const chunks: any = [];
     
         req.on('data', chunk => {
             chunks.push(chunk);
@@ -606,22 +606,22 @@ class RouterFacade {
     
         await new Promise((resolve) => {
             req.on('end', () => {
-                const buffer = Buffer.concat(chunks);
-                const parts = buffer.toString().split(`--${boundary}`);
+                const buffer: any = Buffer.concat(chunks);
+                const parts: any = buffer.toString().split(`--${boundary}`);
                 parts.forEach(part => {
                     if (part.includes('Content-Disposition')) {
-                        const [header, body] = part.split('\r\n\r\n');
-                        const match = header.match(/name="([^"]+)"/);
-                        const name = match && match[1];
+                        const [header, body]: any = part.split('\r\n\r\n');
+                        const match: any = header.match(/name="([^"]+)"/);
+                        const name: any = match && match[1];
                         if (name) {
                             if (header.includes('filename')) {
-                                const filenameMatch = header.match(/filename="([^"]+)"/);
-                                const filename = filenameMatch && filenameMatch[1];
+                                const filenameMatch: any = header.match(/filename="([^"]+)"/);
+                                const filename: any = filenameMatch && filenameMatch[1];
                                 if (filename) {
-                                    const contentTypeMatch = header.match(/Content-Type: (.+)/);
-                                    const contentType = contentTypeMatch && contentTypeMatch[1];
-                                    const fileBuffer = Buffer.from(body.split('\r\n')[0], 'binary');
-                                    const filePath = path.join(__dirname, 'uploads', filename);
+                                    const contentTypeMatch: any = header.match(/Content-Type: (.+)/);
+                                    const contentType: any = contentTypeMatch && contentTypeMatch[1];
+                                    const fileBuffer: any = Buffer.from(body.split('\r\n')[0], 'binary');
+                                    const filePath: any = path.join(__dirname, 'uploads', filename);
     
                                     // Verzeichnis erstellen, falls nicht vorhanden
                                     fs.mkdirSync(path.dirname(filePath), { recursive: true });
