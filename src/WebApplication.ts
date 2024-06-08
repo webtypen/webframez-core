@@ -19,6 +19,8 @@ export class WebApplication {
             mode: options && options.mode ? options.mode : null,
             kernel: options && options.kernel ? options.kernel : null,
             basename: options && options.basename ? options.basename : null,
+            routesFunction: options && options.routesFunction ? options.routesFunction : null,
+            tempDir: options && options.tempDir ? options.tempDir : null,
         });
 
         const port = options && options.port ? options.port : 3000;

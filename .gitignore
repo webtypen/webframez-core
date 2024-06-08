@@ -1,3 +1,5 @@
 node_modules/
 src/**/*.js
 src/**/*.d.ts
+dev/temp/
+dev/uploads/

@@ -1,8 +1,9 @@
 import fs from "fs";
-import qs from "qs";
+import path from "path";
 import { IncomingMessage, ServerResponse } from "http";
 import { Response } from "./Response";
-import { Config } from "../Config";
+import { Request } from "./Request";
+import querystring from "querystring";
 
 type RouteObject = {
     path: string;
@@ -26,6 +27,11 @@ class RouterFacade {
      * Mode
      */
     mode: any | null = null;
+
+    /**
+     * Last Options Object
+     */
+    lastOptions: any | null = null;
 
     /**
      * GET Route Store
@@ -83,9 +89,14 @@ class RouterFacade {
         this.basename = options && options.basename ? options.basename : null;
         this.kernel = options && options.kernel ? options.kernel : null;
         this.mode = options && options.mode ? options.mode : null;
+        this.lastOptions = options;
 
         // Load routes
-        require(process.cwd() + "/app/routes");
+        if (options.routesFunction) {
+            options.routesFunction();
+        } else {
+            require(process.cwd() + "/app/routes");
+        }
     }
 
     /**
@@ -134,7 +145,7 @@ class RouterFacade {
      * @param req
      * @returns
      */
-    dissolve(req: IncomingMessage | any | null): RouteObject | null {
+    dissolve(req: Request): RouteObject | null {
         if (!req || !req.url) {
             return null;
         }
@@ -147,25 +158,42 @@ class RouterFacade {
                 : req.url;
 
         if (req.method === "GET") {
-            return this.dissolveRoute(this.routesGET, cleanUrl);
+            return this.dissolveRoute(this.routesGET, cleanUrl, req);
         } else if (req.method === "POST") {
-            return this.dissolveRoute(this.routesPOST, cleanUrl);
+            return this.dissolveRoute(this.routesPOST, cleanUrl, req);
         } else if (req.method === "PUT") {
-            return this.dissolveRoute(this.routesPUT, cleanUrl);
+            return this.dissolveRoute(this.routesPUT, cleanUrl, req);
         } else if (req.method === "DELETE") {
-            return this.dissolveRoute(this.routesDELETE, cleanUrl);
+            return this.dissolveRoute(this.routesDELETE, cleanUrl, req);
         } else if (req.method === "OPTIONS") {
             if (req.headers["access-control-request-method"] === "GET") {
-                return this.dissolveRoute(this.routesGET, cleanUrl);
+                return this.dissolveRoute(this.routesGET, cleanUrl, req);
             } else if (req.headers["access-control-request-method"] === "POST") {
-                return this.dissolveRoute(this.routesPOST, cleanUrl);
+                return this.dissolveRoute(this.routesPOST, cleanUrl, req);
             } else if (req.headers["access-control-request-method"] === "PUT") {
-                return this.dissolveRoute(this.routesPUT, cleanUrl);
+                return this.dissolveRoute(this.routesPUT, cleanUrl, req);
             } else if (req.headers["access-control-request-method"] === "DELETE") {
-                return this.dissolveRoute(this.routesDELETE, cleanUrl);
+                return this.dissolveRoute(this.routesDELETE, cleanUrl, req);
             }
         }
         return null;
+    }
+
+    /**
+     * Extrahiert die Parameterwerte aus einer URL basierend auf einem Routenpfad.
+     * @param {string} path - Der Routenpfad.
+     * @param {Array} match - Das Match-Array des regulären Ausdrucks.
+     * @returns {Object} - Ein Objekt mit den extrahierten Parametern.
+     */
+    extractParams(path: string, match: any) {
+        const params: any = {};
+        const paramNames = path.match(/\/:([\w]+)\??/g) || [];
+
+        paramNames.forEach((param, index) => {
+            params[param.substring(2).replace("?", "")] = match[index + 1] || null;
+        });
+
+        return params;
     }
 
     /**
@@ -175,60 +203,28 @@ class RouterFacade {
      * @param url
      * @returns
      */
-    dissolveRoute(routes: any, url: string) {
+    dissolveRoute(routes: any, url: string, request?: Request) {
         if (routes[url]) {
             // If url matches directly -> instant return
             return { ...routes[url], params: {} };
         } else {
-            // Try to find the matching route: Run through the slash-separated parts of the route
-            const partsRequest = url.split("/");
+            for (const route in routes) {
+                const routeObj = routes[route];
+                const regex = routeObj.path
+                    .replace(/\/:\w+\?/g, "(?:/([^/]+))?")
+                    .replace(/\/:\w+/g, "/([^/]+)")
+                    .replace(/\//g, "\\/");
+                const match = url.match(regex);
 
-            for (let path in routes) {
-                let status = true;
-                const parts = path.split("/");
-                const params: { [key: string]: any } = {};
-
-                for (let i in partsRequest) {
-                    if (partsRequest[i] !== parts[i]) {
-                        // Handle URL-Params
-                        if (parts[i] && parts[i].trim().substring(0, 1) === ":") {
-                            params[parts[i].trim().substring(1).toString()] = partsRequest[i];
-                            continue;
-                        }
-
-                        status = false;
-                        continue;
+                if (match) {
+                    if (request) {
+                        request.params = this.extractParams(routeObj.path, match);
+                        return { ...routeObj };
                     }
-                }
-
-                if (status) {
-                    return { ...routes[path], params: params };
+                    return { ...routeObj, params: this.extractParams(routeObj.path, match) };
                 }
             }
         }
-    }
-
-    /**
-     * Sends the default 404-Page
-     *
-     * @param res
-     */
-    sendError(res: ServerResponse, code: number, message?: string) {
-        res.writeHead(code, { "Content-Type": "text/html" });
-        res.end(message ? message : code === 404 ? "Oops! Page not found ..." : "Oops! There was an unexpected error ...");
-    }
-
-    /**
-     * Parses JSON without exception
-     */
-    parseJson(jsonObject: any) {
-        let json: any = {};
-        try {
-            json = JSON.parse(jsonObject);
-        } catch(e: any) {
-            console.error(e);
-        }
-        return json;
     }
 
     /**
@@ -238,354 +234,197 @@ class RouterFacade {
      * @param res
      */
     async handleRequest(req: null | IncomingMessage, res: null | ServerResponse, options?: any) {
-        let customRequest = null;
-        if (!req && this.mode === "aws-lambda" && options && options.event) {
-            customRequest = {
-                method: options.event.requestContext.http.method,
-                url:
-                    options.event.rawPath +
-                    (options.event.rawQueryString && options.event.rawQueryString.trim() !== "" ? "?" + options.event.rawQueryString : ""),
-                headers: options.event.headers,
-                urlParams: options.event.queryStringParameters ? options.event.queryStringParameters : {},
-            };
-        }
+        const request = await this.mapRequest(req, options);
 
-        if (!this.kernel) {
-            if (res) {
-                res.end();
-            }
-            throw new Error("Missing Kernel in Router ...");
-        }
-
-        const route = this.dissolve(customRequest !== null && this.mode === "aws-lambda" ? customRequest : req);
+        const route = this.dissolve(request);
         const response = new Response({ mode: this.mode });
         if (res) {
             response.setServerResponse(res);
         }
 
-        // Load Body
-        let body: any = [];
-        const bodyPlain: any =
-            this.mode === "aws-lambda"
-                ? options && options.event && options.event.body
-                    ? options.event.body
-                    : null
-                : req
-                ? await new Promise((resolve: Function) => {
-                      req.on("data", (chunk) => {
-                          body.push(chunk);
-                      }).on("end", () => {
-                          resolve(Buffer.concat(body).toString());
-                      });
-                  })
-                : null;
-
-        const urlParams: any = {};
-        if (!customRequest) {
-            if (req && req.url && req.url.indexOf("?") > 0) {
-                const temp = req.url.substring(req.url.indexOf("?") + 1);
-                if (temp && temp.trim() !== "") {
-                    const entries = temp.split("&");
-                    for (let entry of entries) {
-                        if (entry.indexOf("=") > 0) {
-                            urlParams[entry.substring(0, entry.indexOf("="))] = entry.substring(entry.indexOf("=") + 1);
-                        } else {
-                            urlParams[entry] = true;
-                        }
-                    }
-                }
-            }
+        if (!route) {
+            return this.handleError(request, response, 404, "Not found ...");
         }
 
-        const request =
-            this.mode === "aws-lambda" && customRequest
-                ? {
-                      body:
-                          bodyPlain &&
-                          customRequest.headers["content-type"] === "application/json" &&
-                          (bodyPlain.trim().substring(0, 1) === "[" || bodyPlain.trim().substring(0, 1) === "{")
-                              ? this.parseJson(bodyPlain)
-                              : bodyPlain
-                              ? qs.parse(
-                                    options && options.event && options.event.isBase64Encoded
-                                        ? Buffer.from(bodyPlain, "base64").toString("utf-8")
-                                        : bodyPlain
-                                )
-                              : {},
-                      bodyPlain: bodyPlain,
-                      params: route && route.params ? route.params : {},
-                      url: customRequest.url,
-                      urlParams: customRequest.urlParams,
-                      headers: customRequest.headers,
-                      method: customRequest.method,
-                      on: req ? req.on : undefined,
-                      request: req,
-                  }
-                : req
-                ? {
-                      body:
-                          bodyPlain &&
-                          req.headers["content-type"] === "application/json" &&
-                          (bodyPlain.trim().substring(0, 1) === "[" || bodyPlain.trim().substring(0, 1) === "{")
-                              ? this.parseJson(bodyPlain)
-                              : bodyPlain
-                              ? qs.parse(bodyPlain)
-                              : {},
-                      bodyPlain: bodyPlain,
-                      params: route && route.params ? route.params : {},
-                      urlParams: urlParams,
-                      httpVersionMajor: req.httpVersionMajor,
-                      httpVersionMinor: req.httpVersionMinor,
-                      httpVersion: req.httpVersion,
-                      headers: req.headers,
-                      rawHeaders: req.rawHeaders,
-                      url: req.url,
-                      method: req.method,
-                      socket: req.socket,
-                      on: req.on,
-                      request: req,
-                  }
-                : null;
-
-        // Check-Middleware
-        if (route && route.options && route.options.middleware && route.options.middleware.length > 0) {
-            for (let middlewareKey of route.options.middleware) {
-                const middleware = this.kernel.middleware[middlewareKey];
-                if (!middleware) {
-                    this.handleResponseAfter(response, request, { status: 500 });
-                    
-                    if (this.mode === "aws-lambda") {
-                        return {
-                            statusCode: 500,
-                            body: JSON.stringify({
-                                status: "error",
-                                message: "Unknown middleware `" + middlewareKey + "` ...",
-                            }),
-                            headers: response.headers,
-                        };
-                    } else if (req && res) {
-                        this.requestConsoleLog(req, 500);
-                        return this.sendError(res, 500, "Unknown middleware `" + middlewareKey + "` ...");
-                    }
-                }
-
-                try {
-                    await new Promise((resolve, reject) => {
-                        try {
-                            middleware(
-                                resolve,
-                                (status: number, data: any) => {
-                                    reject({ status: status, data: data });
-                                },
-                                request,
-                                response
-                            );
-                        } catch (e) {
-                            console.error(e);
-
-                            this.handleResponseAfter(response, request, { status: 500 });
-                            if (this.mode === "aws-lambda") {
-                                return {
-                                    statusCode: 500,
-                                    body: JSON.stringify({
-                                        status: "error",
-                                        message: "Middleware run error `" + middlewareKey + "` ...",
-                                    }),
-                                    headers: response.headers,
-                                };
-                            } else if (req && res) {
-                                this.requestConsoleLog(req, 500);
-                                return this.sendError(res, 500, "Error in middleware `" + middlewareKey + "` ...");
-                            }
-                        }
-                    });
-                } catch (e: any) {
-                    this.handleResponseAfter(response, request, { status: 500, error: typeof e.data === "object" ? JSON.stringify(e.data) : e.data ? e.data : undefined });
-                    
-                    // Send Middleware-Abort
-                    if (this.mode === "aws-lambda") {
-                        return {
-                            statusCode: 500,
-                            body: JSON.stringify({ status: "error", message: e.data }),
-                            headers: response.headers,
-                        };
-                    } else if (res) {
-                        res.writeHead(
-                            e.status,
-                            typeof e.data === "object" ? { "Content-Type": "application/json" } : { "Content-Type": "text/html" }
-                        );
-                        res.end(typeof e.data === "object" ? JSON.stringify(e.data) : e.data ? e.data : " ");
-                    }
-                    return;
-                }
-            }
+        if (!route.component) {
+            return this.handleError(request, response, 404, "Missing route function ...");
         }
 
-        // Handle OPTIONS-Request
-        if (request && request.method === "OPTIONS") {
-            if (this.mode === "aws-lambda") {
-                return {
-                    statusCode: 200,
-                    body: "",
-                    headers: response.headers,
-                };
-            } else if (res && req) {
-                res.statusCode = 200;
-                res.setHeader("Content-Length", "0");
-                res.end();
-                this.requestConsoleLog(req, 200);
+        try {
+            await this.handleMiddleware(route, request, response);
+
+            if (request.method === "OPTIONS" && !request.skipOptionsForward) {
+                return this.handleReturn(request, response, "");
             }
+
+            const result = await route.component(request, response);
+            this.handleReturn(request, response, result);
+        } catch (e: any) {
+            return this.handleError(request, response, 500, e);
+        }
+    }
+
+    async handleMiddleware(route: RouteObject, request: Request, response: Response) {
+        if (!route || !route.options || !route.options.middleware || route.options.middleware.length < 1) {
             return;
         }
 
-        // Resolve route-component (handle controller definition)
-        if (route && typeof route.component === "string") {
-            const split = route.component.split("@");
-            const controller = this.kernel.controller[split[0]];
-            if (!controller) {
-                this.handleResponseAfter(response, request, { status: 500, error: "Controller `" + split[0] + "` not found ..." });
-                
-                if (this.mode === "aws-lambda") {
-                    return {
-                        statusCode: 500,
-                        body: JSON.stringify({
-                            status: "error",
-                            message: "Controller `" + split[0] + "` not found ...",
-                        }),
-                        headers: response.headers,
-                    };
-                } else if (res) {
-                    res.writeHead(500, { "Content-Type": "text/html" });
-                    res.end("Controller `" + split[0] + "` not found ...");
+        for (let middlewareKey of route.options.middleware) {
+            const middleware = this.kernel.middleware[middlewareKey];
+            if (!middleware) {
+                throw new Error("Unknown middleware `" + middlewareKey + "` ...");
+            }
+
+            await new Promise((resolve, reject) => {
+                try {
+                    middleware(resolve, reject, request, response);
+                } catch (e) {
+                    reject(e);
                 }
+            });
+        }
+    }
+
+    async mapRequest(req: null | IncomingMessage, options?: any) {
+        const request = new Request();
+        if (!req && this.mode === "aws-lambda" && options && options.event) {
+            request.method = options.event.requestContext.http.method;
+            request.url =
+                options.event.rawPath +
+                (options.event.rawQueryString && options.event.rawQueryString.trim() !== "" ? "?" + options.event.rawQueryString : "");
+            request.headers = options.event.headers;
+            request.query = options.event.queryStringParameters ? options.event.queryStringParameters : {};
+            request.bodyPlain = options && options.event && options.event.body ? options.event.body : "";
+        } else if (req && req instanceof IncomingMessage) {
+            const parsedBody: any = await this.parseRequestBody(req);
+            request.message = req;
+            request.bodyPlain = parsedBody ? parsedBody.plain : "";
+            request.body = parsedBody ? parsedBody.parsed : {};
+            request.headers = req.headers;
+            request.rawHeaders = req.rawHeaders;
+            request.url = req.url ? req.url : "";
+            request.method = req.method ? req.method : "";
+            request.socket = req.socket;
+        }
+        return request;
+    }
+
+    async parseRequestBody(req: IncomingMessage) {
+        return new Promise((resolve, reject) => {
+            const contentType = req.headers["content-type"] || "";
+            if (contentType.includes("multipart/form-data")) {
+                resolve({ plain: {}, parsed: {} });
                 return;
             }
 
-            // Set Controller method as route-component
-            const controllerInstance = new controller();
-            if (!controllerInstance || !split || !split[1] || !controllerInstance[split[1]]) {
-                this.handleResponseAfter(response, request, { status: 500, error: "controllerInstance `" + split[1] + "` not found ..." });
-                throw new Error("controllerInstance " + split[1] + " not found ...");
-            }
-            route.component = controllerInstance[split[1]].bind(controllerInstance);
-        }
+            let body: any = [];
+            req.on("data", (chunk: any) => {
+                body.push(chunk);
+            });
 
-        if (route && route.component !== undefined) {
-            try {
-                await route.component(request, response);
+            req.on("end", () => {
+                body = Buffer.concat(body);
 
-                this.handleResponseAfter(response, request, { status: response.statusCode });
-                if (this.mode === "aws-lambda") {
-                    return {
-                        statusCode: response.statusCode,
-                        body: typeof response.content === "object" ? JSON.stringify(response.content) : response.content,
-                        headers: response.headers,
-                    };
-                } else if (res && req) {
-                    if (response.autoEnd) {
-                        res.end();
+                // Content-Type Verarbeitung
+                if (contentType.includes("application/json")) {
+                    try {
+                        resolve({ plain: body, parsed: JSON.parse(body.toString()) });
+                    } catch (e) {
+                        reject(new Error("Invalid JSON"));
                     }
-                    this.requestConsoleLog(req, response.statusCode);
+                } else if (contentType.includes("application/x-www-form-urlencoded")) {
+                    resolve({ plain: body, parsed: querystring.parse(body.toString()) });
+                } else {
+                    resolve({ plain: body, parsed: body.toString() });
                 }
-            } catch (e: any) {
-                if (process.env.APP_DEBUG_CONSOLE) {
-                    console.error(e);
-                }
+            });
 
-                this.handleResponseAfter(response, request, { status: 500, error: e && e.stack && e.stack.toString().trim() !== '' ? e.stack : e && e.toString() !== '' ? e.toString() : "Error running the component ..." });
-                if (this.mode === "aws-lambda") {
-                    return {
-                        statusCode: 500,
-                        body: JSON.stringify({
-                            status: "error",
-                            message: "Error running the component ...",
-                            error: e.toString(),
-                        }),
-                        headers: response.headers,
-                    };
-                } else if (res && req) {
-                    this.sendError(res, 500, process.env.APP_DEBUG && process.env.APP_DEBUG !== "false" ? e.stack : null);
-                    this.requestConsoleLog(req, 500);
-                }
-            }
-        } else {
-            this.handleResponseAfter(response, request, { status: 500, error: "Route component not found ..." });
-            if (this.mode === "aws-lambda") {
-                return {
-                    statusCode: 500,
-                    body: JSON.stringify({
-                        status: "error",
-                        message: "Route component not found ...",
-                    }),
-                    headers: response.headers,
-                };
-            } else if (res && req) {
-                this.sendError(res, 404);
-                this.requestConsoleLog(req, 404);
-            }
-        }
+            req.on("error", (err) => {
+                reject(err);
+            });
+        });
     }
 
-    async handleResponseAfter(response: any, req: any, payload: any) {
-        response.handleEvents("after", req, payload);
-    }
+    handleReturn(request: Request, response: Response, body: any) {
+        const contentType = response.headers["content-type"] || request.headers["content-type"] || "";
+        if (response.res && response.res instanceof ServerResponse) {
+            if (!response.res.statusCode) {
+                response.res.statusCode = 200;
+            }
 
-    requestConsoleLog(req: IncomingMessage, httpCode: number) {
-        if (Config.get("application.router.requests.logConsole") !== true && !Config.get("application.router.requests.logFile")) {
+            // @Todo
+            if (typeof body === "object" && !Buffer.isBuffer(body)) {
+                // if (!response.res.headersSent) {
+                //     response.header("Content-Type", "application/json");
+                // }
+                // if (!response.res.writableEnded) {
+                //     response.res.write(JSON.stringify(body));
+                // }
+            } else {
+                // if(!response.res.)
+                // if (!response.res.writableEnded) {
+                //     response.res.write(body);
+                // }
+            }
+
+            response.end();
             return;
         }
 
-        const date = new Date();
-        const month = date.getMonth() + 1;
-        const ip = req.headers["x-forwarded-for"]
-            ? req.headers["x-forwarded-for"]
-            : req.headers["x-forwarded"]
-            ? req.headers["x-forwarded"]
-            : req.headers["forwarded-for"]
-            ? req.headers["forwarded-for"]
-            : req.socket && req.socket.remoteAddress
-            ? req.socket.remoteAddress
-            : null;
-        const logString =
-            '{ date: "' +
-            date.getFullYear() +
-            "-" +
-            (month < 10 ? "0" + month : month) +
-            "-" +
-            date.getDate() +
-            " " +
-            (date.getHours() + 1) +
-            ":" +
-            date.getMinutes() +
-            ":" +
-            date.getSeconds() +
-            '", method: "' +
-            req.method +
-            '", url: "' +
-            req.url +
-            '", ip: "' +
-            ip +
-            '", httpcode: ' +
-            httpCode.toString() +
-            " }";
+        return {
+            statusCode: response.statusCode ? response.statusCode : 200,
+            body: contentType.includes("application/json") ? JSON.stringify(body) : body,
+            headers: response.headers,
+        };
+    }
 
-        if (Config.get("application.router.requests.logConsole")) {
-            console.log(logString);
+    handleError(request: Request, response: Response, statusCode: number, error: Error | string) {
+        if (error) {
+            console.error(error);
         }
 
-        if (Config.get("application.router.requests.logFile")) {
-            try {
-                const filepath = Config.get("application.router.requests.logFile");
-                if (filepath && filepath.trim() !== "") {
-                    fs.appendFileSync(
-                        filepath.trim().substring(0, 1) === "/" ? filepath : process.cwd() + "/" + filepath,
-                        logString + "\n"
-                    );
-                }
-            } catch (e) {
-                console.error(e);
+        if (response.res && response.res instanceof ServerResponse && response.res.writableEnded) {
+            return;
+        }
+
+        const errorMessage =
+            error && typeof error === "string" && error.trim() !== ""
+                ? error.trim()
+                : error && error.toString() && error.toString().trim() !== ""
+                ? error.toString().trim()
+                : "Internal Server Error";
+
+        let data: any = "";
+        const contentType = response.headers["content-type"] || request.headers["content-type"] || "";
+        if (contentType.includes("application/json")) {
+            if (response.res && response.res instanceof ServerResponse) {
+                response.header("Content-Type", "application/json");
             }
+
+            data = {
+                status: "error",
+                message: errorMessage,
+            };
+        } else {
+            if (response.res && response.res instanceof ServerResponse) {
+                response.header("Content-Type", "text/html");
+            }
+
+            data = "<div>" + errorMessage + "</div>";
         }
+
+        if (response.res && response.res instanceof ServerResponse) {
+            response.status(statusCode);
+            response.send(data);
+            response.end();
+            return;
+        }
+
+        return {
+            statusCode: statusCode,
+            body: contentType.includes("application/json") ? JSON.stringify(data) : data,
+            headers: response.headers,
+        };
     }
 }
 
