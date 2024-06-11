@@ -32,6 +32,11 @@ app.boot({
             });
         });
 
+        Route.get("/download", async (req: Request, res: Response) => {
+            const file = path.join(__dirname, "uploads", "2024-06-09_test.zip");
+            return await res.download(file);
+        });
+
         Route.post("/fileupload", (req: Request, res: Response) => {
             if (!req.message) {
                 throw Error("Missing IncomingMessage ...");

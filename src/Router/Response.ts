@@ -1,3 +1,6 @@
+import fs from "fs";
+import path from "path";
+import mime from "mime-types";
 import { ServerResponse } from "http";
 
 export class Response {
@@ -84,6 +87,48 @@ export class Response {
             }
         }
         return this;
+    }
+
+    async download(filepath: string, options?: any) {
+        return new Promise((resolve: Function, reject: Function) => {
+            if (!this.res) {
+                return reject("Cannot download: Original response object is missing");
+            }
+
+            if (!fs.existsSync(filepath)) {
+                return reject("Cannot download: File '" + filepath + "' does not exist");
+            }
+
+            let mimeType = options && options.contentType ? options.contentType : "application/octet-stream";
+            if (options && options.inline) {
+                let tempMime = mime.lookup(filepath);
+                if (tempMime) {
+                    mimeType = tempMime;
+                }
+            }
+
+            const stats = fs.lstatSync(filepath);
+            this.header(
+                "Content-Disposition",
+                (options && options.inline ? "inline" : "attachment") +
+                    "; filename=" +
+                    (options && options.filename ? options.filename : path.basename(filepath))
+            );
+            this.header("Content-Type", mimeType);
+            this.header("Content-Length", stats.size.toString());
+
+            const readStream = fs.createReadStream(filepath);
+            readStream.pipe(this.res);
+
+            readStream.on("close", () => {
+                resolve();
+            });
+
+            readStream.on("error", (streamErr) => {
+                console.error(streamErr);
+                reject(streamErr);
+            });
+        });
     }
 
     end() {
