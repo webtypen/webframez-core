@@ -9,6 +9,7 @@ export class Request {
     body: any = null;
     bodyPlain: any = null;
     query: any = {};
+    queryRaw: any = "";
     params: any = {};
     files: any = {};
     socket: any = undefined;

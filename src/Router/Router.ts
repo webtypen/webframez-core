@@ -322,6 +322,8 @@ class RouterFacade {
         } else if (req && req instanceof IncomingMessage) {
             const parsedBody: any = await this.parseRequestBody(req);
             const parsedUrl = req.url ? url.parse(req.url) : null;
+            const searchParams = parsedUrl && parsedUrl.query ? new URLSearchParams(parsedUrl.query) : null;
+            const queryParams = searchParams ? Object.fromEntries(searchParams.entries()) : {};
 
             request.message = req;
             request.bodyPlain = parsedBody ? parsedBody.plain : "";
@@ -331,7 +333,8 @@ class RouterFacade {
             request.url = req.url ? req.url : "";
             request.method = req.method ? req.method : "";
             request.socket = req.socket;
-            request.query = parsedUrl ? parsedUrl.query : {};
+            request.query = queryParams;
+            request.queryRaw = parsedUrl && parsedUrl.query ? parsedUrl.query : "";
             request.pathname = parsedUrl ? parsedUrl.pathname : "";
         }
         return request;
