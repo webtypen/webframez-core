@@ -2,6 +2,7 @@ import { IncomingMessage, ServerResponse } from "http";
 import { Response } from "./Response";
 import { Request } from "./Request";
 import querystring from "querystring";
+import url from "url";
 
 type RouteObject = {
     path: string;
@@ -218,7 +219,6 @@ class RouterFacade {
      */
     dissolveRoute(routes: any, url: string, request?: Request) {
         if (routes[url]) {
-            // If url matches directly -> instant return
             return { ...routes[url], params: {} };
         } else {
             for (const route in routes) {
@@ -321,6 +321,8 @@ class RouterFacade {
             request.bodyPlain = options && options.event && options.event.body ? options.event.body : "";
         } else if (req && req instanceof IncomingMessage) {
             const parsedBody: any = await this.parseRequestBody(req);
+            const parsedUrl = req.url ? url.parse(req.url) : null;
+
             request.message = req;
             request.bodyPlain = parsedBody ? parsedBody.plain : "";
             request.body = parsedBody ? parsedBody.parsed : {};
@@ -329,6 +331,8 @@ class RouterFacade {
             request.url = req.url ? req.url : "";
             request.method = req.method ? req.method : "";
             request.socket = req.socket;
+            request.query = parsedUrl ? parsedUrl.query : {};
+            request.pathname = parsedUrl ? parsedUrl.pathname : "";
         }
         return request;
     }

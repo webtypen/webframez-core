@@ -18,12 +18,8 @@ class RouteFacade {
         Router_1.Router.register("GET", (this.tempGroupPrefix ? this.tempGroupPrefix : "") + path, component, options || this.tempGroupMiddleware
             ? Object.assign(Object.assign({}, (options ? options : {})), { middleware: this.tempGroupMiddleware || (options && options.middleware)
                     ? [
-                        ...(this.tempGroupMiddleware
-                            ? this.tempGroupMiddleware
-                            : []),
-                        ...(options && options.middleware
-                            ? options.middleware
-                            : []),
+                        ...(this.tempGroupMiddleware ? this.tempGroupMiddleware : []),
+                        ...(options && options.middleware ? options.middleware : []),
                     ]
                     : null }) : {});
     }
@@ -38,12 +34,8 @@ class RouteFacade {
         Router_1.Router.register("POST", (this.tempGroupPrefix ? this.tempGroupPrefix : "") + path, component, options || this.tempGroupMiddleware
             ? Object.assign(Object.assign({}, (options ? options : {})), { middleware: this.tempGroupMiddleware || (options && options.middleware)
                     ? [
-                        ...(this.tempGroupMiddleware
-                            ? this.tempGroupMiddleware
-                            : []),
-                        ...(options && options.middleware
-                            ? options.middleware
-                            : []),
+                        ...(this.tempGroupMiddleware ? this.tempGroupMiddleware : []),
+                        ...(options && options.middleware ? options.middleware : []),
                     ]
                     : null }) : {});
     }
@@ -58,12 +50,8 @@ class RouteFacade {
         Router_1.Router.register("PUT", (this.tempGroupPrefix ? this.tempGroupPrefix : "") + path, component, options || this.tempGroupMiddleware
             ? Object.assign(Object.assign({}, (options ? options : {})), { middleware: this.tempGroupMiddleware || (options && options.middleware)
                     ? [
-                        ...(this.tempGroupMiddleware
-                            ? this.tempGroupMiddleware
-                            : []),
-                        ...(options && options.middleware
-                            ? options.middleware
-                            : []),
+                        ...(this.tempGroupMiddleware ? this.tempGroupMiddleware : []),
+                        ...(options && options.middleware ? options.middleware : []),
                     ]
                     : null }) : {});
     }
@@ -78,20 +66,17 @@ class RouteFacade {
         Router_1.Router.register("DELETE", (this.tempGroupPrefix ? this.tempGroupPrefix : "") + path, component, options || this.tempGroupMiddleware
             ? Object.assign(Object.assign({}, (options ? options : {})), { middleware: this.tempGroupMiddleware || (options && options.middleware)
                     ? [
-                        ...(this.tempGroupMiddleware
-                            ? this.tempGroupMiddleware
-                            : []),
-                        ...(options && options.middleware
-                            ? options.middleware
-                            : []),
+                        ...(this.tempGroupMiddleware ? this.tempGroupMiddleware : []),
+                        ...(options && options.middleware ? options.middleware : []),
                     ]
                     : null }) : {});
     }
     group(config, children) {
         // Handle group prefix
+        const tempGroupPrefixBefore = this.tempGroupPrefix ? this.tempGroupPrefix + "" : null;
+        const tempGroupMiddlewareBefore = this.tempGroupMiddleware && this.tempGroupMiddleware.length > 0 ? this.tempGroupMiddleware : null;
         if (config && config.prefix && config.prefix.trim() !== "") {
-            this.tempGroupPrefix =
-                (this.tempGroupPrefix ? this.tempGroupPrefix : "") + config.prefix;
+            this.tempGroupPrefix = (this.tempGroupPrefix ? this.tempGroupPrefix : "") + config.prefix;
         }
         // Handle group middleware
         if (config && config.middleware && config.middleware.length > 0) {
@@ -99,17 +84,14 @@ class RouteFacade {
                 this.tempGroupMiddleware = config.middleware;
             }
             else {
-                this.tempGroupMiddleware = [
-                    ...this.tempGroupMiddleware,
-                    ...config.middleware,
-                ];
+                this.tempGroupMiddleware = [...this.tempGroupMiddleware, ...config.middleware];
             }
         }
         // Handle children / group body
         children();
         // Reset temp-group data
-        this.tempGroupPrefix = null;
-        this.tempGroupMiddleware = null;
+        this.tempGroupPrefix = tempGroupPrefixBefore;
+        this.tempGroupMiddleware = tempGroupMiddlewareBefore;
     }
 }
 exports.RouteFacade = RouteFacade;

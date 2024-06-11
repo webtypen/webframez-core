@@ -18,9 +18,11 @@ class WebApplication {
             }
         }
         Router_1.Router.init({
-            mode: options.mode ? options.mode : null,
+            mode: options && options.mode ? options.mode : null,
             kernel: options && options.kernel ? options.kernel : null,
             basename: options && options.basename ? options.basename : null,
+            routesFunction: options && options.routesFunction ? options.routesFunction : null,
+            tempDir: options && options.tempDir ? options.tempDir : null,
         });
         const port = options && options.port ? options.port : 3000;
         this.server = http_1.default.createServer((req, res) => {
@@ -29,9 +31,7 @@ class WebApplication {
         this.server.listen(port, () => {
             console.log("Server started and listening on port " +
                 port +
-                (options && options.basename
-                    ? " (Basename: " + options && options.basename + ")"
-                    : ""));
+                (options && options.basename ? " (Basename: " + options && options.basename + ")" : ""));
         });
         return this.server;
     }

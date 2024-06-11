@@ -5,8 +5,9 @@ export declare class Response {
     statusCode: number;
     content?: any | null | undefined;
     headers: {
-        [key: string]: string;
+        [key: string]: any;
     };
+    events: any;
     /**
      * Mode
      */
@@ -15,14 +16,14 @@ export declare class Response {
     /**
      * Sets the ServerResponse (res) Object (nodejs/http module)
      * @param res
-     * @returns
+     * @returns Response
      */
     setServerResponse(res: ServerResponse): this;
     /**
      * Set the http-status-code
      *
      * @param status
-     * @returns
+     * @returns Response
      */
     status(status: number): Response;
     /**
@@ -30,7 +31,7 @@ export declare class Response {
      *
      * @param type
      * @param value
-     * @returns
+     * @returns Response
      */
     header(type: string, value: string): this;
     /**
@@ -38,6 +39,18 @@ export declare class Response {
      * Any objects will be stringified to JSON
      *
      * @param content
+     * @returns Response
      */
     send(content: any): this;
+    download(filepath: string, options?: any): Promise<unknown>;
+    end(): this;
+    registerEvent(eventKey: string, func: any): Promise<void>;
+    /**
+     * Runs the registered events for an event-type
+     *
+     * @param eventKey
+     * @param req
+     * @param payload
+     */
+    handleEvents(eventKey: string, req: any, payload: any): Promise<void>;
 }
