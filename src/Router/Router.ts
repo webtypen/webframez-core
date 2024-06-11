@@ -5,7 +5,9 @@ import querystring from "querystring";
 
 type RouteObject = {
     path: string;
-    component: any;
+    component?: any;
+    controller?: any;
+    method_name?: string;
     options: { [key: string]: any };
     params: object;
 };
@@ -76,7 +78,6 @@ class RouterFacade {
 
     /**
      * Load the application-routes
-     *
      */
     init(options?: any) {
         this.basename = options && options.basename ? options.basename : null;
@@ -92,6 +93,29 @@ class RouterFacade {
     }
 
     /**
+     * Dissolves 'MyController@myFunction'
+     *
+     * @param str
+     */
+    dissolveStringComponent(str: string, path: string) {
+        const split = str.split("@");
+
+        if (!split || !split[0] || split[0].trim() === "" || !split[1] || split[1].trim() === "") {
+            throw new Error("Missing Controller Route for '" + path + "'");
+        }
+
+        const controller = this.kernel.controller[split[0]];
+        if (!controller) {
+            throw new Error("Could not dissvole Controller '" + split[0] + "' from route ' +  path+ '");
+        }
+
+        return {
+            controller: controller,
+            method_name: split[1],
+        };
+    }
+
+    /**
      * Register a route
      *
      * @param type
@@ -104,30 +128,27 @@ class RouterFacade {
             path = this.basename + path;
         }
 
+        let routeConf: any = {
+            path: path,
+            options: options,
+        };
+
+        if (typeof component === "string") {
+            const stringComponent = this.dissolveStringComponent(component, path);
+            routeConf.controller = stringComponent.controller;
+            routeConf.method_name = stringComponent.method_name;
+        } else {
+            routeConf.component = component;
+        }
+
         if (type === "GET") {
-            this.routesGET[path] = {
-                path: path,
-                component: component,
-                options: options,
-            };
+            this.routesGET[path] = routeConf;
         } else if (type === "POST") {
-            this.routesPOST[path] = {
-                path: path,
-                component: component,
-                options: options,
-            };
+            this.routesPOST[path] = routeConf;
         } else if (type === "PUT") {
-            this.routesPUT[path] = {
-                path: path,
-                component: component,
-                options: options,
-            };
+            this.routesPUT[path] = routeConf;
         } else if (type === "DELETE") {
-            this.routesDELETE[path] = {
-                path: path,
-                component: component,
-                options: options,
-            };
+            this.routesDELETE[path] = routeConf;
         }
     }
 
@@ -238,7 +259,7 @@ class RouterFacade {
             return this.handleError(request, response, 404, "Not found ...");
         }
 
-        if (!route.component) {
+        if (!(route.component && typeof route.component === "function") && !(route.controller && route.method_name)) {
             return this.handleError(request, response, 404, "Missing route function ...");
         }
 
@@ -249,7 +270,18 @@ class RouterFacade {
                 return this.handleReturn(request, response, "");
             }
 
-            const result = await route.component(request, response);
+            let result = null;
+            if (route.controller && route.method_name) {
+                const controllerInstance = new route.controller();
+
+                if (!controllerInstance[route.method_name]) {
+                    return this.handleError(request, response, 404, "Unknown method '" + route.method_name + "'.");
+                }
+
+                result = await controllerInstance[route.method_name].bind(controllerInstance)(request, response);
+            } else {
+                result = await route.component(request, response);
+            }
             this.handleReturn(request, response, result);
         } catch (e: any) {
             return this.handleError(request, response, 500, e);
@@ -320,7 +352,8 @@ class RouterFacade {
                 // Content-Type Verarbeitung
                 if (contentType.includes("application/json")) {
                     try {
-                        resolve({ plain: body, parsed: JSON.parse(body.toString()) });
+                        const text = body.toString();
+                        resolve({ plain: body, parsed: text && text.trim() !== "" ? JSON.parse(text) : {} });
                     } catch (e) {
                         reject(new Error("Invalid JSON"));
                     }

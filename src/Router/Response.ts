@@ -75,7 +75,9 @@ export class Response {
             // Do nothing ... Store content in variable and use it later ...
         } else {
             if (typeof content === "object" && !Buffer.isBuffer(content)) {
-                this.res?.setHeader("Content-Type", "application/json");
+                if (!this.res?.headersSent) {
+                    this.res?.setHeader("Content-Type", "application/json");
+                }
                 this.res?.write(JSON.stringify(content));
             } else {
                 this.res?.write(content);
