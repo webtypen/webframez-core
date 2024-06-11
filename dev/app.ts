@@ -38,7 +38,6 @@ app.boot({
             }
 
             const busboy = Busboy({ headers: req.headers, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB Limit
-
             busboy.on("file", (fieldname: any, file: any, options: any) => {
                 console.log(`Uploading:`, options);
 

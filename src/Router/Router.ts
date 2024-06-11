@@ -1,5 +1,3 @@
-import fs from "fs";
-import path from "path";
 import { IncomingMessage, ServerResponse } from "http";
 import { Response } from "./Response";
 import { Request } from "./Request";
@@ -27,11 +25,6 @@ class RouterFacade {
      * Mode
      */
     mode: any | null = null;
-
-    /**
-     * Last Options Object
-     */
-    lastOptions: any | null = null;
 
     /**
      * GET Route Store
@@ -89,7 +82,6 @@ class RouterFacade {
         this.basename = options && options.basename ? options.basename : null;
         this.kernel = options && options.kernel ? options.kernel : null;
         this.mode = options && options.mode ? options.mode : null;
-        this.lastOptions = options;
 
         // Load routes
         if (options.routesFunction) {
