@@ -28,7 +28,7 @@ export class ConsoleApplication {
       }
       consoleCommand.action(async () => {
         const service = await new command();
-        return await service.handle();
+        return await service.handleSystem();
       });
       program.addCommand(consoleCommand);
     }
