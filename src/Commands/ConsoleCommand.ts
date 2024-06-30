@@ -6,19 +6,17 @@ export class ConsoleCommand {
     static signature: string;
     static description?: string;
 
-    rl: readline.Interface | null;
+    rl: readline.Interface | null = null;
     currentProgress: ConsoleProgressBar | null = null;
-
-    constructor() {
-        this.rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout,
-        });
-    }
 
     async handle() {}
 
     async handleSystem() {
+        this.rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+        });
+
         try {
             await this.handle();
         } catch (e) {
