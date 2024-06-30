@@ -44,8 +44,8 @@ export class ConsoleCommand {
         return this;
     }
 
-    ask(question: string) {
-        return new Promise((resolve) => {
+    async ask(question: string) {
+        const result = await new Promise((resolve) => {
             if (this.rl) {
                 this.rl.question(question, (answer) => {
                     resolve(answer);
@@ -53,6 +53,7 @@ export class ConsoleCommand {
             }
             resolve(null);
         });
+        return result;
     }
 
     progress(count: number) {
