@@ -48,8 +48,9 @@ export class ConsoleCommand {
                 this.rl.question(question, (answer) => {
                     resolve(answer);
                 });
+            } else {
+                resolve(null);
             }
-            resolve(null);
         });
         return result;
     }
