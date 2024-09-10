@@ -112,14 +112,14 @@ export class Model {
      * @returns any
      */
     static async aggregate(aggregation: any, collection?: string) {
-        const model = collection ? null : new this();
+        const model = new this();
         return await DBConnection.execute(
             {
                 type: "aggregation",
                 table: collection ? collection : model ? model.__table : undefined,
                 aggregation: aggregation,
             },
-            collection ? collection : model ? model.__connection : undefined
+            model.__connection
         );
     }
 
