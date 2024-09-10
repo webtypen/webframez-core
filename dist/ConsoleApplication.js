@@ -36,7 +36,7 @@ class ConsoleApplication {
             }
             consoleCommand.action(() => __awaiter(this, void 0, void 0, function* () {
                 const service = yield new command();
-                return yield service.handle();
+                return yield service.handleSystem();
             }));
             program.addCommand(consoleCommand);
         }
@@ -51,7 +51,7 @@ class ConsoleApplication {
                 }
                 consoleCommand.action(() => __awaiter(this, void 0, void 0, function* () {
                     const service = yield new command();
-                    const result = yield service.handle();
+                    const result = yield service.handleSystem();
                     if (options && options.onEnd) {
                         yield options.onEnd(command.signature);
                     }

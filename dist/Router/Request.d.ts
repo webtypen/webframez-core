@@ -9,6 +9,7 @@ export declare class Request {
     body: any;
     bodyPlain: any;
     query: any;
+    queryRaw: any;
     params: any;
     files: any;
     socket: any;

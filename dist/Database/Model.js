@@ -19,15 +19,7 @@ class Model {
         this.__connection = undefined;
         this.__hidden = [];
         this.__unmapped = [];
-        this.__unmappedSystem = [
-            "__primaryKey",
-            "__table",
-            "__connection",
-            "__unmapped",
-            "__unmappedSystem",
-            "__is_deleted",
-            "__hidden",
-        ];
+        this.__unmappedSystem = ["__primaryKey", "__table", "__connection", "__unmapped", "__unmappedSystem", "__is_deleted", "__hidden"];
     }
     /**
      * Creates a new query-builder object and adds a where-clause
@@ -36,11 +28,16 @@ class Model {
      * @param value
      * @returns QueryBulder
      */
-    static where(column, operator, value) {
-        const model = new this();
+    static where(column, operator, value, collection) {
+        const model = collection ? null : new this();
         const queryBuilder = new QueryBuilder_1.QueryBuilder();
         queryBuilder.setModelMapping(this);
-        queryBuilder.table(model.__table);
+        if (model) {
+            queryBuilder.table(model.__table);
+        }
+        else if (collection) {
+            queryBuilder.table(collection);
+        }
         queryBuilder.where(column, operator, value);
         return queryBuilder;
     }
@@ -50,11 +47,16 @@ class Model {
      * @param sort
      * @returns QueryBulder
      */
-    static orderBy(column, sort) {
-        const model = new this();
+    static orderBy(column, sort, collection) {
+        const model = collection ? null : new this();
         const queryBuilder = new QueryBuilder_1.QueryBuilder();
         queryBuilder.setModelMapping(this);
-        queryBuilder.table(model.__table);
+        if (model) {
+            queryBuilder.table(model.__table);
+        }
+        else if (collection) {
+            queryBuilder.table(collection);
+        }
         queryBuilder.orderBy(column, sort);
         return queryBuilder;
     }
@@ -63,12 +65,17 @@ class Model {
      * @param options?
      * @returns QueryBulder
      */
-    static first(options) {
+    static first(options, collection) {
         return __awaiter(this, void 0, void 0, function* () {
-            const model = new this();
+            const model = collection ? null : new this();
             const queryBuilder = new QueryBuilder_1.QueryBuilder();
             queryBuilder.setModelMapping(this);
-            queryBuilder.table(model.__table);
+            if (model) {
+                queryBuilder.table(model.__table);
+            }
+            else if (collection) {
+                queryBuilder.table(collection);
+            }
             return yield queryBuilder.first(options);
         });
     }
@@ -77,12 +84,17 @@ class Model {
      * @param options?
      * @returns QueryBulder
      */
-    static get(options) {
+    static get(options, collection) {
         return __awaiter(this, void 0, void 0, function* () {
-            const model = new this();
+            const model = collection ? null : new this();
             const queryBuilder = new QueryBuilder_1.QueryBuilder();
             queryBuilder.setModelMapping(this);
-            queryBuilder.table(model.__table);
+            if (model) {
+                queryBuilder.table(model.__table);
+            }
+            else if (collection) {
+                queryBuilder.table(collection);
+            }
             return yield queryBuilder.get(options);
         });
     }
@@ -92,12 +104,17 @@ class Model {
      * @param options?
      * @returns QueryBulder
      */
-    static paginate(count, options) {
+    static paginate(count, options, collection) {
         return __awaiter(this, void 0, void 0, function* () {
-            const model = new this();
+            const model = collection ? null : new this();
             const queryBuilder = new QueryBuilder_1.QueryBuilder();
             queryBuilder.setModelMapping(this);
-            queryBuilder.table(model.__table);
+            if (model) {
+                queryBuilder.table(model.__table);
+            }
+            else if (collection) {
+                queryBuilder.table(collection);
+            }
             return yield queryBuilder.paginate(count, options);
         });
     }
@@ -106,14 +123,14 @@ class Model {
      * @param aggregation
      * @returns any
      */
-    static aggregate(aggregation) {
+    static aggregate(aggregation, collection) {
         return __awaiter(this, void 0, void 0, function* () {
-            const model = new this();
+            const model = collection ? null : new this();
             return yield DBConnection_1.DBConnection.execute({
                 type: "aggregation",
-                table: model.__table,
+                table: collection ? collection : model ? model.__table : undefined,
                 aggregation: aggregation,
-            }, model.__connection);
+            }, collection ? collection : model ? model.__connection : undefined);
         });
     }
     /**
@@ -136,9 +153,7 @@ class Model {
     toArray() {
         const out = {};
         for (let i in this) {
-            if (!this.__unmapped.includes(i) &&
-                !this.__unmappedSystem.includes(i) &&
-                !this.__hidden.includes(i)) {
+            if (!this.__unmapped.includes(i) && !this.__unmappedSystem.includes(i) && !this.__hidden.includes(i)) {
                 out[i] = this[i];
             }
         }

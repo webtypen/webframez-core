@@ -14,39 +14,39 @@ export declare class Model {
      * @param value
      * @returns QueryBulder
      */
-    static where(column: any, operator: any, value: any): QueryBuilder;
+    static where(column: any, operator: any, value: any, collection?: string): QueryBuilder;
     /**
      * Creates a new query-builder object and adds a orderBy-clause
      * @param column
      * @param sort
      * @returns QueryBulder
      */
-    static orderBy(column: any, sort: any): QueryBuilder;
+    static orderBy(column: any, sort: any, collection?: string): QueryBuilder;
     /**
      * Creates a new query-builder object and executes first()
      * @param options?
      * @returns QueryBulder
      */
-    static first(options?: any): Promise<any>;
+    static first(options?: any, collection?: string): Promise<any>;
     /**
      * Creates a new query-builder object and executes get()
      * @param options?
      * @returns QueryBulder
      */
-    static get(options?: any): Promise<any>;
+    static get(options?: any, collection?: string): Promise<any>;
     /**
      * Creates a new query-builder object and executes paginate()
      * @param count
      * @param options?
      * @returns QueryBulder
      */
-    static paginate(count: number, options?: any): Promise<any>;
+    static paginate(count: number, options?: any, collection?: string): Promise<any>;
     /**
      * Executes a database-aggregation (mostly used by no-sql connections)
      * @param aggregation
      * @returns any
      */
-    static aggregate(aggregation: any): Promise<any>;
+    static aggregate(aggregation: any, collection?: string): Promise<any>;
     /**
      * Returns the model-data without system- and unmapped-fields (new js-object)
      * @returns object

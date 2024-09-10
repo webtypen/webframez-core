@@ -10,6 +10,7 @@ class Request {
         this.body = null;
         this.bodyPlain = null;
         this.query = {};
+        this.queryRaw = "";
         this.params = {};
         this.files = {};
         this.socket = undefined;
