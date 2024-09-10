@@ -25,11 +25,11 @@ export class Model {
    * @param value
    * @returns QueryBulder
    */
-  static where(column: any, operator: any, value: any): QueryBuilder {
-    const model = new this();
+  static where(column: any, operator: any, value: any, collection?: string): QueryBuilder {
+    const model = collection ? null : new this();
     const queryBuilder = new QueryBuilder();
     queryBuilder.setModelMapping(this);
-    queryBuilder.table(model.__table);
+    queryBuilder.table(collection ? collection : model.__table);
     queryBuilder.where(column, operator, value);
 
     return queryBuilder;
@@ -41,11 +41,11 @@ export class Model {
    * @param sort
    * @returns QueryBulder
    */
-  static orderBy(column: any, sort: any): QueryBuilder {
-    const model = new this();
+  static orderBy(column: any, sort: any, collection?: string): QueryBuilder {
+    const model = collection ? null : new this();
     const queryBuilder = new QueryBuilder();
     queryBuilder.setModelMapping(this);
-    queryBuilder.table(model.__table);
+    queryBuilder.table(collection ? collection : model.__table);
     queryBuilder.orderBy(column, sort);
 
     return queryBuilder;
@@ -56,11 +56,11 @@ export class Model {
    * @param options?
    * @returns QueryBulder
    */
-  static async first(options?: any) {
-    const model = new this();
+  static async first(options?: any, collection?: string) {
+    const model = collection ? null : new this();
     const queryBuilder = new QueryBuilder();
     queryBuilder.setModelMapping(this);
-    queryBuilder.table(model.__table);
+    queryBuilder.table(collection ? collection : model.__table);
 
     return await queryBuilder.first(options);
   }
@@ -70,11 +70,11 @@ export class Model {
    * @param options?
    * @returns QueryBulder
    */
-  static async get(options?: any) {
-    const model = new this();
+  static async get(options?: any, collection?: string) {
+    const model = collection ? null : new this();
     const queryBuilder = new QueryBuilder();
     queryBuilder.setModelMapping(this);
-    queryBuilder.table(model.__table);
+    queryBuilder.table(collection ? collection : model.__table);
 
     return await queryBuilder.get(options);
   }
@@ -85,11 +85,11 @@ export class Model {
    * @param options?
    * @returns QueryBulder
    */
-  static async paginate(count: number, options?: any) {
-    const model = new this();
+  static async paginate(count: number, options?: any, collection?: string) {
+    const model = collection ? null : new this();
     const queryBuilder = new QueryBuilder();
     queryBuilder.setModelMapping(this);
-    queryBuilder.table(model.__table);
+    queryBuilder.table(collection ? collection : model.__table);
 
     return await queryBuilder.paginate(count, options);
   }
@@ -99,12 +99,12 @@ export class Model {
    * @param aggregation
    * @returns any
    */
-  static async aggregate(aggregation: any) {
-    const model = new this();
+  static async aggregate(aggregation: any, collection?: string) {
+    const model = collection ? null : new this();
     return await DBConnection.execute(
       {
         type: "aggregation",
-        table: model.__table,
+        table: collection ? collection : model.__table,
         aggregation: aggregation,
       },
       model.__connection
