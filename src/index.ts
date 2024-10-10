@@ -1,4 +1,5 @@
 export * from "./Config";
+export * from "./Functions/FileFunctions";
 export * from "./Functions/StringFunctions";
 export * from "./Functions/NumericFunctions";
 export * from "./Functions/PaginationFunctions";
