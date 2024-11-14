@@ -34,6 +34,10 @@ export class WebApplication {
                     port +
                     (options && options.basename ? " (Basename: " + options && options.basename + ")" : "")
             );
+
+            if (options && options.onBoot) {
+                options.onBoot(port);
+            }
         });
         return this.server;
     }
