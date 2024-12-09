@@ -24,7 +24,7 @@ class StringFunctionsFacade {
       string = string.replace(new RegExp(i, "g"), replacements[i]);
     }
 
-    return string.replace(/[^a-zA-Z\- ]/g, "").trim();
+    return string.replace(/[^a-zA-Z0-9\- ]/g, "").trim();
   }
 
   random(length: number) {
