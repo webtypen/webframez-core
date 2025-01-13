@@ -1,4 +1,5 @@
 export * from "./Config";
+export * from "./Functions/FileFunctions";
 export * from "./Functions/StringFunctions";
 export * from "./Functions/NumericFunctions";
 export * from "./Functions/PaginationFunctions";
@@ -17,3 +18,5 @@ export * from "./Router/Response";
 export * from "./Database/BaseDBDriver";
 export * from "./Database/DBDrivers";
 export * from "./Database/QueryBuilder";
+export * from "./Facades/StorageDrivers/BaseStorageDriver";
+export * from "./Facades/Storage";

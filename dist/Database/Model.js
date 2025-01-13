@@ -125,12 +125,12 @@ class Model {
      */
     static aggregate(aggregation, collection) {
         return __awaiter(this, void 0, void 0, function* () {
-            const model = collection ? null : new this();
+            const model = new this();
             return yield DBConnection_1.DBConnection.execute({
                 type: "aggregation",
                 table: collection ? collection : model ? model.__table : undefined,
                 aggregation: aggregation,
-            }, collection ? collection : model ? model.__connection : undefined);
+            }, model.__connection);
         });
     }
     /**

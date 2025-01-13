@@ -32,6 +32,9 @@ class WebApplication {
             console.log("Server started and listening on port " +
                 port +
                 (options && options.basename ? " (Basename: " + options && options.basename + ")" : ""));
+            if (options && options.onBoot) {
+                options.onBoot(port);
+            }
         });
         return this.server;
     }
