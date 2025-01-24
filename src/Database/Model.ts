@@ -1,6 +1,10 @@
 import { DBConnection } from "./DBConnection";
 import { QueryBuilder } from "./QueryBuilder";
 
+type ObjectIDType = {
+    noExceptions?: Boolean;
+};
+
 export class Model {
     [key: string]: any | undefined; // allow-custom-properties
     __primaryKey = "_id";
@@ -9,6 +13,15 @@ export class Model {
     __hidden: string[] = [];
     __unmapped: string[] = [];
     __unmappedSystem: string[] = ["__primaryKey", "__table", "__connection", "__unmapped", "__unmappedSystem", "__is_deleted", "__hidden"];
+
+    static async objectId(val?: any, options?: ObjectIDType) {
+        const model = new this();
+        return await DBConnection.objectId(val, model.__connection, options);
+    }
+
+    async objectId(val?: any, options?: ObjectIDType) {
+        return await DBConnection.objectId(val, this.__connection, options);
+    }
 
     /**
      * Creates a new query-builder object and adds a where-clause
