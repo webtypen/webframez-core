@@ -1,4 +1,7 @@
 import { QueryBuilder } from "./QueryBuilder";
+type ObjectIDType = {
+    noExceptions?: Boolean;
+};
 export declare class Model {
     [key: string]: any | undefined;
     __primaryKey: string;
@@ -7,6 +10,8 @@ export declare class Model {
     __hidden: string[];
     __unmapped: string[];
     __unmappedSystem: string[];
+    static objectId(val?: any, options?: ObjectIDType): Promise<any>;
+    objectId(val?: any, options?: ObjectIDType): Promise<any>;
     /**
      * Creates a new query-builder object and adds a where-clause
      * @param column
@@ -68,3 +73,4 @@ export declare class Model {
      */
     delete(): Promise<boolean>;
 }
+export {};

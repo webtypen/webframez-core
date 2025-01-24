@@ -36,3 +36,5 @@ __exportStar(require("./Database/DBDrivers"), exports);
 __exportStar(require("./Database/QueryBuilder"), exports);
 __exportStar(require("./Facades/StorageDrivers/BaseStorageDriver"), exports);
 __exportStar(require("./Facades/Storage"), exports);
+__exportStar(require("./DataBuilder/DataBuilder"), exports);
+__exportStar(require("./DataBuilder/DataBuilderController"), exports);

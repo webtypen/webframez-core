@@ -20,3 +20,5 @@ export * from "./Database/DBDrivers";
 export * from "./Database/QueryBuilder";
 export * from "./Facades/StorageDrivers/BaseStorageDriver";
 export * from "./Facades/Storage";
+export * from "./DataBuilder/DataBuilder";
+export * from "./DataBuilder/DataBuilderController";

@@ -25,10 +25,7 @@ class DBConnectionFacade {
         if (!connection) {
             connection = dbconfig.defaultConnection;
         }
-        if (!connection ||
-            !dbconfig ||
-            !dbconfig.connections ||
-            !dbconfig.connections[connection]) {
+        if (!connection || !dbconfig || !dbconfig.connections || !dbconfig.connections[connection]) {
             throw new Error("No connection given ...");
         }
         return dbconfig.connections[connection];
@@ -55,8 +52,7 @@ class DBConnectionFacade {
             if (!connectionName) {
                 return null;
             }
-            if (this.connections[connectionName] &&
-                this.connections[connectionName].driver) {
+            if (this.connections[connectionName] && this.connections[connectionName].driver) {
                 // Use cached connection
                 return this.connections[connectionName];
             }
@@ -94,6 +90,22 @@ class DBConnectionFacade {
         return __awaiter(this, void 0, void 0, function* () {
             const connection = yield this.getConnection(connectionName);
             return connection.driver;
+        });
+    }
+    objectId(val, connectionName, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (options && options.noExceptions) {
+                try {
+                    const connection = yield this.getConnection(connectionName);
+                    return yield connection.driver.objectId(val);
+                }
+                catch (e) {
+                    console.error(e);
+                }
+                return null;
+            }
+            const connection = yield this.getConnection(connectionName);
+            return yield connection.driver.objectId(val);
         });
     }
     mapDataToModel(model, data) {

@@ -21,6 +21,17 @@ class Model {
         this.__unmapped = [];
         this.__unmappedSystem = ["__primaryKey", "__table", "__connection", "__unmapped", "__unmappedSystem", "__is_deleted", "__hidden"];
     }
+    static objectId(val, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const model = new this();
+            return yield DBConnection_1.DBConnection.objectId(val, model.__connection, options);
+        });
+    }
+    objectId(val, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return yield DBConnection_1.DBConnection.objectId(val, this.__connection, options);
+        });
+    }
     /**
      * Creates a new query-builder object and adds a where-clause
      * @param column
