@@ -1,6 +1,7 @@
 const { Command } = require("commander");
 import { Config } from "./Config";
 import { BuildFinishCommand } from "./Commands/BuildFinishCommand";
+import { QueueJobsRegisty } from "./Queue/QueueJobsRegisty";
 
 export class ConsoleApplication {
     /**
@@ -54,6 +55,10 @@ export class ConsoleApplication {
                 });
                 program.addCommand(consoleCommand);
             }
+        }
+
+        if (options.jobs && options.jobs.length > 0) {
+            QueueJobsRegisty.registerJob(options.jobs);
         }
 
         program.parse();
