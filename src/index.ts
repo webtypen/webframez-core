@@ -22,3 +22,6 @@ export * from "./Facades/StorageDrivers/BaseStorageDriver";
 export * from "./Facades/Storage";
 export * from "./DataBuilder/DataBuilder";
 export * from "./DataBuilder/DataBuilderController";
+export * from "./Queue/BaseQueueJob";
+export * from "./Queue/QueueJob";
+export * from "./Queue/QueueJobsRegisty";

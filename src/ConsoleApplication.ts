@@ -2,6 +2,7 @@ const { Command } = require("commander");
 import { Config } from "./Config";
 import { BuildFinishCommand } from "./Commands/BuildFinishCommand";
 import { QueueJobsRegisty } from "./Queue/QueueJobsRegisty";
+import { QueueRunCommand } from "./Commands/QueueRunCommand";
 
 export class ConsoleApplication {
     /**
@@ -17,7 +18,7 @@ export class ConsoleApplication {
         const program = new Command();
         program.name("webframez console").description("CLI to some JavaScript string utilities").version("0.0.1");
 
-        const systemCommands = [BuildFinishCommand];
+        const systemCommands = [QueueRunCommand, BuildFinishCommand];
         for (let command of systemCommands) {
             if (!command.signature) {
                 continue;
