@@ -256,7 +256,7 @@ class RouterFacade {
         }
 
         if (!route) {
-            return this.handleError(request, response, 404, "Not found ...");
+            return this.handleError(request, response, 404, "Not found '" + request.url + "' ...");
         }
 
         if (!(route.component && typeof route.component === "function") && !(route.controller && route.method_name)) {
