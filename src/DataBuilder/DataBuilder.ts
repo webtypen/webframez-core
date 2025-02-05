@@ -419,8 +419,9 @@ export class DataBuilder {
         }
 
         let redirect: any = undefined;
-        if (type.forms && type.forms.main && type.forms.main.onSaveRedirect && typeof type.forms.main.onSaveRedirect === "function") {
-            redirect = await type.forms.main.onSaveRedirect(element, req);
+        const forms = typeof type.forms === "function" ? await type.forms(req) : type.forms;
+        if (forms && forms.main && forms.main.onSaveRedirect && typeof forms.main.onSaveRedirect === "function") {
+            redirect = await forms.main.onSaveRedirect(element, req);
         }
 
         return {
