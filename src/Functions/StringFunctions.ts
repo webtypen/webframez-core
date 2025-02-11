@@ -5,6 +5,9 @@ class StringFunctionsFacade {
         string = string.replace(new RegExp("  ", "g"), " ");
         string = string.replace(new RegExp(" ", "g"), "-");
         string = string.replace(new RegExp("_", "g"), "-");
+        string = string.replace(new RegExp("----", "g"), "-");
+        string = string.replace(new RegExp("---", "g"), "-");
+        string = string.replace(new RegExp("--", "g"), "-");
 
         const replacements: { [key: string]: string } = {
             Ä: "AE",
