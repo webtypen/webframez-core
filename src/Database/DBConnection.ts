@@ -88,10 +88,10 @@ class DBConnectionFacade {
         return data;
     }
 
-    async execute(data: any, connectionName?: string) {
+    async execute(data: any, connectionName?: string, options?: any) {
         const connection = await this.getConnection(connectionName);
 
-        return await connection.driver.execute(connection.client, data);
+        return await connection.driver.execute(connection.client, data, options);
     }
 
     async getDriver(connectionName?: string) {
