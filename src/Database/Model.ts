@@ -133,7 +133,7 @@ export class Model {
                 aggregation: aggregation,
             },
             model.__connection,
-            option
+            options
         );
     }
 
