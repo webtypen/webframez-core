@@ -11,6 +11,10 @@ export function rootDir(...args: any) {
 }
 
 export function storageDir(...args: any) {
+    if (process.env.STORAGE_DIR && process.env.STORAGE_DIR.trim() !== "") {
+        return path.join(process.env.STORAGE_DIR, ...args);
+    }
+
     const identifierBuild = "/build/node_modules/@webtypen/webframez-core";
     if (__dirname.indexOf(identifierBuild) > 0) {
         return path.join(__dirname.substring(0, __dirname.indexOf(identifierBuild)), "storage", ...args);
