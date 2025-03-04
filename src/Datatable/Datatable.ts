@@ -251,6 +251,29 @@ export class Datatable {
         return this.onPressLink;
     }
 
+    private formatFilterEntryVal(entry: any, filterEl: any, options?: any) {
+        const valueClean = entry.value !== undefined && entry.value !== "" ? entry.value : undefined;
+        const entryType = entry.type && entry.type.trim() !== "" ? entry.type : filterEl && filterEl.type ? filterEl.type : null;
+
+        let value: any = undefined;
+        if (entryType === "number" || entryType === "numeric" || entryType === "currency") {
+            value = parseFloat(valueClean.toString().replace(",", "."));
+        } else if (entryType === "boolean") {
+            if (entry.value === "true") {
+                value = true;
+            } else if (entry.value === "false") {
+                value = false;
+            }
+        } else {
+            if (options && options.regex) {
+                value = new RegExp(valueClean, "i");
+            } else {
+                value = valueClean;
+            }
+        }
+        return value;
+    }
+
     async getFilterMatch(req: Request, searchOrFilter: any) {
         if (!searchOrFilter || Object.keys(searchOrFilter).length < 1) {
             return {};
@@ -279,11 +302,12 @@ export class Datatable {
                     value = { $ne: null };
                     break;
                 case "==":
-                    value = valueClean;
+                    value = this.formatFilterEntryVal(entry, filterEl);
                     break;
                 case "!=":
-                    if (valueClean !== undefined) {
-                        value = { $ne: valueClean };
+                    const temp = this.formatFilterEntryVal(entry, filterEl);
+                    if (temp !== undefined) {
+                        value = { $ne: temp };
                     }
                     break;
                 case "$gt":
@@ -298,17 +322,7 @@ export class Datatable {
                     break;
                 default:
                     if (valueClean !== undefined) {
-                        if (entryType === "number" || entryType === "numeric" || entryType === "currency") {
-                            value = parseFloat(valueClean.toString().replace(",", "."));
-                        } else if (entryType === "boolean") {
-                            if (entry.value === "true") {
-                                value = true;
-                            } else if (entry.value === "false") {
-                                value = false;
-                            }
-                        } else {
-                            value = new RegExp(valueClean, "i");
-                        }
+                        value = this.formatFilterEntryVal(entry, filterEl, { regex: true });
                     }
                     break;
             }
