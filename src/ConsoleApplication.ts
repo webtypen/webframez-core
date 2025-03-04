@@ -3,6 +3,7 @@ import { Config } from "./Config";
 import { BuildFinishCommand } from "./Commands/BuildFinishCommand";
 import { QueueJobsRegisty } from "./Queue/QueueJobsRegisty";
 import { QueueRunCommand } from "./Commands/QueueRunCommand";
+import { DatatableRegistry } from "./Datatable/DatatableRegistry";
 
 export class ConsoleApplication {
     /**
@@ -56,6 +57,10 @@ export class ConsoleApplication {
                 });
                 program.addCommand(consoleCommand);
             }
+        }
+
+        if (options && options.datatables) {
+            DatatableRegistry.registerMany(options.datatables);
         }
 
         if (options.jobs && options.jobs.length > 0) {

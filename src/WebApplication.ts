@@ -2,6 +2,7 @@ import http, { Server } from "http";
 import { Config } from "./Config";
 import { Router } from "./Router/Router";
 import { QueueJobsRegisty } from "./Queue/QueueJobsRegisty";
+import { DatatableRegistry } from "./Datatable/DatatableRegistry";
 
 export class WebApplication {
     private server!: Server;
@@ -23,6 +24,10 @@ export class WebApplication {
             routesFunction: options && options.routesFunction ? options.routesFunction : null,
             tempDir: options && options.tempDir ? options.tempDir : null,
         });
+
+        if (options && options.datatables) {
+            DatatableRegistry.registerMany(options.datatables);
+        }
 
         if (options.jobs && options.jobs.length > 0) {
             QueueJobsRegisty.registerJob(options.jobs);

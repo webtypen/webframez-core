@@ -1,4 +1,5 @@
 import { Config } from "./Config";
+import { DatatableRegistry } from "./Datatable/DatatableRegistry";
 import { QueueJobsRegisty } from "./Queue/QueueJobsRegisty";
 import { Router } from "./Router/Router";
 
@@ -20,6 +21,10 @@ export class LambdaApplication {
             routesFunction: options && options.routesFunction ? options.routesFunction : null,
             tempDir: options && options.tempDir ? options.tempDir : null,
         });
+
+        if (options && options.datatables) {
+            DatatableRegistry.registerMany(options.datatables);
+        }
 
         if (options.jobs && options.jobs.length > 0) {
             QueueJobsRegisty.registerJob(options.jobs);
