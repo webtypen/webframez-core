@@ -285,6 +285,10 @@ export class Datatable {
             let value: any = undefined;
 
             const entry = searchOrFilter[key];
+            if (!entry || typeof entry !== "object") {
+                continue;
+            }
+
             const valueClean = entry.value !== undefined && entry.value !== "" ? entry.value : undefined;
             const operator =
                 entry.operator && entry.operator.trim() !== ""
