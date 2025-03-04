@@ -251,11 +251,12 @@ export class Datatable {
         return this.onPressLink;
     }
 
-    getFilterMatch(searchOrFilter: any) {
+    async getFilterMatch(req: Request, searchOrFilter: any) {
         if (!searchOrFilter || Object.keys(searchOrFilter).length < 1) {
             return {};
         }
 
+        const filterDef = await this.getFilter(req);
         const out: any = {};
         for (let key in searchOrFilter) {
             let value: any = undefined;
@@ -268,6 +269,8 @@ export class Datatable {
                     : entry.mode && entry.mode.trim() !== ""
                     ? entry.mode
                     : "==";
+            const filterEl = filterDef && filterDef[key] ? filterDef[key] : null;
+            const entryType = entry.type && entry.type.trim() !== "" ? entry.type : filterEl && filterEl.type ? filterEl.type : null;
             switch (operator) {
                 case "empty":
                     value = null;
@@ -289,15 +292,15 @@ export class Datatable {
                 case "$lte":
                     if (valueClean !== undefined) {
                         value = {
-                            [operator]: entry.type === "number" || entry.type === "numeric" ? parseFloat(valueClean) : valueClean,
+                            [operator]: entryType === "number" || entryType === "numeric" ? parseFloat(valueClean) : valueClean,
                         };
                     }
                     break;
                 default:
                     if (valueClean !== undefined) {
-                        if (entry.type === "number" || entry.type === "numeric" || entry.type === "currency") {
+                        if (entryType === "number" || entryType === "numeric" || entryType === "currency") {
                             value = parseFloat(valueClean.toString().replace(",", "."));
-                        } else if (entry.type === "boolean") {
+                        } else if (entryType === "boolean") {
                             if (entry.value === "true") {
                                 value = true;
                             } else if (entry.value === "false") {
