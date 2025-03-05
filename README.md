@@ -138,7 +138,7 @@ export default {
 Models are usually placed under `app/Models`. Each model class inherits from `Model` and must store the table / collection name, in which the models data sets are stored, in the `__table` attribute.
 
 ```ts
-import { Model, hasMany } from "@webtypen/webframez-core";
+import { Model, hasMany, QueryBuilder } from "@webtypen/webframez-core";
 import { File } from "./File";
 import { Session } from "./Session";
 
