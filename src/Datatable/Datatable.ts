@@ -332,7 +332,7 @@ export class Datatable {
             }
 
             if (value !== undefined) {
-                out[key] = value;
+                out[filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key] = value;
             }
         }
         return out;
