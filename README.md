@@ -147,7 +147,7 @@ export class User extends Model {
 
     /**
      * @param File                 Dependency Model
-     * @param foreignKey           (optional)
+     * @param foreignKey
      * @param localKey             (optional)
      * @param queryBuilderFunction (optional) customize the query
      **/
