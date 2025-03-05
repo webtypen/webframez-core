@@ -176,8 +176,7 @@ const avatarUrl = await testUser.avatar()?.url;
 
 ```ts
 const refreshedData = await testUser
-  .session({ force: true })
-  .get();
+  .session({ force: true });
 ```
 
 ##### Get dependency-query:
