@@ -175,8 +175,7 @@ const avatarUrl = await testUser.avatar()?.url;
 ##### Disable cache / force dependency-reload:
 
 ```ts
-const refreshedData = await testUser
-  .session({ force: true });
+const refreshedData = await testUser.session({ force: true });
 ```
 
 ##### Get dependency-query:
