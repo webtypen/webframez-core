@@ -13,6 +13,9 @@ exports.ConsoleApplication = void 0;
 const { Command } = require("commander");
 const Config_1 = require("./Config");
 const BuildFinishCommand_1 = require("./Commands/BuildFinishCommand");
+const QueueJobsRegisty_1 = require("./Queue/QueueJobsRegisty");
+const QueueRunCommand_1 = require("./Commands/QueueRunCommand");
+const DatatableRegistry_1 = require("./Datatable/DatatableRegistry");
 class ConsoleApplication {
     /**
      * Init the routes and start the http-server
@@ -25,7 +28,7 @@ class ConsoleApplication {
         }
         const program = new Command();
         program.name("webframez console").description("CLI to some JavaScript string utilities").version("0.0.1");
-        const systemCommands = [BuildFinishCommand_1.BuildFinishCommand];
+        const systemCommands = [QueueRunCommand_1.QueueRunCommand, BuildFinishCommand_1.BuildFinishCommand];
         for (let command of systemCommands) {
             if (!command.signature) {
                 continue;
@@ -59,6 +62,12 @@ class ConsoleApplication {
                 }));
                 program.addCommand(consoleCommand);
             }
+        }
+        if (options && options.datatables) {
+            DatatableRegistry_1.DatatableRegistry.registerMany(options.datatables);
+        }
+        if (options.jobs && options.jobs.length > 0) {
+            QueueJobsRegisty_1.QueueJobsRegisty.registerJob(options.jobs);
         }
         program.parse();
     }

@@ -340,8 +340,9 @@ class DataBuilder {
                 }
             }
             let redirect = undefined;
-            if (type.forms && type.forms.main && type.forms.main.onSaveRedirect && typeof type.forms.main.onSaveRedirect === "function") {
-                redirect = yield type.forms.main.onSaveRedirect(element, req);
+            const forms = typeof type.forms === "function" ? yield type.forms(req) : type.forms;
+            if (forms && forms.main && forms.main.onSaveRedirect && typeof forms.main.onSaveRedirect === "function") {
+                redirect = yield forms.main.onSaveRedirect(element, req);
             }
             return {
                 status: "success",

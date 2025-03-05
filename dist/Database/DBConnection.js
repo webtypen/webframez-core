@@ -80,10 +80,10 @@ class DBConnectionFacade {
             return data;
         });
     }
-    execute(data, connectionName) {
+    execute(data, connectionName, options) {
         return __awaiter(this, void 0, void 0, function* () {
             const connection = yield this.getConnection(connectionName);
-            return yield connection.driver.execute(connection.client, data);
+            return yield connection.driver.execute(connection.client, data, options);
         });
     }
     getDriver(connectionName) {

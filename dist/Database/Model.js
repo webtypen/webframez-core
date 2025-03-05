@@ -9,17 +9,91 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Model = void 0;
+exports.Model = exports.hasMany = exports.hasOne = void 0;
 const DBConnection_1 = require("./DBConnection");
 const QueryBuilder_1 = require("./QueryBuilder");
+function hasOne(modelGetter, foreignKey, localKey, queryFunction) {
+    return function (target, propertyKey, v2) {
+        Object.defineProperty(target, propertyKey, {
+            value: function (options) {
+                return __awaiter(this, void 0, void 0, function* () {
+                    if ((!options || !options.force) && this.__dependencies && this.__dependencies[propertyKey] !== undefined) {
+                        return this.__dependencies[propertyKey];
+                    }
+                    const model = modelGetter();
+                    if (!model) {
+                        throw new Error(`Model for foreignKey "${foreignKey}" konnte nicht aufgelöst werden.`);
+                    }
+                    if (!this.__dependencies) {
+                        this.__dependencies = {};
+                    }
+                    const query = this.buildRelationship(model, localKey !== null && localKey !== void 0 ? localKey : "_id", foreignKey);
+                    if (queryFunction && typeof queryFunction === "function") {
+                        queryFunction(query);
+                    }
+                    if (options && options.query) {
+                        return query;
+                    }
+                    this.__dependencies[propertyKey] = yield query.first();
+                    return this.__dependencies[propertyKey];
+                });
+            },
+            writable: false,
+            configurable: true,
+        });
+    };
+}
+exports.hasOne = hasOne;
+function hasMany(modelGetter, foreignKey, localKey, queryFunction) {
+    return function (target, propertyKey) {
+        Object.defineProperty(target, propertyKey, {
+            value: function (options) {
+                return __awaiter(this, void 0, void 0, function* () {
+                    if ((!options || !options.force) && this.__dependencies && this.__dependencies[propertyKey] !== undefined) {
+                        return this.__dependencies[propertyKey];
+                    }
+                    const model = modelGetter();
+                    if (!model) {
+                        throw new Error(`Model for foreignKey "${foreignKey}" konnte nicht aufgelöst werden.`);
+                    }
+                    if (!this.__dependencies) {
+                        this.__dependencies = {};
+                    }
+                    const query = this.buildRelationship(model, foreignKey, localKey);
+                    if (queryFunction && typeof queryFunction === "function") {
+                        queryFunction(query);
+                    }
+                    if (options && options.query) {
+                        return query;
+                    }
+                    this.__dependencies[propertyKey] = yield query.get();
+                    return this.__dependencies[propertyKey];
+                });
+            },
+            writable: false,
+            configurable: true,
+        });
+    };
+}
+exports.hasMany = hasMany;
 class Model {
     constructor() {
         this.__primaryKey = "_id";
         this.__table = "";
         this.__connection = undefined;
         this.__hidden = [];
+        this.__dependencies = {};
         this.__unmapped = [];
-        this.__unmappedSystem = ["__primaryKey", "__table", "__connection", "__unmapped", "__unmappedSystem", "__is_deleted", "__hidden"];
+        this.__unmappedSystem = [
+            "__primaryKey",
+            "__table",
+            "__connection",
+            "__unmapped",
+            "__unmappedSystem",
+            "__is_deleted",
+            "__hidden",
+            "__dependencies",
+        ];
     }
     static objectId(val, options) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -134,7 +208,7 @@ class Model {
      * @param aggregation
      * @returns any
      */
-    static aggregate(aggregation, collection) {
+    static aggregate(aggregation, options, collection) {
         return __awaiter(this, void 0, void 0, function* () {
             const model = new this();
             return yield DBConnection_1.DBConnection.execute({
@@ -143,6 +217,9 @@ class Model {
                 aggregation: aggregation,
             }, model.__connection);
         });
+    }
+    buildRelationship(model, foreignKey, localKey) {
+        return model.where(foreignKey, "=", this[localKey !== null && localKey !== void 0 ? localKey : "_id"]);
     }
     /**
      * Returns the model-data without system- and unmapped-fields (new js-object)

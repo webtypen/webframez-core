@@ -2,12 +2,15 @@ import { QueryBuilder } from "./QueryBuilder";
 type ObjectIDType = {
     noExceptions?: Boolean;
 };
+export declare function hasOne(modelGetter: () => any, foreignKey: string, localKey?: string, queryFunction?: Function): (target: any, propertyKey: string, v2?: any) => void;
+export declare function hasMany(modelGetter: () => any, foreignKey: string, localKey?: string, queryFunction?: Function): (target: any, propertyKey: string) => void;
 export declare class Model {
     [key: string]: any | undefined;
     __primaryKey: string;
     __table: string;
     __connection: string | undefined;
     __hidden: string[];
+    __dependencies: any;
     __unmapped: string[];
     __unmappedSystem: string[];
     static objectId(val?: any, options?: ObjectIDType): Promise<any>;
@@ -51,7 +54,8 @@ export declare class Model {
      * @param aggregation
      * @returns any
      */
-    static aggregate(aggregation: any, collection?: string): Promise<any>;
+    static aggregate(aggregation: any, options?: any, collection?: string): Promise<any>;
+    buildRelationship(model: any, foreignKey: string, localKey?: string): any;
     /**
      * Returns the model-data without system- and unmapped-fields (new js-object)
      * @returns object

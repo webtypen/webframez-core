@@ -7,6 +7,8 @@ exports.WebApplication = void 0;
 const http_1 = __importDefault(require("http"));
 const Config_1 = require("./Config");
 const Router_1 = require("./Router/Router");
+const QueueJobsRegisty_1 = require("./Queue/QueueJobsRegisty");
+const DatatableRegistry_1 = require("./Datatable/DatatableRegistry");
 class WebApplication {
     /**
      * Init the routes and start the http-server
@@ -24,6 +26,12 @@ class WebApplication {
             routesFunction: options && options.routesFunction ? options.routesFunction : null,
             tempDir: options && options.tempDir ? options.tempDir : null,
         });
+        if (options && options.datatables) {
+            DatatableRegistry_1.DatatableRegistry.registerMany(options.datatables);
+        }
+        if (options.jobs && options.jobs.length > 0) {
+            QueueJobsRegisty_1.QueueJobsRegisty.registerJob(options.jobs);
+        }
         const port = options && options.port ? options.port : 3000;
         this.server = http_1.default.createServer((req, res) => {
             Router_1.Router.handleRequest(req, res);

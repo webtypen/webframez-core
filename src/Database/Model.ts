@@ -5,14 +5,92 @@ type ObjectIDType = {
     noExceptions?: Boolean;
 };
 
+export function hasOne(modelGetter: () => any, foreignKey: string, localKey?: string, queryFunction?: Function) {
+    return function (target: any, propertyKey: string, v2?: any) {
+        Object.defineProperty(target, propertyKey, {
+            value: async function (options?: any) {
+                if ((!options || !options.force) && this.__dependencies && this.__dependencies[propertyKey] !== undefined) {
+                    return this.__dependencies[propertyKey];
+                }
+
+                const model = modelGetter();
+                if (!model) {
+                    throw new Error(`Model for foreignKey "${foreignKey}" konnte nicht aufgelöst werden.`);
+                }
+
+                if (!this.__dependencies) {
+                    this.__dependencies = {};
+                }
+
+                const query = this.buildRelationship(model, localKey ?? "_id", foreignKey);
+                if (queryFunction && typeof queryFunction === "function") {
+                    queryFunction(query);
+                }
+
+                if (options && options.query) {
+                    return query;
+                }
+                this.__dependencies[propertyKey] = await query.first();
+                return this.__dependencies[propertyKey];
+            },
+            writable: false,
+            configurable: true,
+        });
+    };
+}
+
+export function hasMany(modelGetter: () => any, foreignKey: string, localKey?: string, queryFunction?: Function) {
+    return function (target: any, propertyKey: string) {
+        Object.defineProperty(target, propertyKey, {
+            value: async function (options?: any) {
+                if ((!options || !options.force) && this.__dependencies && this.__dependencies[propertyKey] !== undefined) {
+                    return this.__dependencies[propertyKey];
+                }
+
+                const model = modelGetter();
+                if (!model) {
+                    throw new Error(`Model for foreignKey "${foreignKey}" konnte nicht aufgelöst werden.`);
+                }
+
+                if (!this.__dependencies) {
+                    this.__dependencies = {};
+                }
+
+                const query = this.buildRelationship(model, foreignKey, localKey);
+                if (queryFunction && typeof queryFunction === "function") {
+                    queryFunction(query);
+                }
+
+                if (options && options.query) {
+                    return query;
+                }
+                this.__dependencies[propertyKey] = await query.get();
+                return this.__dependencies[propertyKey];
+            },
+            writable: false,
+            configurable: true,
+        });
+    };
+}
+
 export class Model {
     [key: string]: any | undefined; // allow-custom-properties
     __primaryKey = "_id";
     __table: string = "";
     __connection: string | undefined = undefined;
     __hidden: string[] = [];
+    __dependencies: any = {};
     __unmapped: string[] = [];
-    __unmappedSystem: string[] = ["__primaryKey", "__table", "__connection", "__unmapped", "__unmappedSystem", "__is_deleted", "__hidden"];
+    __unmappedSystem: string[] = [
+        "__primaryKey",
+        "__table",
+        "__connection",
+        "__unmapped",
+        "__unmappedSystem",
+        "__is_deleted",
+        "__hidden",
+        "__dependencies",
+    ];
 
     static async objectId(val?: any, options?: ObjectIDType) {
         const model = new this();
@@ -124,7 +202,7 @@ export class Model {
      * @param aggregation
      * @returns any
      */
-    static async aggregate(aggregation: any, options?: any,collection?: string) {
+    static async aggregate(aggregation: any, options?: any, collection?: string) {
         const model = new this();
         return await DBConnection.execute(
             {
@@ -132,9 +210,12 @@ export class Model {
                 table: collection ? collection : model ? model.__table : undefined,
                 aggregation: aggregation,
             },
-            model.__connection,
-            options
+            model.__connection
         );
+    }
+
+    buildRelationship(model: any, foreignKey: string, localKey?: string): any {
+        return model.where(foreignKey, "=", this[localKey ?? "_id"]);
     }
 
     /**
