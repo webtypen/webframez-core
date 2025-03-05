@@ -156,6 +156,12 @@ export class User extends Model {
     })
     avatar!: () => File;
 
+    /**
+     * @param File                 Dependency Model
+     * @param foreignKey
+     * @param localKey             (optional)
+     * @param queryBuilderFunction (optional) customize the query
+     **/
     @hasMany(() => Session, "_user")
     sessions!: () => Session[];
 }
