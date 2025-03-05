@@ -28,9 +28,7 @@ Alternatively, a function can be specified directly or a previously imported one
 
 ```ts
 // Directly
-Route.get("/", (req: Request, res: Response) =>
-  res.send({ status: "success" })
-);
+Route.get("/", (req: Request, res: Response) => res.send({ status: "success" }));
 
 // Imported
 import { myFunction } from "./myfunction";
@@ -43,10 +41,10 @@ Middleware functions are also registered in `app/Kernel.ts.` A middleware functi
 
 Middleware functions are usually created under `app/Middleware`. A middleware function is called with the parameters (next, abort, req and res):
 
-- `next`: Function that signals when called that the request may be continued
-- `abort`: Function that aborts the request when called. An HTTP status code can be specified in the first parameter and a request body (usually text or JSON) in the second.
-- `req`: The Request-Object
-- `res`: The Response-Object
+-   `next`: Function that signals when called that the request may be continued
+-   `abort`: Function that aborts the request when called. An HTTP status code can be specified in the first parameter and a request body (usually text or JSON) in the second.
+-   `req`: The Request-Object
+-   `res`: The Response-Object
 
 Alternatively, middleware functions can also be defined directly in Kernel.ts:
 
@@ -73,7 +71,7 @@ Route.get("/auth-data", "AuthController@authData", { middleware: ["auth"] });
 
 With the grouping of routes, the code of the application can be significantly reduced and kept clear. Here's how the following configurations can be used with a multiple route definition:
 
-- `prefix`: A route path prefix used for all routes in this group:
+-   `prefix`: A route path prefix used for all routes in this group:
 
 ```ts
 Route.group({ prefix: "/admin", () => {
@@ -82,7 +80,7 @@ Route.group({ prefix: "/admin", () => {
 }});
 ```
 
-- `middleware`: An array of middleware-keys used for all routes in this group:
+-   `middleware`: An array of middleware-keys used for all routes in this group:
 
 ```ts
 Route.group({ middleware: ["auth"], () => {
@@ -100,12 +98,12 @@ Nesting of the route groups is also possible:
 
 ```ts
 Route.group({ prefix: "/test" }, () => {
-  Route.get("/", "TestController@test"); // Path: /test/
-  Route.get("/test2", "TestController@test"); // Path: /test2/
+    Route.get("/", "TestController@test"); // Path: /test/
+    Route.get("/test2", "TestController@test"); // Path: /test2/
 
-  Route.group({ middleware: ["auth"], prefix: "/auth" }, () => {
-    Route.get("/data", "AuthController@data"); // Path: /test/auth/data; Middleware: auth
-  });
+    Route.group({ middleware: ["auth"], prefix: "/auth" }, () => {
+        Route.get("/data", "AuthController@data"); // Path: /test/auth/data; Middleware: auth
+    });
 });
 ```
 
@@ -117,7 +115,7 @@ The application can handle multiple database connections, but one is defined as 
 
 The connections are configured in the `config/database.ts` file. Each connection is given a unique key in the `connections` object and uses a driver. The following drivers are currently available:
 
-- MongoDB Driver
+-   MongoDB Driver
 
 Depending on the driver, the database connection must be configured with different parameters.
 
@@ -125,13 +123,13 @@ Depending on the driver, the database connection must be configured with differe
 
 ```ts
 export default {
-  defaultConnection: "default",
-  connections: {
-    ["default"]: {
-      driver: "mongodb",
-      url: "mongodb://...",
+    defaultConnection: "default",
+    connections: {
+        ["default"]: {
+            driver: "mongodb",
+            url: "mongodb://...",
+        },
     },
-  },
 };
 ```
 
@@ -140,9 +138,53 @@ export default {
 Models are usually placed under `app/Models`. Each model class inherits from `Model` and must store the table / collection name, in which the models data sets are stored, in the `__table` attribute.
 
 ```ts
-import { Model } from "@webtypen/webframez-core";
+import { Model, hasMany } from "@webtypen/webframez-core";
+import { File } from "./File";
+import { Session } from "./Session";
 
-export class Test extends Model {
-  __table = "test_table";
+export class User extends Model {
+    __table = "users";
+
+    @hasOne(() => File, "_user_avatar")
+    avatar!: () => File;
+
+    @hasMany(() => Session, "_user")
+    sessions!: () => Session[];
 }
+```
+
+### Load a model
+
+```ts
+import { User } from "../Models/User";
+
+const users = await User.where("is_active", "=", true).get();
+const testUser = await User
+    .where("email", "=", "test@test.de")
+    .where("is_active", "=", true)
+    .first();
+```
+
+#### Dependency Injection
+
+```ts
+const sessions = await testUser.session();
+const avatarUrl = await testUser.avatar()?.url; 
+```
+
+##### Disable cache / force dependency-reload:
+
+```ts
+const refreshedData = await testUser
+  .session({ force: true })
+  .get();
+```
+
+##### Get dependency-query:
+
+```ts
+const oldSessions = await testUser
+  .session({ query: true })
+  .where("date", "<", moment().subtract(30, "days").format("YYYY-MM-DD"))
+  .get();
 ```
