@@ -145,7 +145,9 @@ import { Session } from "./Session";
 export class User extends Model {
     __table = "users";
 
-    @hasOne(() => File, "_user_avatar")
+    @hasOne(() => File, "_user_avatar", (query: QueryBuilder) => {
+        query.where("status", "=", "uploaded");
+    })
     avatar!: () => File;
 
     @hasMany(() => Session, "_user")
