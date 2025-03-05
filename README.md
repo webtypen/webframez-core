@@ -145,7 +145,13 @@ import { Session } from "./Session";
 export class User extends Model {
     __table = "users";
 
-    @hasOne(() => File, "_user_avatar", (query: QueryBuilder) => {
+    /**
+     * @param File  Dependency Model
+     * @param foreignKey (optional)
+     * @param localKey (optional)
+     * @param queryBuilderFunction (optional) customize the query
+     **/
+    @hasOne(() => File, "_user_avatar", "_id", (query: QueryBuilder) => {
         query.where("status", "=", "uploaded");
     })
     avatar!: () => File;
@@ -161,17 +167,14 @@ export class User extends Model {
 import { User } from "../Models/User";
 
 const users = await User.where("is_active", "=", true).get();
-const testUser = await User
-    .where("email", "=", "test@test.de")
-    .where("is_active", "=", true)
-    .first();
+const testUser = await User.where("email", "=", "test@test.de").where("is_active", "=", true).first();
 ```
 
 #### Dependency Injection
 
 ```ts
 const sessions = await testUser.session();
-const avatarUrl = await testUser.avatar()?.url; 
+const avatarUrl = await testUser.avatar()?.url;
 ```
 
 ##### Disable cache / force dependency-reload:
@@ -183,8 +186,5 @@ const refreshedData = await testUser.session({ force: true });
 ##### Get dependency-query:
 
 ```ts
-const oldSessions = await testUser
-  .session({ query: true })
-  .where("date", "<", moment().subtract(30, "days").format("YYYY-MM-DD"))
-  .get();
+const oldSessions = await testUser.session({ query: true }).where("date", "<", moment().subtract(30, "days").format("YYYY-MM-DD")).get();
 ```
