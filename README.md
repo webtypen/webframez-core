@@ -146,9 +146,9 @@ export class User extends Model {
     __table = "users";
 
     /**
-     * @param File  Dependency Model
-     * @param foreignKey (optional)
-     * @param localKey (optional)
+     * @param File                 Dependency Model
+     * @param foreignKey           (optional)
+     * @param localKey             (optional)
      * @param queryBuilderFunction (optional) customize the query
      **/
     @hasOne(() => File, "_user_avatar", "_id", (query: QueryBuilder) => {
