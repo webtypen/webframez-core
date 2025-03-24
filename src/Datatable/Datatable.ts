@@ -17,6 +17,7 @@ export class Datatable {
     onAttributes?: Function;
     autoApplyFilter: DatatableAutoApplyType = "begin";
     autoApplySearch: DatatableAutoApplyType = null;
+    logAggregation = false;
 
     async getInit(req: Request) {
         const out: any = { table: req.body._table };
@@ -140,24 +141,27 @@ export class Datatable {
             }
         }
 
+        const aggr = [
+            ...(aggregation ? aggregation : []),
+            ...(!hasSkip ? [{ $skip: page ? page * this.perPage : 0 }] : []),
+            ...(!hasLimit ? [{ $limit: this.perPage }] : []),
+            ...(subAggregation ? subAggregation : []),
+        ];
+        if (this.logAggregation) {
+            const { log } = console;
+            log("[DATATABLE_AGGREGATION" + (req.body._table ? "-" + req.body._table : "") + "]", this.logAggregation);
+        }
+
         const connection = await DBConnection.getConnection();
         const results = await connection.client
             .db(null)
             .collection(await this.getCollection(req))
-            .aggregate(
-                [
-                    ...(aggregation ? aggregation : []),
-                    ...(!hasSkip ? [{ $skip: page ? page * this.perPage : 0 }] : []),
-                    ...(!hasLimit ? [{ $limit: this.perPage }] : []),
-                    ...(subAggregation ? subAggregation : []),
-                ],
-                {
-                    collation: {
-                        locale: "de",
-                        strength: 2,
-                    },
-                }
-            )
+            .aggregate(aggr, {
+                collation: {
+                    locale: "de",
+                    strength: 2,
+                },
+            })
             .toArray();
 
         const statsGroup: any = { $group: { _id: null, count: { $sum: 1 } } };
