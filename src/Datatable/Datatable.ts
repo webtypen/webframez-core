@@ -18,6 +18,7 @@ export class Datatable {
     autoApplyFilter: DatatableAutoApplyType = "begin";
     autoApplySearch: DatatableAutoApplyType = null;
     logAggregation = false;
+    defaultUnwind?: string | null = null;
 
     async getInit(req: Request) {
         const out: any = { table: req.body._table };
@@ -65,19 +66,28 @@ export class Datatable {
     }
 
     async getAggregation(req: Request) {
+        const prefix: any = [];
+        if (this.defaultUnwind && this.defaultUnwind.trim() !== "") {
+            prefix.push({ $unwind: this.defaultUnwind });
+        }
+
         const aggr = typeof this.aggregation === "function" ? await this.aggregation(req) : this.aggregation;
         if (this.autoApplyFilter && req.body.filter && typeof req.body.filter === "object") {
             if (this.autoApplyFilter === "begin") {
-                return [{ $match: { ...(await this.getFilterMatch(req, req.body.filter)) } }, ...aggr];
+                return [...prefix, { $match: { ...(await this.getFilterMatch(req, req.body.filter)) } }, ...aggr];
             } else if (this.autoApplyFilter === "end") {
-                return [...aggr, { $match: { ...(await this.getFilterMatch(req, req.body.filter)) } }];
+                return [...prefix, ...aggr, { $match: { ...(await this.getFilterMatch(req, req.body.filter)) } }];
             }
         } else if (this.autoApplySearch && req.body.search && typeof req.body.search === "object") {
             if (this.autoApplySearch === "begin") {
-                return [{ $match: { ...(await this.getFilterMatch(req, req.body.search)) } }, ...aggr];
+                return [...prefix, { $match: { ...(await this.getFilterMatch(req, req.body.search)) } }, ...aggr];
             } else if (this.autoApplySearch === "end") {
-                return [...aggr, { $match: { ...(await this.getFilterMatch(req, req.body.search)) } }];
+                return [...prefix, ...aggr, { $match: { ...(await this.getFilterMatch(req, req.body.search)) } }];
             }
+        }
+
+        if (prefix && prefix.length > 0) {
+            return [...prefix, aggr];
         }
         return aggr;
     }
