@@ -2,7 +2,7 @@ import { DBConnection } from "../Database/DBConnection";
 import { NumericFunctions } from "../Functions/NumericFunctions";
 import { Request } from "../Router/Request";
 
-type DatatableAutoApplyMatchModeType = "begin" | "end" | null;
+export type DatatableAutoApplyType = "begin" | "end" | null;
 
 export class Datatable {
     collection: string | Function = "";
@@ -15,8 +15,8 @@ export class Datatable {
     perPage: number = 25;
     onRow?: Function;
     onAttributes?: Function;
-    autoApplyFilter: DatatableAutoApplyMatchModeType = "begin";
-    autoApplySearch: DatatableAutoApplyMatchModeType = null;
+    autoApplyFilter: DatatableAutoApplyType = "begin";
+    autoApplySearch: DatatableAutoApplyType = null;
 
     async getInit(req: Request) {
         const out: any = { table: req.body._table };
@@ -67,15 +67,15 @@ export class Datatable {
         const aggr = typeof this.aggregation === "function" ? await this.aggregation(req) : this.aggregation;
         if (this.autoApplyFilter && req.body.filter && typeof req.body.filter === "object") {
             if (this.autoApplyFilter === "begin") {
-                return [{ $match: { ...this.getFilterMatch(req, req.body.filter) } }, ...aggr];
+                return [{ $match: { ...(await this.getFilterMatch(req, req.body.filter)) } }, ...aggr];
             } else if (this.autoApplyFilter === "end") {
-                return [...aggr, { $match: { ...this.getFilterMatch(req, req.body.filter) } }];
+                return [...aggr, { $match: { ...(await this.getFilterMatch(req, req.body.filter)) } }];
             }
         } else if (this.autoApplySearch && req.body.search && typeof req.body.search === "object") {
             if (this.autoApplySearch === "begin") {
-                return [{ $match: { ...this.getFilterMatch(req, req.body.search) } }, ...aggr];
+                return [{ $match: { ...(await this.getFilterMatch(req, req.body.search)) } }, ...aggr];
             } else if (this.autoApplySearch === "end") {
-                return [...aggr, { $match: { ...this.getFilterMatch(req, req.body.search) } }];
+                return [...aggr, { $match: { ...(await this.getFilterMatch(req, req.body.search)) } }];
             }
         }
         return aggr;
