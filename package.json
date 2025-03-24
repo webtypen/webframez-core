@@ -1,6 +1,6 @@
 {
     "name": "@webtypen/webframez-core",
-    "version": "0.2.19",
+    "version": "0.2.20",
     "description": "The core package of the typescript based webframez (web-framework) by webtypen.de",
     "homepage": "https://webtypen.de/",
     "license": "MIT",

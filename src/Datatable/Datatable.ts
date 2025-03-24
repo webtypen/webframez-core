@@ -149,7 +149,7 @@ export class Datatable {
         ];
         if (this.logAggregation) {
             const { log } = console;
-            log("[DATATABLE_AGGREGATION" + (req.body._table ? "-" + req.body._table : "") + "]", this.logAggregation);
+            log("[DATATABLE_AGGREGATION" + (req.body._table ? "-" + req.body._table : "") + "]", aggr);
         }
 
         const connection = await DBConnection.getConnection();
