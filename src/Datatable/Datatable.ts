@@ -13,6 +13,8 @@ export class Datatable {
     perPage: number = 25;
     onRow?: Function;
     onAttributes?: Function;
+    autoApplyFilter = true;
+    autoApplySearch = false;
 
     async getInit(req: Request) {
         const out: any = { table: req.body._table };
@@ -60,7 +62,13 @@ export class Datatable {
     }
 
     async getAggregation(req: Request) {
-        return typeof this.aggregation === "function" ? await this.aggregation(req) : this.aggregation;
+        const aggr = typeof this.aggregation === "function" ? await this.aggregation(req) : this.aggregation;
+        if (this.autoApplyFilter && req.body.filter && typeof req.body.filter === "object") {
+            return [{ $match: { ...this.getFilterMatch(req, req.body.filter) } }];
+        } else if (this.autoApplySearch && req.body.search && typeof req.body.search === "object") {
+            return [{ $match: { ...this.getFilterMatch(req, req.body.search) } }];
+        }
+        return aggr;
     }
 
     async getSubAggregation(req: Request) {
@@ -329,6 +337,24 @@ export class Datatable {
                         value = this.formatFilterEntryVal(entry, filterEl, { regex: true });
                     }
                     break;
+            }
+
+            if (value !== undefined && filterEl && filterEl.cast) {
+                if (typeof filterEl.cast === "function") {
+                    value = await filterEl.cast(value, entry, req);
+                } else if (filterEl.cast === "string") {
+                    value = value.toString();
+                } else if (filterEl.cast === "objectId") {
+                    if (value.length === 12 || value.length === 24) {
+                        value = await DBConnection.objectId(value);
+                    }
+                } else if (filterEl.cast === "integer") {
+                    value = parseInt(value);
+                } else if (filterEl.cast === "float") {
+                    value = parseFloat(value);
+                } else if (filterEl.cast === "boolean") {
+                    value = value === true || value === 1 || value.toString() === "1" || value.toString() === "true" ? true : false;
+                }
             }
 
             if (value !== undefined) {
