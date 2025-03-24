@@ -2,8 +2,6 @@ import { DBConnection } from "../Database/DBConnection";
 import { NumericFunctions } from "../Functions/NumericFunctions";
 import { Request } from "../Router/Request";
 
-export type DatatableAutoApplyType = "begin" | "end" | null;
-
 export class Datatable {
     collection: string | Function = "";
     aggregation: { [key: string]: any } | Function | null = null;
@@ -15,8 +13,8 @@ export class Datatable {
     perPage: number = 25;
     onRow?: Function;
     onAttributes?: Function;
-    autoApplyFilter: DatatableAutoApplyType = "begin";
-    autoApplySearch: DatatableAutoApplyType = null;
+    autoApplyFilter: "begin" | "end" | null = "begin";
+    autoApplySearch: "begin" | "end" | null = null;
     logAggregation = false;
     defaultUnwind?: string | null = null;
 
