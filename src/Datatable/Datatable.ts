@@ -87,7 +87,7 @@ export class Datatable {
         }
 
         if (prefix && prefix.length > 0) {
-            return [...prefix, aggr];
+            return [...prefix, ...aggr];
         }
         return aggr;
     }
