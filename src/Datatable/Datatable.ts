@@ -2,6 +2,8 @@ import { DBConnection } from "../Database/DBConnection";
 import { NumericFunctions } from "../Functions/NumericFunctions";
 import { Request } from "../Router/Request";
 
+type DatatableAutoApplyMatchModeType = "begin" | "end" | null;
+
 export class Datatable {
     collection: string | Function = "";
     aggregation: { [key: string]: any } | Function | null = null;
@@ -13,8 +15,8 @@ export class Datatable {
     perPage: number = 25;
     onRow?: Function;
     onAttributes?: Function;
-    autoApplyFilter = true;
-    autoApplySearch = false;
+    autoApplyFilter: DatatableAutoApplyMatchModeType = "begin";
+    autoApplySearch: DatatableAutoApplyMatchModeType = null;
 
     async getInit(req: Request) {
         const out: any = { table: req.body._table };
@@ -64,9 +66,17 @@ export class Datatable {
     async getAggregation(req: Request) {
         const aggr = typeof this.aggregation === "function" ? await this.aggregation(req) : this.aggregation;
         if (this.autoApplyFilter && req.body.filter && typeof req.body.filter === "object") {
-            return [{ $match: { ...this.getFilterMatch(req, req.body.filter) } }];
+            if (this.autoApplyFilter === "begin") {
+                return [{ $match: { ...this.getFilterMatch(req, req.body.filter) } }, ...aggr];
+            } else if (this.autoApplyFilter === "end") {
+                return [...aggr, { $match: { ...this.getFilterMatch(req, req.body.filter) } }];
+            }
         } else if (this.autoApplySearch && req.body.search && typeof req.body.search === "object") {
-            return [{ $match: { ...this.getFilterMatch(req, req.body.search) } }];
+            if (this.autoApplySearch === "begin") {
+                return [{ $match: { ...this.getFilterMatch(req, req.body.search) } }, ...aggr];
+            } else if (this.autoApplySearch === "end") {
+                return [...aggr, { $match: { ...this.getFilterMatch(req, req.body.search) } }];
+            }
         }
         return aggr;
     }
