@@ -328,6 +328,11 @@ export class Datatable {
                     : "==";
             const filterEl = filterDef && filterDef[key] ? filterDef[key] : null;
             const entryType = entry.type && entry.type.trim() !== "" ? entry.type : filterEl && filterEl.type ? filterEl.type : null;
+
+            if (filterEl && filterEl.ignore) {
+                continue;
+            }
+
             switch (operator) {
                 case "empty":
                     value = null;
