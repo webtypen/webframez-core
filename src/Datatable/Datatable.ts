@@ -17,6 +17,7 @@ export class Datatable {
     autoApplySearch: "begin" | "end" | null = null;
     logAggregation = false;
     defaultUnwind?: string | null = null;
+    disablePerPageConfig = false;
 
     async getInit(req: Request) {
         const out: any = { table: req.body._table };
@@ -149,10 +150,12 @@ export class Datatable {
             }
         }
 
+        const perPage =
+            req.body.perPage && parseInt(req.body.perPage) > 0 && !this.disablePerPageConfig ? parseInt(req.body.perPage) : this.perPage;
         const aggr = [
             ...(aggregation ? aggregation : []),
-            ...(!hasSkip ? [{ $skip: page ? page * this.perPage : 0 }] : []),
-            ...(!hasLimit ? [{ $limit: this.perPage }] : []),
+            ...(!hasSkip ? [{ $skip: page ? page * perPage : 0 }] : []),
+            ...(!hasLimit ? [{ $limit: perPage }] : []),
             ...(subAggregation ? subAggregation : []),
         ];
         if (this.logAggregation) {
@@ -221,7 +224,8 @@ export class Datatable {
         return {
             page: page,
             max_entries: stats && stats[0] && stats[0].count ? stats[0].count : 0,
-            total_pages: stats && stats[0] && stats[0].count > 0 ? Math.ceil(stats[0].count / this.perPage) : 0,
+            total_pages: stats && stats[0] && stats[0].count > 0 ? Math.ceil(stats[0].count / perPage) : 0,
+            per_page: perPage,
             entries: results,
             sums: sums,
         };
