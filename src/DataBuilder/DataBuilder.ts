@@ -40,6 +40,8 @@ export class DataBuilder {
     private types: { [key: string]: DataBuilderType } = {};
     private fieldTypes: { [key: string]: DataBuilderFieldType } = {};
 
+    newDataHandler: null | ((req: Request) => Promise<any>) = null;
+
     getType(key: string) {
         return this.types[key] && this.types[key].key ? this.types[key] : null;
     }
@@ -223,6 +225,7 @@ export class DataBuilder {
         const data = {
             ...(await this.typeForFrontend(type, req)),
             fieldtypes: this.getFieldTypesFrontend(),
+            new_data_handler: this.newDataHandler !== null ? true : false,
         };
         return {
             status: "success",
@@ -510,6 +513,33 @@ export class DataBuilder {
         return {
             status: "success",
             data: element[0],
+        };
+    }
+
+    async detailsNewData(db: any, req: any) {
+        if (!this.newDataHandler) {
+            return;
+        }
+
+        const type = this.getTypeFromRequest(req);
+        if (!type || !type.schema || !type.schema.fields) {
+            throw new Error("Missing schema fields ...");
+        }
+
+        let data: any = null;
+        try {
+            data = await this.newDataHandler(req);
+        } catch (e: any) {
+            console.error(e);
+        }
+
+        if (data === null || data === undefined) {
+            return { status: "error", message: "Unexpected error generating the forms 'new-data' ..." };
+        }
+
+        return {
+            status: "success",
+            data: data,
         };
     }
 
