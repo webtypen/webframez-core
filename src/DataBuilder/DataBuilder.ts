@@ -304,7 +304,6 @@ export class DataBuilder {
                     }
                 }
 
-                console.log("applyField ->", fieldPath, elementVal);
                 lodash.set(element, fieldPath, elementVal);
                 // lodash.set(
                 //     element,
