@@ -276,19 +276,49 @@ export class DataBuilder {
                     );
                 }
             } else {
-                lodash.set(
-                    element,
-                    fieldPath,
-                    value === undefined || value === null || (typeof value === "string" && value.trim() === "")
-                        ? null
-                        : customType && typeof customType.onSave === "function"
-                        ? await customType.onSave(value, { ...payload, ...fields[key].payload })
-                        : fields[key].type === "currency" || fields[key].type === "float"
-                        ? parseFloat(value.toString().replace(",", "."))
-                        : fields[key].type === "integer"
-                        ? parseInt(value)
-                        : value
-                );
+                let elementVal = null;
+                if (
+                    value !== undefined &&
+                    value !== null &&
+                    !(typeof value === "string" && value.trim() === "") &&
+                    !(typeof value === "number" && value.toString().trim() === "")
+                ) {
+                    // Custom field onSave
+                    if (customType && typeof customType.onSave === "function") {
+                        elementVal = await customType.onSave(value, { ...payload, ...fields[key].payload });
+                    }
+
+                    // Float or currency fields
+                    else if (fields[key].type === "currency" || fields[key].type === "float") {
+                        elementVal = parseFloat(value.toString().replace(",", "."));
+                    }
+
+                    // Integer field
+                    else if (fields[key].type === "integer") {
+                        elementVal = parseInt(value);
+                    }
+
+                    // Standard
+                    else {
+                        elementVal = value;
+                    }
+                }
+
+                console.log("applyField ->", fieldPath, elementVal);
+                lodash.set(element, fieldPath, elementVal);
+                // lodash.set(
+                //     element,
+                //     fieldPath,
+                //     value === undefined || value === null || (typeof value === "string" && value.trim() === "")
+                //         ? null
+                //         : customType && typeof customType.onSave === "function"
+                //         ? await customType.onSave(value, { ...payload, ...fields[key].payload })
+                //         : fields[key].type === "currency" || fields[key].type === "float"
+                //         ? parseFloat(value.toString().replace(",", "."))
+                //         : fields[key].type === "integer"
+                //         ? parseInt(value)
+                //         : value
+                // );
             }
         }
 
@@ -382,14 +412,6 @@ export class DataBuilder {
             throw e;
         }
 
-        try {
-            if (typeof type.schema.afterSave === "function") {
-                await type.schema.afterSave(element, req);
-            }
-        } catch (e: any) {
-            throw e;
-        }
-
         let changedId: any = null;
         if (updateId) {
             delete element[type.schema.primaryKey ? type.schema.primaryKey : "_id"];
@@ -416,6 +438,14 @@ export class DataBuilder {
                     ? changedId.toString()
                     : changedId;
             }
+        }
+
+        try {
+            if (typeof type.schema.afterSave === "function") {
+                await type.schema.afterSave(element, req);
+            }
+        } catch (e: any) {
+            throw e;
         }
 
         let redirect: any = undefined;
