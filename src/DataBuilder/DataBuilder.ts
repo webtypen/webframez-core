@@ -12,6 +12,7 @@ export type DataBuilderSchema = {
     getAggregation?: any;
     events?: { [key: string]: any };
     fields: { [key: string]: any };
+    newDataHandler?: Function;
 };
 
 export type DataBuilderType = {
@@ -39,8 +40,6 @@ export type DataBuilderFieldType =
 export class DataBuilder {
     private types: { [key: string]: DataBuilderType } = {};
     private fieldTypes: { [key: string]: DataBuilderFieldType } = {};
-
-    newDataHandler: null | ((req: Request) => Promise<any>) = null;
 
     getType(key: string) {
         return this.types[key] && this.types[key].key ? this.types[key] : null;
@@ -225,7 +224,7 @@ export class DataBuilder {
         const data = {
             ...(await this.typeForFrontend(type, req)),
             fieldtypes: this.getFieldTypesFrontend(),
-            new_data_handler: this.newDataHandler !== null ? true : false,
+            new_data_handler: type.schema && type.schema.newDataHandler && typeof type.schema.newDataHandler === "function" ? true : false,
         };
         return {
             status: "success",
@@ -517,18 +516,18 @@ export class DataBuilder {
     }
 
     async detailsNewData(db: any, req: any) {
-        if (!this.newDataHandler) {
-            return;
-        }
-
         const type = this.getTypeFromRequest(req);
         if (!type || !type.schema || !type.schema.fields) {
             throw new Error("Missing schema fields ...");
         }
 
+        if (!type.schema || !type.schema.newDataHandler || typeof type.schema.newDataHandler !== "function") {
+            throw new Error("Missing newDataHandler-Function ...");
+        }
+
         let data: any = null;
         try {
-            data = await this.newDataHandler(req);
+            data = await type.schema.newDataHandler(req);
         } catch (e: any) {
             console.error(e);
         }
