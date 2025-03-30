@@ -14,6 +14,7 @@ export type DataBuilderSchema = {
     getAggregation?: any;
     events?: { [key: string]: any };
     fields: { [key: string]: any };
+    newDataHandler?: Function;
 };
 
 export type DataBuilderType = {
@@ -225,6 +226,7 @@ export class DataBuilder {
         const data = {
             ...(await this.typeForFrontend(type, req)),
             fieldtypes: this.getFieldTypesFrontend(),
+            new_data_handler: type.schema && type.schema.newDataHandler && typeof type.schema.newDataHandler === "function" ? true : false,
         };
         return {
             status: "success",
@@ -278,19 +280,48 @@ export class DataBuilder {
                     );
                 }
             } else {
-                lodash.set(
-                    element,
-                    fieldPath,
-                    value === undefined || value === null || (typeof value === "string" && value.trim() === "")
-                        ? null
-                        : customType && typeof customType.onSave === "function"
-                        ? await customType.onSave(value, { ...payload, ...fields[key].payload })
-                        : fields[key].type === "currency" || fields[key].type === "float"
-                        ? parseFloat(value.toString().replace(",", "."))
-                        : fields[key].type === "integer"
-                        ? parseInt(value)
-                        : value
-                );
+                let elementVal = null;
+                if (
+                    value !== undefined &&
+                    value !== null &&
+                    !(typeof value === "string" && value.trim() === "") &&
+                    !(typeof value === "number" && value.toString().trim() === "")
+                ) {
+                    // Custom field onSave
+                    if (customType && typeof customType.onSave === "function") {
+                        elementVal = await customType.onSave(value, { ...payload, ...fields[key].payload });
+                    }
+
+                    // Float or currency fields
+                    else if (fields[key].type === "currency" || fields[key].type === "float") {
+                        elementVal = parseFloat(value.toString().replace(",", "."));
+                    }
+
+                    // Integer field
+                    else if (fields[key].type === "integer") {
+                        elementVal = parseInt(value);
+                    }
+
+                    // Standard
+                    else {
+                        elementVal = value;
+                    }
+                }
+
+                lodash.set(element, fieldPath, elementVal);
+                // lodash.set(
+                //     element,
+                //     fieldPath,
+                //     value === undefined || value === null || (typeof value === "string" && value.trim() === "")
+                //         ? null
+                //         : customType && typeof customType.onSave === "function"
+                //         ? await customType.onSave(value, { ...payload, ...fields[key].payload })
+                //         : fields[key].type === "currency" || fields[key].type === "float"
+                //         ? parseFloat(value.toString().replace(",", "."))
+                //         : fields[key].type === "integer"
+                //         ? parseInt(value)
+                //         : value
+                // );
             }
         }
 
@@ -384,14 +415,6 @@ export class DataBuilder {
             throw e;
         }
 
-        try {
-            if (typeof type.schema.afterSave === "function") {
-                await type.schema.afterSave(element, req);
-            }
-        } catch (e: any) {
-            throw e;
-        }
-
         let changedId: any = null;
         if (updateId) {
             delete element[type.schema.primaryKey ? type.schema.primaryKey : "_id"];
@@ -418,6 +441,14 @@ export class DataBuilder {
                     ? changedId.toString()
                     : changedId;
             }
+        }
+
+        try {
+            if (typeof type.schema.afterSave === "function") {
+                await type.schema.afterSave(element, req);
+            }
+        } catch (e: any) {
+            throw e;
         }
 
         let redirect: any = undefined;
@@ -464,7 +495,6 @@ export class DataBuilder {
         }
 
         let element: any = null;
-        let updateId: any = null;
         if (req.body.__builder_id === "new") {
             throw new Error("Cannot delete a new object ...");
         } else {
@@ -571,6 +601,33 @@ export class DataBuilder {
         return {
             status: "success",
             data: element[0],
+        };
+    }
+
+    async detailsNewData(db: any, req: any) {
+        const type = this.getTypeFromRequest(req);
+        if (!type || !type.schema || !type.schema.fields) {
+            throw new Error("Missing schema fields ...");
+        }
+
+        if (!type.schema || !type.schema.newDataHandler || typeof type.schema.newDataHandler !== "function") {
+            throw new Error("Missing newDataHandler-Function ...");
+        }
+
+        let data: any = null;
+        try {
+            data = await type.schema.newDataHandler(req);
+        } catch (e: any) {
+            console.error(e);
+        }
+
+        if (data === null || data === undefined) {
+            return { status: "error", message: "Unexpected error generating the forms 'new-data' ..." };
+        }
+
+        return {
+            status: "success",
+            data: data,
         };
     }
 
