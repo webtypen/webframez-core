@@ -20,6 +20,8 @@ export class DataBuilderController extends Controller {
             return res.send(await this.builder.details(db.client.db(null), req));
         } else if (req.body.__builder_rest_api === "save") {
             return res.send(await this.builder.save(db.client.db(null), req));
+        } else if (req.body.__builder_rest_api === "delete") {
+            return res.send(await this.builder.delete(db.client.db(null), req));
         } else if (req.body.__builder_rest_api === "type") {
             return res.send(await this.builder.loadType(req));
         }

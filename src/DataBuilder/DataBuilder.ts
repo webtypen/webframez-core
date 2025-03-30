@@ -9,6 +9,8 @@ export type DataBuilderSchema = {
     primaryKeyPlain?: boolean;
     beforeSave?: any;
     afterSave?: any;
+    beforeDelete?: any;
+    afterDelete?: any;
     getAggregation?: any;
     events?: { [key: string]: any };
     fields: { [key: string]: any };
@@ -428,6 +430,94 @@ export class DataBuilder {
             status: "success",
             data: {
                 _id: changedId,
+                redirect: redirect,
+            },
+        };
+    }
+
+    async delete(db: any, req: any) {
+        if (!req || !req.body || typeof req.body !== "object" || !req.body.__builder_id || req.body.__builder_id.toString().trim() === "") {
+            throw new Error("Missing id ...");
+        }
+
+        if (typeof req.body.data !== "object") {
+            throw new Error("Missing id ...");
+        }
+
+        const type = this.getTypeFromRequest(req.body);
+        if (!type || !type.schema || !type.schema.fields) {
+            throw new Error("Missing schema fields ...");
+        }
+
+        const schemaFields = typeof type.schema.fields === "function" ? await type.schema.fields(req) : type.schema.fields;
+        const errors: any = await this.validateFields(schemaFields, req.body.data);
+        if (errors && Object.keys(errors).length > 0) {
+            return {
+                status: "error",
+                errors: errors,
+            };
+        }
+
+        const collection = type.schema && type.schema.collection ? type.schema.collection : undefined;
+        if (!collection || collection.trim() === "") {
+            throw new Error("Missing collection ...");
+        }
+
+        let element: any = null;
+        let updateId: any = null;
+        if (req.body.__builder_id === "new") {
+            throw new Error("Cannot delete a new object ...");
+        } else {
+            const result = await db
+                .collection(collection)
+                .aggregate(
+                    type.schema && typeof type.schema.getAggregation === "function"
+                        ? await type.schema.getAggregation(await this.getAggregation(type, req), req)
+                        : await this.getAggregation(type, req),
+                    collection
+                )
+                .toArray();
+
+            if (!result || !result[0] || !result[0][type.schema.primaryKey ? type.schema.primaryKey : "_id"]) {
+                throw new Error("Element '" + req.body.__builder_id + "' not found ...");
+            }
+            element = result[0];
+        }
+
+        if (!element || !element._id) {
+            throw new Error("Element '" + req.body.__builder_id + "' not found ...");
+        }
+
+        try {
+            if (typeof type.schema.beforeDelete === "function") {
+                await type.schema.beforeDelete(element, req);
+            }
+        } catch (e: any) {
+            throw e;
+        }
+
+        await db.collection(collection).deleteOne({ _id: element._id });
+
+        try {
+            if (typeof type.schema.afterDelete === "function") {
+                await type.schema.afterDelete(element, req);
+            }
+        } catch (e: any) {
+            throw e;
+        }
+
+        let redirect: any = undefined;
+        const forms = typeof type.forms === "function" ? await type.forms(req) : type.forms;
+        if (forms && forms.main && forms.main.onDeleteRedirect && typeof forms.main.onDeleteRedirect === "function") {
+            redirect = await forms.main.onDeleteRedirect(element, req);
+        } else if (forms && forms.main && forms.main.onSaveRedirect && typeof forms.main.onSaveRedirect === "function") {
+            redirect = await forms.main.onSaveRedirect(element, req);
+        }
+
+        return {
+            status: "success",
+            data: {
+                _id: element._id,
                 redirect: redirect,
             },
         };
