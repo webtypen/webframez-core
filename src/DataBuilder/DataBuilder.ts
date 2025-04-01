@@ -281,7 +281,13 @@ export class DataBuilder {
                 }
             } else {
                 let elementVal = null;
-                if (
+                if (fields[key].type === "ObjectId") {
+                    if (value && (value.toString().length === 12 || value.toString().length === 24)) {
+                        elementVal = typeof value === "string" ? await Model.objectId(value) : value;
+                    } else {
+                        elementVal = await Model.objectId();
+                    }
+                } else if (
                     value !== undefined &&
                     value !== null &&
                     !(typeof value === "string" && value.trim() === "") &&
@@ -309,19 +315,6 @@ export class DataBuilder {
                 }
 
                 lodash.set(element, fieldPath, elementVal);
-                // lodash.set(
-                //     element,
-                //     fieldPath,
-                //     value === undefined || value === null || (typeof value === "string" && value.trim() === "")
-                //         ? null
-                //         : customType && typeof customType.onSave === "function"
-                //         ? await customType.onSave(value, { ...payload, ...fields[key].payload })
-                //         : fields[key].type === "currency" || fields[key].type === "float"
-                //         ? parseFloat(value.toString().replace(",", "."))
-                //         : fields[key].type === "integer"
-                //         ? parseInt(value)
-                //         : value
-                // );
             }
         }
 
