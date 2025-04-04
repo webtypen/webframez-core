@@ -171,9 +171,9 @@ export class DataBuilder {
             if (fields[key].unique) {
                 let isUnique = false;
                 if (typeof fields[key].unique === "function") {
-                    await fields[key].unique(req.body.data, req);
-                } else {
-                    throw new Error("Missing unique-function ...");
+                    isUnique = await fields[key].unique(req.body.data, req);
+                } else if (typeof fields[key].unique === "object") {
+                    isUnique = await this.handleUnique(db, req, fields[key], type);
                 }
 
                 if (isUnique) {
@@ -197,6 +197,45 @@ export class DataBuilder {
         }
 
         return errors;
+    }
+
+    async handleUnique(db: any, req: any, field: any, type: any) {
+        const match: any =
+            typeof field.unique.match === "function"
+                ? await field.unique.match(req)
+                : typeof field.unique.match === "object"
+                ? field.unique.match
+                : {};
+        const check = await db
+            .collection(
+                typeof field.unique.collection === "string" && field.unique.collection.trim() !== ""
+                    ? field.unique.collection
+                    : type.collection
+            )
+            .aggregate([
+                { $match: match },
+                ...(typeof field.unique.aggregation === "function"
+                    ? await field.aggregation(req)
+                    : field.aggregation && Array.isArray(field.aggregation)
+                    ? field.aggregation
+                    : []),
+            ])
+            .toArray();
+
+        if (!check || check.length < 1) {
+            return true;
+        }
+
+        if (!req.body.__builder_id || req.body.__builder_id === "new") {
+            return false;
+        }
+
+        for (let el of check) {
+            if (el && el._id && el._id.toString() !== req.body.__builder_id) {
+                return true;
+            }
+        }
+        return true;
     }
 
     async typeForFrontend(type: any, req: any) {
