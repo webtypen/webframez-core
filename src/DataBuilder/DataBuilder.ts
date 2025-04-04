@@ -212,7 +212,7 @@ export class DataBuilder {
             .collection(
                 typeof field.unique.collection === "string" && field.unique.collection.trim() !== ""
                     ? field.unique.collection
-                    : type.collection
+                    : type.schema.collection
             )
             .aggregate([
                 { $match: match },
