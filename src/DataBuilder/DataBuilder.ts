@@ -176,7 +176,7 @@ export class DataBuilder {
                     isUnique = await this.handleUnique(db, req, fields[key], type);
                 }
 
-                if (isUnique) {
+                if (!isUnique) {
                     errors[fieldPath] = "Es gibt bereits einen anderen Datensatz mit diesem Wert.";
                     continue;
                 }
