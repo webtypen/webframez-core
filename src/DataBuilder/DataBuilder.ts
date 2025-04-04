@@ -15,6 +15,7 @@ export type DataBuilderSchema = {
     events?: { [key: string]: any };
     fields: { [key: string]: any };
     newDataHandler?: Function;
+    canDelete: any;
 };
 
 export type DataBuilderType = {
@@ -132,7 +133,7 @@ export class DataBuilder {
         return type;
     }
 
-    async validateFields(fields: any, data: any, errors?: any, path?: string) {
+    async validateFields(db: any, type: any, fields: any, req: Request, errors?: any, path?: string) {
         if (!errors) {
             errors = {};
         }
@@ -143,11 +144,13 @@ export class DataBuilder {
 
         for (let key in fields) {
             const fieldPath = (path ? path + "." : "") + key;
-            const value = lodash.get(data, fieldPath);
+            const value = lodash.get(req.body.data, fieldPath);
+
+            // Check-Required
             if (fields[key].required) {
                 let check = true;
                 if (typeof fields[key].required === "function") {
-                    check = await fields[key].required(data);
+                    check = await fields[key].required(req.body.data);
                 }
 
                 if (check) {
@@ -164,11 +167,26 @@ export class DataBuilder {
                 }
             }
 
+            // Check-Unique
+            if (fields[key].unique) {
+                let isUnique = false;
+                if (typeof fields[key].unique === "function") {
+                    await fields[key].unique(req.body.data, req);
+                } else {
+                    throw new Error("Missing unique-function ...");
+                }
+
+                if (isUnique) {
+                    errors[fieldPath] = "Es gibt bereits einen anderen Datensatz mit diesem Wert.";
+                    continue;
+                }
+            }
+
             if (typeof fields[key].schema === "object") {
                 if (value && value.length > 0) {
                     for (let i in value) {
                         const entryPath = fieldPath + "[" + i + "]";
-                        errors = await this.validateFields(fields[key].schema, data, errors, entryPath);
+                        errors = await this.validateFields(db, type, fields[key].schema, req.body.data, errors, entryPath);
                     }
                 }
             }
@@ -348,7 +366,7 @@ export class DataBuilder {
         }
 
         const schemaFields = typeof type.schema.fields === "function" ? await type.schema.fields(req) : type.schema.fields;
-        const errors: any = await this.validateFields(schemaFields, req.body.data);
+        const errors: any = await this.validateFields(db, type, schemaFields, req);
         if (errors && Object.keys(errors).length > 0) {
             return {
                 status: "error",
@@ -473,13 +491,9 @@ export class DataBuilder {
             throw new Error("Missing schema fields ...");
         }
 
-        const schemaFields = typeof type.schema.fields === "function" ? await type.schema.fields(req) : type.schema.fields;
-        const errors: any = await this.validateFields(schemaFields, req.body.data);
-        if (errors && Object.keys(errors).length > 0) {
-            return {
-                status: "error",
-                errors: errors,
-            };
+        const canDelete = typeof type.schema.canDelete === "function" ? await type.schema.canDelete(req) : true;
+        if (!canDelete) {
+            throw new Error("Cannot delete entry ...");
         }
 
         const collection = type.schema && type.schema.collection ? type.schema.collection : undefined;
