@@ -168,12 +168,12 @@ export class DataBuilder {
             }
 
             // Check-Unique
-            if (fields[key].unique) {
+            if (value !== null && value !== false && value !== undefined && fields[key].unique) {
                 let isUnique = false;
                 if (typeof fields[key].unique === "function") {
                     isUnique = await fields[key].unique(req.body.data, req);
                 } else if (typeof fields[key].unique === "object") {
-                    isUnique = await this.handleUnique(db, req, fields[key], type);
+                    isUnique = await this.handleUnique(db, req, key, value, fields[key], type);
                 }
 
                 if (!isUnique) {
@@ -199,13 +199,15 @@ export class DataBuilder {
         return errors;
     }
 
-    async handleUnique(db: any, req: any, field: any, type: any) {
-        const match: any =
-            typeof field.unique.match === "function"
+    async handleUnique(db: any, req: any, key: string, value: any, field: any, type: any) {
+        const match: any = {
+            [key]: value,
+            ...(typeof field.unique.match === "function"
                 ? await field.unique.match(req)
                 : typeof field.unique.match === "object"
                 ? field.unique.match
-                : {};
+                : {}),
+        };
         const check = await db
             .collection(
                 typeof field.unique.collection === "string" && field.unique.collection.trim() !== ""
