@@ -234,7 +234,7 @@ export class DataBuilder {
 
         for (let el of check) {
             if (el && el._id && el._id.toString() !== req.body.__builder_id) {
-                return true;
+                return false;
             }
         }
         return true;
