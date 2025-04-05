@@ -183,11 +183,15 @@ export class DataBuilder {
             }
 
             if (typeof fields[key].schema === "object") {
-                if (value && value.length > 0) {
-                    for (let i in value) {
-                        const entryPath = fieldPath + "[" + i + "]";
-                        errors = await this.validateFields(db, type, fields[key].schema, req.body.data, errors, entryPath);
+                if (fields[key].type === "array") {
+                    if (value && value.length > 0) {
+                        for (let i in value) {
+                            const entryPath = fieldPath + "[" + i + "]";
+                            errors = await this.validateFields(db, type, fields[key].schema, req, errors, entryPath);
+                        }
                     }
+                } else if (fields[key].type === "object") {
+                    errors = await this.validateFields(db, type, fields[key].schema, req, errors, fieldPath);
                 }
             }
 
