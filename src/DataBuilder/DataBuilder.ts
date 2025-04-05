@@ -95,11 +95,11 @@ export class DataBuilder {
     async getFieldsFrontend(fields: any, payload?: any) {
         const out: any = {};
         for (let key in fields) {
-            if (fields[key].type === "object") {
-                out[key] =
-                    typeof fields[key].schema === "object" && Object.keys(fields[key].schema).length > 0
-                        ? { ...(await this.getFieldsFrontend(fields[key].schema, payload)) }
-                        : fields[key];
+            if (false && fields[key].type === "object") {
+                // out[key] =
+                //     typeof fields[key].schema === "object" && Object.keys(fields[key].schema).length > 0
+                //         ? { ...(await this.getFieldsFrontend(fields[key].schema, payload)) }
+                //         : fields[key];
             } else {
                 out[key] =
                     typeof fields[key].schema === "object" && Object.keys(fields[key].schema).length > 0
