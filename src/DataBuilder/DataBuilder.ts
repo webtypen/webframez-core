@@ -15,7 +15,7 @@ export type DataBuilderSchema = {
     events?: { [key: string]: any };
     fields: { [key: string]: any };
     newDataHandler?: Function;
-    canDelete: any;
+    canDelete?: any;
 };
 
 export type DataBuilderType = {

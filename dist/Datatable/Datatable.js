@@ -22,6 +22,11 @@ class Datatable {
         this.onPressLink = null;
         this.exports = null;
         this.perPage = 25;
+        this.autoApplyFilter = "begin";
+        this.autoApplySearch = null;
+        this.logAggregation = false;
+        this.defaultUnwind = null;
+        this.disablePerPageConfig = false;
     }
     getInit(req) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -62,7 +67,31 @@ class Datatable {
     }
     getAggregation(req) {
         return __awaiter(this, void 0, void 0, function* () {
-            return typeof this.aggregation === "function" ? yield this.aggregation(req) : this.aggregation;
+            const prefix = [];
+            if (this.defaultUnwind && this.defaultUnwind.trim() !== "") {
+                prefix.push({ $unwind: this.defaultUnwind });
+            }
+            const aggr = typeof this.aggregation === "function" ? yield this.aggregation(req) : this.aggregation;
+            if (this.autoApplyFilter && req.body.filter && typeof req.body.filter === "object") {
+                if (this.autoApplyFilter === "begin") {
+                    return [...prefix, { $match: Object.assign({}, (yield this.getFilterMatch(req, req.body.filter))) }, ...aggr];
+                }
+                else if (this.autoApplyFilter === "end") {
+                    return [...prefix, ...aggr, { $match: Object.assign({}, (yield this.getFilterMatch(req, req.body.filter))) }];
+                }
+            }
+            else if (this.autoApplySearch && req.body.search && typeof req.body.search === "object") {
+                if (this.autoApplySearch === "begin") {
+                    return [...prefix, { $match: Object.assign({}, (yield this.getFilterMatch(req, req.body.search))) }, ...aggr];
+                }
+                else if (this.autoApplySearch === "end") {
+                    return [...prefix, ...aggr, { $match: Object.assign({}, (yield this.getFilterMatch(req, req.body.search))) }];
+                }
+            }
+            if (prefix && prefix.length > 0) {
+                return [...prefix, ...aggr];
+            }
+            return aggr;
         });
     }
     getSubAggregation(req) {
@@ -124,16 +153,22 @@ class Datatable {
                     }
                 }
             }
+            const perPage = req.body.perPage && parseInt(req.body.perPage) > 0 && !this.disablePerPageConfig ? parseInt(req.body.perPage) : this.perPage;
+            const aggr = [
+                ...(aggregation ? aggregation : []),
+                ...(!hasSkip ? [{ $skip: page ? page * perPage : 0 }] : []),
+                ...(!hasLimit ? [{ $limit: perPage }] : []),
+                ...(subAggregation ? subAggregation : []),
+            ];
+            if (this.logAggregation) {
+                const { log } = console;
+                log("[DATATABLE_AGGREGATION" + (req.body._table ? "-" + req.body._table : "") + "]", aggr);
+            }
             const connection = yield DBConnection_1.DBConnection.getConnection();
             const results = yield connection.client
                 .db(null)
                 .collection(yield this.getCollection(req))
-                .aggregate([
-                ...(aggregation ? aggregation : []),
-                ...(!hasSkip ? [{ $skip: page ? page * this.perPage : 0 }] : []),
-                ...(!hasLimit ? [{ $limit: this.perPage }] : []),
-                ...(subAggregation ? subAggregation : []),
-            ], {
+                .aggregate(aggr, {
                 collation: {
                     locale: "de",
                     strength: 2,
@@ -180,7 +215,8 @@ class Datatable {
             return {
                 page: page,
                 max_entries: stats && stats[0] && stats[0].count ? stats[0].count : 0,
-                total_pages: stats && stats[0] && stats[0].count > 0 ? Math.ceil(stats[0].count / this.perPage) : 0,
+                total_pages: stats && stats[0] && stats[0].count > 0 ? Math.ceil(stats[0].count / perPage) : 0,
+                per_page: perPage,
                 entries: results,
                 sums: sums,
             };
@@ -285,6 +321,9 @@ class Datatable {
                         : "==";
                 const filterEl = filterDef && filterDef[key] ? filterDef[key] : null;
                 const entryType = entry.type && entry.type.trim() !== "" ? entry.type : filterEl && filterEl.type ? filterEl.type : null;
+                if (filterEl && filterEl.ignore) {
+                    continue;
+                }
                 switch (operator) {
                     case "empty":
                         value = null;
@@ -293,7 +332,7 @@ class Datatable {
                         value = { $ne: null };
                         break;
                     case "==":
-                        value = this.formatFilterEntryVal(entry, filterEl);
+                        value = this.formatFilterEntryVal(entry, filterEl, { regex: filterEl && filterEl.regex ? true : false });
                         break;
                     case "!=":
                         const temp = this.formatFilterEntryVal(entry, filterEl);
@@ -316,6 +355,28 @@ class Datatable {
                             value = this.formatFilterEntryVal(entry, filterEl, { regex: true });
                         }
                         break;
+                }
+                if (value !== undefined && filterEl && filterEl.cast) {
+                    if (typeof filterEl.cast === "function") {
+                        value = yield filterEl.cast(value, entry, req);
+                    }
+                    else if (filterEl.cast === "string") {
+                        value = value.toString();
+                    }
+                    else if (filterEl.cast === "objectId") {
+                        if (value.length === 12 || value.length === 24) {
+                            value = yield DBConnection_1.DBConnection.objectId(value);
+                        }
+                    }
+                    else if (filterEl.cast === "integer") {
+                        value = parseInt(value);
+                    }
+                    else if (filterEl.cast === "float") {
+                        value = parseFloat(value);
+                    }
+                    else if (filterEl.cast === "boolean") {
+                        value = value === true || value === 1 || value.toString() === "1" || value.toString() === "true" ? true : false;
+                    }
                 }
                 if (value !== undefined) {
                     out[filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key] = value;

@@ -27,8 +27,14 @@ class DataBuilderController extends Controller_1.Controller {
             else if (req.body.__builder_rest_api === "details") {
                 return res.send(yield this.builder.details(db.client.db(null), req));
             }
+            else if (req.body.__builder_rest_api === "details-newdata") {
+                return res.send(yield this.builder.detailsNewData(db.client.db(null), req));
+            }
             else if (req.body.__builder_rest_api === "save") {
                 return res.send(yield this.builder.save(db.client.db(null), req));
+            }
+            else if (req.body.__builder_rest_api === "delete") {
+                return res.send(yield this.builder.delete(db.client.db(null), req));
             }
             else if (req.body.__builder_rest_api === "type") {
                 return res.send(yield this.builder.loadType(req));

@@ -63,10 +63,11 @@ class DataBuilder {
         return __awaiter(this, void 0, void 0, function* () {
             const out = {};
             for (let key in fields) {
-                if (fields[key].type === "object") {
-                    out[key] =
-                        typeof fields[key].schema === "object" && Object.keys(fields[key].schema).length > 0
-                            ? Object.assign({}, (yield this.getFieldsFrontend(fields[key].schema, payload))) : fields[key];
+                if (false && fields[key].type === "object") {
+                    // out[key] =
+                    //     typeof fields[key].schema === "object" && Object.keys(fields[key].schema).length > 0
+                    //         ? { ...(await this.getFieldsFrontend(fields[key].schema, payload)) }
+                    //         : fields[key];
                 }
                 else {
                     out[key] =
@@ -94,7 +95,7 @@ class DataBuilder {
         }
         return type;
     }
-    validateFields(fields, data, errors, path) {
+    validateFields(db, type, fields, req, errors, path) {
         return __awaiter(this, void 0, void 0, function* () {
             if (!errors) {
                 errors = {};
@@ -104,11 +105,12 @@ class DataBuilder {
             }
             for (let key in fields) {
                 const fieldPath = (path ? path + "." : "") + key;
-                const value = lodash_1.default.get(data, fieldPath);
+                const value = lodash_1.default.get(req.body.data, fieldPath);
+                // Check-Required
                 if (fields[key].required) {
                     let check = true;
                     if (typeof fields[key].required === "function") {
-                        check = yield fields[key].required(data);
+                        check = yield fields[key].required(req.body.data);
                     }
                     if (check) {
                         if (value === null ||
@@ -121,12 +123,31 @@ class DataBuilder {
                         }
                     }
                 }
+                // Check-Unique
+                if (value !== null && value !== false && value !== undefined && fields[key].unique) {
+                    let isUnique = false;
+                    if (typeof fields[key].unique === "function") {
+                        isUnique = yield fields[key].unique(req.body.data, req);
+                    }
+                    else if (typeof fields[key].unique === "object") {
+                        isUnique = yield this.handleUnique(db, req, key, value, fields[key], type);
+                    }
+                    if (!isUnique) {
+                        errors[fieldPath] = "Es gibt bereits einen anderen Datensatz mit diesem Wert.";
+                        continue;
+                    }
+                }
                 if (typeof fields[key].schema === "object") {
-                    if (value && value.length > 0) {
-                        for (let i in value) {
-                            const entryPath = fieldPath + "[" + i + "]";
-                            errors = yield this.validateFields(fields[key].schema, data, errors, entryPath);
+                    if (fields[key].type === "array") {
+                        if (value && value.length > 0) {
+                            for (let i in value) {
+                                const entryPath = fieldPath + "[" + i + "]";
+                                errors = yield this.validateFields(db, type, fields[key].schema, req, errors, entryPath);
+                            }
                         }
+                    }
+                    else if (fields[key].type === "object") {
+                        errors = yield this.validateFields(db, type, fields[key].schema, req, errors, fieldPath);
                     }
                 }
                 if (fields[key].validation && fields[key].validation.trim() !== "") {
@@ -134,6 +155,40 @@ class DataBuilder {
                 }
             }
             return errors;
+        });
+    }
+    handleUnique(db, req, key, value, field, type) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const match = Object.assign({ [key]: value }, (typeof field.unique.match === "function"
+                ? yield field.unique.match(req)
+                : typeof field.unique.match === "object"
+                    ? field.unique.match
+                    : {}));
+            const check = yield db
+                .collection(typeof field.unique.collection === "string" && field.unique.collection.trim() !== ""
+                ? field.unique.collection
+                : type.schema.collection)
+                .aggregate([
+                { $match: match },
+                ...(typeof field.unique.aggregation === "function"
+                    ? yield field.aggregation(req)
+                    : field.aggregation && Array.isArray(field.aggregation)
+                        ? field.aggregation
+                        : []),
+            ])
+                .toArray();
+            if (!check || check.length < 1) {
+                return true;
+            }
+            if (!req.body.__builder_id || req.body.__builder_id === "new") {
+                return false;
+            }
+            for (let el of check) {
+                if (el && el._id && el._id.toString() !== req.body.__builder_id) {
+                    return false;
+                }
+            }
+            return true;
         });
     }
     typeForFrontend(type, req) {
@@ -177,7 +232,7 @@ class DataBuilder {
     loadType(req) {
         return __awaiter(this, void 0, void 0, function* () {
             const type = this.getTypeFromRequest(req);
-            const data = Object.assign(Object.assign({}, (yield this.typeForFrontend(type, req))), { fieldtypes: this.getFieldTypesFrontend() });
+            const data = Object.assign(Object.assign({}, (yield this.typeForFrontend(type, req))), { fieldtypes: this.getFieldTypesFrontend(), new_data_handler: type.schema && type.schema.newDataHandler && typeof type.schema.newDataHandler === "function" ? true : false });
             return {
                 status: "success",
                 data: Object.assign(Object.assign({}, data), { schema: Object.assign(Object.assign({}, (data.schema ? data.schema : {})), { fields: yield this.getFieldsFrontend(type.schema
@@ -215,15 +270,37 @@ class DataBuilder {
                     }
                 }
                 else {
-                    lodash_1.default.set(element, fieldPath, value === undefined || value === null || (typeof value === "string" && value.trim() === "")
-                        ? null
-                        : customType && typeof customType.onSave === "function"
-                            ? yield customType.onSave(value, Object.assign(Object.assign({}, payload), fields[key].payload))
-                            : fields[key].type === "currency" || fields[key].type === "float"
-                                ? parseFloat(value.toString().replace(",", "."))
-                                : fields[key].type === "integer"
-                                    ? parseInt(value)
-                                    : value);
+                    let elementVal = null;
+                    if (fields[key].type === "ObjectId") {
+                        if (value && (value.toString().length === 12 || value.toString().length === 24)) {
+                            elementVal = typeof value === "string" ? yield Model_1.Model.objectId(value) : value;
+                        }
+                        else {
+                            elementVal = yield Model_1.Model.objectId();
+                        }
+                    }
+                    else if (value !== undefined &&
+                        value !== null &&
+                        !(typeof value === "string" && value.trim() === "") &&
+                        !(typeof value === "number" && value.toString().trim() === "")) {
+                        // Custom field onSave
+                        if (customType && typeof customType.onSave === "function") {
+                            elementVal = yield customType.onSave(value, Object.assign(Object.assign({}, payload), fields[key].payload));
+                        }
+                        // Float or currency fields
+                        else if (fields[key].type === "currency" || fields[key].type === "float") {
+                            elementVal = parseFloat(value.toString().replace(",", "."));
+                        }
+                        // Integer field
+                        else if (fields[key].type === "integer") {
+                            elementVal = parseInt(value);
+                        }
+                        // Standard
+                        else {
+                            elementVal = value;
+                        }
+                    }
+                    lodash_1.default.set(element, fieldPath, elementVal);
                 }
             }
             return element;
@@ -255,7 +332,7 @@ class DataBuilder {
                 throw new Error("Missing schema fields ...");
             }
             const schemaFields = typeof type.schema.fields === "function" ? yield type.schema.fields(req) : type.schema.fields;
-            const errors = yield this.validateFields(schemaFields, req.body.data);
+            const errors = yield this.validateFields(db, type, schemaFields, req);
             if (errors && Object.keys(errors).length > 0) {
                 return {
                     status: "error",
@@ -307,14 +384,6 @@ class DataBuilder {
             catch (e) {
                 throw e;
             }
-            try {
-                if (typeof type.schema.afterSave === "function") {
-                    yield type.schema.afterSave(element, req);
-                }
-            }
-            catch (e) {
-                throw e;
-            }
             let changedId = null;
             if (updateId) {
                 delete element[type.schema.primaryKey ? type.schema.primaryKey : "_id"];
@@ -339,6 +408,14 @@ class DataBuilder {
                         : changedId;
                 }
             }
+            try {
+                if (typeof type.schema.afterSave === "function") {
+                    yield type.schema.afterSave(element, req);
+                }
+            }
+            catch (e) {
+                throw e;
+            }
             let redirect = undefined;
             const forms = typeof type.forms === "function" ? yield type.forms(req) : type.forms;
             if (forms && forms.main && forms.main.onSaveRedirect && typeof forms.main.onSaveRedirect === "function") {
@@ -348,6 +425,79 @@ class DataBuilder {
                 status: "success",
                 data: {
                     _id: changedId,
+                    redirect: redirect,
+                },
+            };
+        });
+    }
+    delete(db, req) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!req || !req.body || typeof req.body !== "object" || !req.body.__builder_id || req.body.__builder_id.toString().trim() === "") {
+                throw new Error("Missing id ...");
+            }
+            if (typeof req.body.data !== "object") {
+                throw new Error("Missing id ...");
+            }
+            const type = this.getTypeFromRequest(req.body);
+            if (!type || !type.schema || !type.schema.fields) {
+                throw new Error("Missing schema fields ...");
+            }
+            const canDelete = typeof type.schema.canDelete === "function" ? yield type.schema.canDelete(req) : true;
+            if (!canDelete) {
+                throw new Error("Cannot delete entry ...");
+            }
+            const collection = type.schema && type.schema.collection ? type.schema.collection : undefined;
+            if (!collection || collection.trim() === "") {
+                throw new Error("Missing collection ...");
+            }
+            let element = null;
+            if (req.body.__builder_id === "new") {
+                throw new Error("Cannot delete a new object ...");
+            }
+            else {
+                const result = yield db
+                    .collection(collection)
+                    .aggregate(type.schema && typeof type.schema.getAggregation === "function"
+                    ? yield type.schema.getAggregation(yield this.getAggregation(type, req), req)
+                    : yield this.getAggregation(type, req), collection)
+                    .toArray();
+                if (!result || !result[0] || !result[0][type.schema.primaryKey ? type.schema.primaryKey : "_id"]) {
+                    throw new Error("Element '" + req.body.__builder_id + "' not found ...");
+                }
+                element = result[0];
+            }
+            if (!element || !element._id) {
+                throw new Error("Element '" + req.body.__builder_id + "' not found ...");
+            }
+            try {
+                if (typeof type.schema.beforeDelete === "function") {
+                    yield type.schema.beforeDelete(element, req);
+                }
+            }
+            catch (e) {
+                throw e;
+            }
+            yield db.collection(collection).deleteOne({ _id: element._id });
+            try {
+                if (typeof type.schema.afterDelete === "function") {
+                    yield type.schema.afterDelete(element, req);
+                }
+            }
+            catch (e) {
+                throw e;
+            }
+            let redirect = undefined;
+            const forms = typeof type.forms === "function" ? yield type.forms(req) : type.forms;
+            if (forms && forms.main && forms.main.onDeleteRedirect && typeof forms.main.onDeleteRedirect === "function") {
+                redirect = yield forms.main.onDeleteRedirect(element, req);
+            }
+            else if (forms && forms.main && forms.main.onSaveRedirect && typeof forms.main.onSaveRedirect === "function") {
+                redirect = yield forms.main.onSaveRedirect(element, req);
+            }
+            return {
+                status: "success",
+                data: {
+                    _id: element._id,
                     redirect: redirect,
                 },
             };
@@ -395,6 +545,31 @@ class DataBuilder {
             return {
                 status: "success",
                 data: element[0],
+            };
+        });
+    }
+    detailsNewData(db, req) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const type = this.getTypeFromRequest(req);
+            if (!type || !type.schema || !type.schema.fields) {
+                throw new Error("Missing schema fields ...");
+            }
+            if (!type.schema || !type.schema.newDataHandler || typeof type.schema.newDataHandler !== "function") {
+                throw new Error("Missing newDataHandler-Function ...");
+            }
+            let data = null;
+            try {
+                data = yield type.schema.newDataHandler(req);
+            }
+            catch (e) {
+                console.error(e);
+            }
+            if (data === null || data === undefined) {
+                return { status: "error", message: "Unexpected error generating the forms 'new-data' ..." };
+            }
+            return {
+                status: "success",
+                data: data,
             };
         });
     }

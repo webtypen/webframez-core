@@ -18,6 +18,11 @@ export declare class Datatable {
     perPage: number;
     onRow?: Function;
     onAttributes?: Function;
+    autoApplyFilter: "begin" | "end" | null;
+    autoApplySearch: "begin" | "end" | null;
+    logAggregation: boolean;
+    defaultUnwind?: string | null;
+    disablePerPageConfig: boolean;
     getInit(req: Request): Promise<any>;
     getAggregation(req: Request): Promise<any>;
     getSubAggregation(req: Request): Promise<any>;
@@ -26,6 +31,7 @@ export declare class Datatable {
         page: number;
         max_entries: any;
         total_pages: number;
+        per_page: number;
         entries: any;
         sums: any;
     }>;
