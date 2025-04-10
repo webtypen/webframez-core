@@ -73,6 +73,40 @@ export function hasMany(modelGetter: () => any, foreignKey: string, localKey?: s
     };
 }
 
+export function hasManyArray(modelGetter: () => any, localArrayKey: string, foreignKey?: string, queryFunction?: Function) {
+    return function (target: any, propertyKey: string) {
+        Object.defineProperty(target, propertyKey, {
+            value: async function (options?: any) {
+                if ((!options || !options.force) && this.__dependencies && this.__dependencies[propertyKey] !== undefined) {
+                    return this.__dependencies[propertyKey];
+                }
+
+                const model = modelGetter();
+                if (!model) {
+                    throw new Error(`Model for foreignKey "${foreignKey}" konnte nicht aufgelöst werden.`);
+                }
+
+                if (!this.__dependencies) {
+                    this.__dependencies = {};
+                }
+
+                const query = this.buildArrayRelationship(model, localArrayKey, foreignKey);
+                if (queryFunction && typeof queryFunction === "function") {
+                    queryFunction(query);
+                }
+
+                if (options && options.query) {
+                    return query;
+                }
+                this.__dependencies[propertyKey] = await query.get();
+                return this.__dependencies[propertyKey];
+            },
+            writable: false,
+            configurable: true,
+        });
+    };
+}
+
 export class Model {
     [key: string]: any | undefined; // allow-custom-properties
     __primaryKey = "_id";
@@ -216,6 +250,10 @@ export class Model {
 
     buildRelationship(model: any, foreignKey: string, localKey?: string): any {
         return model.where(foreignKey, "=", this[localKey ?? "_id"]);
+    }
+
+    buildArrayRelationship(model: any, localArrayKey: string, foreignKey?: string): any {
+        return model.where(foreignKey ?? "_id", "=", { $in: this[localArrayKey] });
     }
 
     /**

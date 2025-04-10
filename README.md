@@ -141,6 +141,7 @@ Models are usually placed under `app/Models`. Each model class inherits from `Mo
 import { Model, hasMany, QueryBuilder } from "@webtypen/webframez-core";
 import { File } from "./File";
 import { Session } from "./Session";
+import { CustomerGroups } from "./CustomerGroups";
 
 export class User extends Model {
     __table = "users";
@@ -157,13 +158,22 @@ export class User extends Model {
     avatar!: () => File;
 
     /**
-     * @param File                 Dependency Model
+     * @param Session              Dependency Model
      * @param foreignKey
      * @param localKey             (optional)
      * @param queryBuilderFunction (optional) customize the query
      **/
     @hasMany(() => Session, "_user")
     sessions!: () => Session[];
+
+    /**
+     * @param CustomerGroups       Dependency Model
+     * @param foreignKey
+     * @param localKey             (optional)
+     * @param queryBuilderFunction (optional) customize the query
+     **/
+    @hasManyArray(() => CustomerGroups, "_groups")
+    groups!: () => CustomerGroups[];
 }
 ```
 
@@ -181,6 +191,7 @@ const testUser = await User.where("email", "=", "test@test.de").where("is_active
 ```ts
 const sessions = await testUser.session();
 const avatarUrl = await testUser.avatar()?.url;
+const customerGroups = await testUser.groups();
 ```
 
 ##### Disable cache / force dependency-reload:
