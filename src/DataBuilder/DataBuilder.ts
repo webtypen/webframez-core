@@ -259,7 +259,6 @@ export class DataBuilder {
                     }
 
                     newData.forms[form] = {};
-
                     if (typeof type.forms[form].pageActions === "function") {
                         newData.forms[form].pageActions = await type.forms[form].pageActions(req);
                     } else if (type.forms[form].pageActions) {
@@ -275,6 +274,12 @@ export class DataBuilder {
                     } else if (type.forms[form].fields) {
                         newData.forms[form].fields = JSON.parse(JSON.stringify(type.forms[form].fields));
                     }
+
+                    newData.forms[form].allowDeletion =
+                        (typeof type.forms[form].allowDeletion === "boolean" && type.forms[form].allowDeletion) ||
+                        (typeof type.forms[form].allowDeletion === "function" && (await type.forms[form].allowDeletion(req)))
+                            ? true
+                            : false;
                 }
             } else {
                 newData[key] = type[key];
