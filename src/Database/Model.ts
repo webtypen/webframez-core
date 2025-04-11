@@ -253,7 +253,9 @@ export class Model {
     }
 
     buildArrayRelationship(model: any, localArrayKey: string, foreignKey?: string): any {
-        return model.where(foreignKey ?? "_id", "=", { $in: this[localArrayKey] });
+        return model.where(foreignKey ?? "_id", "=", {
+            $in: this[localArrayKey] && Array.isArray(this[localArrayKey]) ? this[localArrayKey] : [],
+        });
     }
 
     /**
