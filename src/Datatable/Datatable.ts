@@ -352,7 +352,7 @@ export class Datatable {
                     const min = range[0].toString().replace(",", ".");
                     const max = range[1].toString().replace(",", ".");
 
-                    value = {
+                    out[filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key] = {
                         $gte: filterEl.type === "float-range" ? parseFloat(min) : parseInt(min),
                         $lte: filterEl.type === "float-range" ? parseFloat(max) : parseInt(max),
                     };
