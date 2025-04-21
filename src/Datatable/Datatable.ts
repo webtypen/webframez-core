@@ -337,11 +337,30 @@ export class Datatable {
                 continue;
             }
 
+            // Handle Boolean
             if (filterEl.type === "boolean") {
                 if ((typeof valueClean === "boolean" && valueClean) || (valueClean && valueClean.toString() === "true")) {
                     out[filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key] = true;
                     continue;
                 }
+            }
+
+            // Handle integer/float range
+            if ((filterEl.type === "integer-range" || filterEl.type === "float-range") && valueClean !== undefined) {
+                if (valueClean.indexOf("-") > 0) {
+                    const range = valueClean.split("-");
+                    const min = range[0].toString().replace(",", ".");
+                    const max = range[1].toString().replace(",", ".");
+
+                    value = {
+                        $gte: filterEl.type === "float-range" ? parseFloat(min) : parseInt(min),
+                        $lte: filterEl.type === "float-range" ? parseFloat(max) : parseInt(max),
+                    };
+                } else {
+                    value = filterEl.type === "float-range" ? parseFloat(valueClean.toString().replace(",", ".")) : parseInt(valueClean);
+                }
+
+                continue;
             }
 
             switch (operator) {
