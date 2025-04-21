@@ -337,6 +337,13 @@ export class Datatable {
                 continue;
             }
 
+            if (filterEl.type === "boolean") {
+                if ((typeof valueClean === "boolean" && valueClean) || (valueClean && valueClean.toString() === "true")) {
+                    out[filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key] = true;
+                    continue;
+                }
+            }
+
             switch (operator) {
                 case "empty":
                     value = null;
