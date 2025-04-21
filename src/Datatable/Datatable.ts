@@ -357,7 +357,8 @@ export class Datatable {
                         $lte: filterEl.type === "float-range" ? parseFloat(max) : parseInt(max),
                     };
                 } else {
-                    value = filterEl.type === "float-range" ? parseFloat(valueClean.toString().replace(",", ".")) : parseInt(valueClean);
+                    out[filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key] =
+                        filterEl.type === "float-range" ? parseFloat(valueClean.toString().replace(",", ".")) : parseInt(valueClean);
                 }
 
                 continue;
