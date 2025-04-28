@@ -348,6 +348,7 @@ export class Datatable {
             // Handle integer/float range
             if (
                 (filterEl.type === "integer-range" ||
+                    filterEl.type === "currency" ||
                     filterEl.type === "float-range" ||
                     filterEl.type === "date-range" ||
                     filterEl.type === "daterange") &&
@@ -359,7 +360,7 @@ export class Datatable {
 
                     out[mappingKey] = {
                         $lte:
-                            filterEl.type === "float-range"
+                            filterEl.type === "float-range" || filterEl.type === "currency"
                                 ? parseFloat(val.toString().replace(",", "."))
                                 : filterEl.type === "integer-range"
                                 ? parseInt(val.toString().replace(",", "."))
@@ -370,7 +371,7 @@ export class Datatable {
 
                     out[mappingKey] = {
                         $lt:
-                            filterEl.type === "float-range"
+                            filterEl.type === "float-range" || filterEl.type === "currency"
                                 ? parseFloat(val.toString().replace(",", "."))
                                 : filterEl.type === "integer-range"
                                 ? parseInt(val.toString().replace(",", "."))
@@ -381,7 +382,7 @@ export class Datatable {
 
                     out[mappingKey] = {
                         $gte:
-                            filterEl.type === "float-range"
+                            filterEl.type === "float-range" || filterEl.type === "currency"
                                 ? parseFloat(val.toString().replace(",", "."))
                                 : filterEl.type === "integer-range"
                                 ? parseInt(val.toString().replace(",", "."))
@@ -392,7 +393,7 @@ export class Datatable {
 
                     out[mappingKey] = {
                         $gt:
-                            filterEl.type === "float-range"
+                            filterEl.type === "float-range" || filterEl.type === "currency"
                                 ? parseFloat(val.toString().replace(",", "."))
                                 : filterEl.type === "integer-range"
                                 ? parseInt(val.toString().replace(",", "."))
@@ -403,7 +404,7 @@ export class Datatable {
 
                     out[mappingKey] = {
                         $ne:
-                            filterEl.type === "float-range"
+                            filterEl.type === "float-range" || filterEl.type === "currency"
                                 ? parseFloat(val.toString().replace(",", "."))
                                 : filterEl.type === "integer-range"
                                 ? parseInt(val.toString().replace(",", "."))
@@ -415,12 +416,22 @@ export class Datatable {
                     const max = range[1].toString().replace(",", ".");
 
                     out[mappingKey] = {
-                        $gte: filterEl.type === "float-range" ? parseFloat(min) : filterEl.type === "integer-range" ? parseInt(min) : min,
-                        $lte: filterEl.type === "float-range" ? parseFloat(max) : filterEl.type === "integer-range" ? parseInt(max) : max,
+                        $gte:
+                            filterEl.type === "float-range" || filterEl.type === "currency"
+                                ? parseFloat(min)
+                                : filterEl.type === "integer-range"
+                                ? parseInt(min)
+                                : min,
+                        $lte:
+                            filterEl.type === "float-range" || filterEl.type === "currency"
+                                ? parseFloat(max)
+                                : filterEl.type === "integer-range"
+                                ? parseInt(max)
+                                : max,
                     };
                 } else {
                     out[mappingKey] =
-                        filterEl.type === "float-range"
+                        filterEl.type === "float-range" || filterEl.type === "currency"
                             ? parseFloat(valueClean.toString().replace(",", "."))
                             : filterEl.type === "integer-range"
                             ? parseInt(valueClean)
