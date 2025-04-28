@@ -346,19 +346,85 @@ export class Datatable {
             }
 
             // Handle integer/float range
-            if ((filterEl.type === "integer-range" || filterEl.type === "float-range") && valueClean !== undefined) {
-                if (valueClean.indexOf("-") > 0) {
+            if (
+                (filterEl.type === "integer-range" ||
+                    filterEl.type === "float-range" ||
+                    filterEl.type === "date-range" ||
+                    filterEl.type === "daterange") &&
+                valueClean !== undefined
+            ) {
+                const mappingKey = filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key;
+                if (valueClean.startsWith("<=")) {
+                    const val = valueClean.replace("<=", "").trim();
+
+                    out[mappingKey] = {
+                        $lte:
+                            filterEl.type === "float-range"
+                                ? parseFloat(val.toString().replace(",", "."))
+                                : filterEl.type === "integer-range"
+                                ? parseInt(val.toString().replace(",", "."))
+                                : val,
+                    };
+                } else if (valueClean.startsWith("<")) {
+                    const val = valueClean.replace("<", "").trim();
+
+                    out[mappingKey] = {
+                        $lt:
+                            filterEl.type === "float-range"
+                                ? parseFloat(val.toString().replace(",", "."))
+                                : filterEl.type === "integer-range"
+                                ? parseInt(val.toString().replace(",", "."))
+                                : val,
+                    };
+                } else if (valueClean.startsWith(">=")) {
+                    const val = valueClean.replace(">=", "").trim();
+
+                    out[mappingKey] = {
+                        $gte:
+                            filterEl.type === "float-range"
+                                ? parseFloat(val.toString().replace(",", "."))
+                                : filterEl.type === "integer-range"
+                                ? parseInt(val.toString().replace(",", "."))
+                                : val,
+                    };
+                } else if (valueClean.startsWith(">")) {
+                    const val = valueClean.replace(">", "").trim();
+
+                    out[mappingKey] = {
+                        $gt:
+                            filterEl.type === "float-range"
+                                ? parseFloat(val.toString().replace(",", "."))
+                                : filterEl.type === "integer-range"
+                                ? parseInt(val.toString().replace(",", "."))
+                                : val,
+                    };
+                } else if (valueClean.startsWith("!=")) {
+                    const val = valueClean.replace("!=", "").trim();
+
+                    out[mappingKey] = {
+                        $ne:
+                            filterEl.type === "float-range"
+                                ? parseFloat(val.toString().replace(",", "."))
+                                : filterEl.type === "integer-range"
+                                ? parseInt(val.toString().replace(",", "."))
+                                : val,
+                    };
+                } else if (valueClean.indexOf("-") > 0) {
                     const range = valueClean.split("-");
                     const min = range[0].toString().replace(",", ".");
                     const max = range[1].toString().replace(",", ".");
 
-                    out[filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key] = {
-                        $gte: filterEl.type === "float-range" ? parseFloat(min) : parseInt(min),
-                        $lte: filterEl.type === "float-range" ? parseFloat(max) : parseInt(max),
+                    out[mappingKey] = {
+                        $gte: filterEl.type === "float-range" ? parseFloat(min) : filterEl.type === "integer-range" ? parseInt(min) : min,
+                        $lte: filterEl.type === "float-range" ? parseFloat(max) : filterEl.type === "integer-range" ? parseInt(max) : max,
                     };
                 } else {
-                    out[filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key] =
-                        filterEl.type === "float-range" ? parseFloat(valueClean.toString().replace(",", ".")) : parseInt(valueClean);
+                    out[mappingKey] =
+                        filterEl.type === "float-range"
+                            ? parseFloat(valueClean.toString().replace(",", "."))
+                            : filterEl.type === "integer-range"
+                            ? parseInt(valueClean)
+                            : valueClean;
                 }
 
                 continue;

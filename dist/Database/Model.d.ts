@@ -4,6 +4,7 @@ type ObjectIDType = {
 };
 export declare function hasOne(modelGetter: () => any, foreignKey: string, localKey?: string, queryFunction?: Function): (target: any, propertyKey: string, v2?: any) => void;
 export declare function hasMany(modelGetter: () => any, foreignKey: string, localKey?: string, queryFunction?: Function): (target: any, propertyKey: string) => void;
+export declare function hasManyArray(modelGetter: () => any, localArrayKey: string, foreignKey?: string, queryFunction?: Function): (target: any, propertyKey: string) => void;
 export declare class Model {
     [key: string]: any | undefined;
     __primaryKey: string;
@@ -56,6 +57,7 @@ export declare class Model {
      */
     static aggregate(aggregation: any, options?: any, collection?: string): Promise<any>;
     buildRelationship(model: any, foreignKey: string, localKey?: string): any;
+    buildArrayRelationship(model: any, localArrayKey: string, foreignKey?: string): any;
     /**
      * Returns the model-data without system- and unmapped-fields (new js-object)
      * @returns object

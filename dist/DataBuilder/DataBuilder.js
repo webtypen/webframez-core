@@ -220,6 +220,11 @@ class DataBuilder {
                         else if (type.forms[form].fields) {
                             newData.forms[form].fields = JSON.parse(JSON.stringify(type.forms[form].fields));
                         }
+                        newData.forms[form].allowDeletion =
+                            (typeof type.forms[form].allowDeletion === "boolean" && type.forms[form].allowDeletion) ||
+                                (typeof type.forms[form].allowDeletion === "function" && (yield type.forms[form].allowDeletion(req)))
+                                ? true
+                                : false;
                     }
                 }
                 else {

@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Model = exports.hasMany = exports.hasOne = void 0;
+exports.Model = exports.hasManyArray = exports.hasMany = exports.hasOne = void 0;
 const DBConnection_1 = require("./DBConnection");
 const QueryBuilder_1 = require("./QueryBuilder");
 function hasOne(modelGetter, foreignKey, localKey, queryFunction) {
@@ -76,6 +76,38 @@ function hasMany(modelGetter, foreignKey, localKey, queryFunction) {
     };
 }
 exports.hasMany = hasMany;
+function hasManyArray(modelGetter, localArrayKey, foreignKey, queryFunction) {
+    return function (target, propertyKey) {
+        Object.defineProperty(target, propertyKey, {
+            value: function (options) {
+                return __awaiter(this, void 0, void 0, function* () {
+                    if ((!options || !options.force) && this.__dependencies && this.__dependencies[propertyKey] !== undefined) {
+                        return this.__dependencies[propertyKey];
+                    }
+                    const model = modelGetter();
+                    if (!model) {
+                        throw new Error(`Model for foreignKey "${foreignKey}" konnte nicht aufgelöst werden.`);
+                    }
+                    if (!this.__dependencies) {
+                        this.__dependencies = {};
+                    }
+                    const query = this.buildArrayRelationship(model, localArrayKey, foreignKey);
+                    if (queryFunction && typeof queryFunction === "function") {
+                        queryFunction(query);
+                    }
+                    if (options && options.query) {
+                        return query;
+                    }
+                    this.__dependencies[propertyKey] = yield query.get();
+                    return this.__dependencies[propertyKey];
+                });
+            },
+            writable: false,
+            configurable: true,
+        });
+    };
+}
+exports.hasManyArray = hasManyArray;
 class Model {
     constructor() {
         this.__primaryKey = "_id";
@@ -220,6 +252,11 @@ class Model {
     }
     buildRelationship(model, foreignKey, localKey) {
         return model.where(foreignKey, "=", this[localKey !== null && localKey !== void 0 ? localKey : "_id"]);
+    }
+    buildArrayRelationship(model, localArrayKey, foreignKey) {
+        return model.where(foreignKey !== null && foreignKey !== void 0 ? foreignKey : "_id", "=", {
+            $in: this[localArrayKey] && Array.isArray(this[localArrayKey]) ? this[localArrayKey] : [],
+        });
     }
     /**
      * Returns the model-data without system- and unmapped-fields (new js-object)
