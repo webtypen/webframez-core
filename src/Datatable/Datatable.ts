@@ -394,7 +394,7 @@ export class Datatable {
                     const val = valueClean.replace(">", "").trim();
 
                     out[mappingKey] = {
-                        $gt: cleanVal,
+                        $gt: cleanVal(val),
                     };
                 } else if (valueClean.startsWith("!=")) {
                     const val = valueClean.replace("!=", "").trim();
