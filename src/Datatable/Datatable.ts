@@ -346,7 +346,9 @@ export class Datatable {
                 }
             }
 
+            // Handle type
             const tempType = filterEl && filterEl.type ? filterEl.type : entryType;
+
             // Handle integer/float range
             if (
                 (tempType === "integer-range" ||
