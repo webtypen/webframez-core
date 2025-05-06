@@ -346,34 +346,24 @@ export class Datatable {
                 }
             }
 
+            const tempType = filterEl && filterEl.type ? filterEl.type : entryType;
             // Handle integer/float range
             if (
-                (filterEl.type === "integer-range" ||
-                    entryType === "integer-range" ||
-                    filterEl.type === "currency" ||
-                    entryType === "currency" ||
-                    filterEl.type === "float-range" ||
-                    entryType === "float-range" ||
-                    filterEl.type === "date-range" ||
-                    entryType === "date-range" ||
-                    entryType === "daterange" ||
-                    filterEl.type === "daterange") &&
+                (tempType === "integer-range" ||
+                    tempType === "currency" ||
+                    tempType === "float-range" ||
+                    tempType === "date-range" ||
+                    tempType === "daterange") &&
                 valueClean !== undefined
             ) {
                 const mappingKey = filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key;
 
                 const cleanVal = (val: any) => {
-                    return filterEl.type === "float-range" ||
-                        filterEl.type === "currency" ||
-                        entryType === "float-range" ||
-                        entryType === "currency"
+                    return tempType === "float-range" || tempType === "currency"
                         ? parseFloat(val.toString().replace(",", "."))
-                        : filterEl.type === "integer-range" || entryType === "integer-range"
+                        : tempType === "integer-range"
                         ? parseInt(val.toString().replace(",", "."))
-                        : filterEl.type === "date-range" ||
-                          filterEl.type === "daterange" ||
-                          entryType === "date-range" ||
-                          entryType === "daterange"
+                        : tempType === "date-range" || tempType === "daterange"
                         ? val.indexOf(".") > 0
                             ? moment(val, "DD.MM.YYYY").format("YYYY-MM-DD")
                             : val
