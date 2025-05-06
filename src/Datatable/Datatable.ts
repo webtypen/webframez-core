@@ -373,7 +373,9 @@ export class Datatable {
                         : val;
                 };
 
-                if (valueClean.startsWith("<=")) {
+                if (valueClean.startsWith("==null")) {
+                    out[mappingKey] = null;
+                } else if (valueClean.startsWith("<=")) {
                     const val = valueClean.replace("<=", "").trim();
 
                     out[mappingKey] = {
