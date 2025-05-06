@@ -1,3 +1,4 @@
+import moment from "moment";
 import { DBConnection } from "../Database/DBConnection";
 import { NumericFunctions } from "../Functions/NumericFunctions";
 import { Request } from "../Router/Request";
@@ -355,60 +356,48 @@ export class Datatable {
                 valueClean !== undefined
             ) {
                 const mappingKey = filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key;
+
+                const cleanVal = (val: any) => {
+                    return filterEl.type === "float-range" || filterEl.type === "currency"
+                        ? parseFloat(val.toString().replace(",", "."))
+                        : filterEl.type === "integer-range"
+                        ? parseInt(val.toString().replace(",", "."))
+                        : filterEl.type === "date-range" || filterEl.type === "daterange"
+                        ? val.indexOf(".") > 0
+                            ? moment(val, "DD.MM.YYYY").format("YYYY-MM-DD")
+                            : val
+                        : val;
+                };
+
                 if (valueClean.startsWith("<=")) {
                     const val = valueClean.replace("<=", "").trim();
 
                     out[mappingKey] = {
-                        $lte:
-                            filterEl.type === "float-range" || filterEl.type === "currency"
-                                ? parseFloat(val.toString().replace(",", "."))
-                                : filterEl.type === "integer-range"
-                                ? parseInt(val.toString().replace(",", "."))
-                                : val,
+                        $lte: cleanVal(val),
                     };
                 } else if (valueClean.startsWith("<")) {
                     const val = valueClean.replace("<", "").trim();
 
                     out[mappingKey] = {
-                        $lt:
-                            filterEl.type === "float-range" || filterEl.type === "currency"
-                                ? parseFloat(val.toString().replace(",", "."))
-                                : filterEl.type === "integer-range"
-                                ? parseInt(val.toString().replace(",", "."))
-                                : val,
+                        $lt: cleanVal(val),
                     };
                 } else if (valueClean.startsWith(">=")) {
                     const val = valueClean.replace(">=", "").trim();
 
                     out[mappingKey] = {
-                        $gte:
-                            filterEl.type === "float-range" || filterEl.type === "currency"
-                                ? parseFloat(val.toString().replace(",", "."))
-                                : filterEl.type === "integer-range"
-                                ? parseInt(val.toString().replace(",", "."))
-                                : val,
+                        $gte: cleanVal(val),
                     };
                 } else if (valueClean.startsWith(">")) {
                     const val = valueClean.replace(">", "").trim();
 
                     out[mappingKey] = {
-                        $gt:
-                            filterEl.type === "float-range" || filterEl.type === "currency"
-                                ? parseFloat(val.toString().replace(",", "."))
-                                : filterEl.type === "integer-range"
-                                ? parseInt(val.toString().replace(",", "."))
-                                : val,
+                        $gt: cleanVal,
                     };
                 } else if (valueClean.startsWith("!=")) {
                     const val = valueClean.replace("!=", "").trim();
 
                     out[mappingKey] = {
-                        $ne:
-                            filterEl.type === "float-range" || filterEl.type === "currency"
-                                ? parseFloat(val.toString().replace(",", "."))
-                                : filterEl.type === "integer-range"
-                                ? parseInt(val.toString().replace(",", "."))
-                                : val,
+                        $ne: cleanVal(val),
                     };
                 } else if (valueClean.indexOf("-") > 0) {
                     const range = valueClean.split("-");
@@ -416,26 +405,11 @@ export class Datatable {
                     const max = range[1].toString().replace(",", ".");
 
                     out[mappingKey] = {
-                        $gte:
-                            filterEl.type === "float-range" || filterEl.type === "currency"
-                                ? parseFloat(min)
-                                : filterEl.type === "integer-range"
-                                ? parseInt(min)
-                                : min,
-                        $lte:
-                            filterEl.type === "float-range" || filterEl.type === "currency"
-                                ? parseFloat(max)
-                                : filterEl.type === "integer-range"
-                                ? parseInt(max)
-                                : max,
+                        $gte: cleanVal(min),
+                        $lte: cleanVal(max),
                     };
                 } else {
-                    out[mappingKey] =
-                        filterEl.type === "float-range" || filterEl.type === "currency"
-                            ? parseFloat(valueClean.toString().replace(",", "."))
-                            : filterEl.type === "integer-range"
-                            ? parseInt(valueClean)
-                            : valueClean;
+                    out[mappingKey] = cleanVal(valueClean);
                 }
 
                 continue;
