@@ -356,7 +356,8 @@ export class Datatable {
                     tempType === "float-range" ||
                     tempType === "date-range" ||
                     tempType === "daterange") &&
-                valueClean !== undefined
+                valueClean !== undefined &&
+                valueClean.toString().trim() !== ""
             ) {
                 const mappingKey = filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key;
 
