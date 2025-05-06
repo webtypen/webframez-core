@@ -339,7 +339,7 @@ export class Datatable {
             }
 
             // Handle Boolean
-            if (filterEl.type === "boolean") {
+            if (filterEl && filterEl.type === "boolean") {
                 if ((typeof valueClean === "boolean" && valueClean) || (valueClean && valueClean.toString() === "true")) {
                     out[filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key] = true;
                     continue;
@@ -349,20 +349,31 @@ export class Datatable {
             // Handle integer/float range
             if (
                 (filterEl.type === "integer-range" ||
+                    entryType === "integer-range" ||
                     filterEl.type === "currency" ||
+                    entryType === "currency" ||
                     filterEl.type === "float-range" ||
+                    entryType === "float-range" ||
                     filterEl.type === "date-range" ||
+                    entryType === "date-range" ||
+                    entryType === "daterange" ||
                     filterEl.type === "daterange") &&
                 valueClean !== undefined
             ) {
                 const mappingKey = filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key;
 
                 const cleanVal = (val: any) => {
-                    return filterEl.type === "float-range" || filterEl.type === "currency"
+                    return filterEl.type === "float-range" ||
+                        filterEl.type === "currency" ||
+                        entryType === "float-range" ||
+                        entryType === "currency"
                         ? parseFloat(val.toString().replace(",", "."))
-                        : filterEl.type === "integer-range"
+                        : filterEl.type === "integer-range" || entryType === "integer-range"
                         ? parseInt(val.toString().replace(",", "."))
-                        : filterEl.type === "date-range" || filterEl.type === "daterange"
+                        : filterEl.type === "date-range" ||
+                          filterEl.type === "daterange" ||
+                          entryType === "date-range" ||
+                          entryType === "daterange"
                         ? val.indexOf(".") > 0
                             ? moment(val, "DD.MM.YYYY").format("YYYY-MM-DD")
                             : val
