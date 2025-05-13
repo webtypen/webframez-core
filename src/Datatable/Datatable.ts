@@ -429,7 +429,11 @@ export class Datatable {
                     value = { $ne: null };
                     break;
                 case "==":
-                    value = this.formatFilterEntryVal(entry, filterEl, { regex: filterEl && filterEl.regex ? true : false });
+                    if (!filterEl) {
+                        value = this.formatFilterEntryVal(entry, filterEl, { regex: true });
+                    } else {
+                        value = this.formatFilterEntryVal(entry, filterEl, { regex: filterEl && filterEl.regex ? true : false });
+                    }
                     break;
                 case "!=":
                     const temp = this.formatFilterEntryVal(entry, filterEl);
