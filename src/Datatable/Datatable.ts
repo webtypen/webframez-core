@@ -299,7 +299,7 @@ export class Datatable {
             } else if (entry.value === "false") {
                 value = false;
             }
-        } else {
+        } else if(valueClean) {
             if (valueClean.toString().trim() === "==null") {
                 value = null;
             } else if (valueClean.toString().trim() === "!=null") {
