@@ -300,7 +300,23 @@ export class Datatable {
                 value = false;
             }
         } else {
-            if (options && options.regex) {
+            if (valueClean.toString().trim() === "==null") {
+                value = null;
+            } else if (valueClean.toString().trim() === "!=null") {
+                value = { $ne: null };
+            } else if (valueClean.toString().startWith("!=")) {
+                value = { $ne: valueClean.replace("!=", "") };
+            } else if (valueClean.toString().startWith("==")) {
+                value = valueClean.replace("==", "");
+            } else if (valueClean.toString().startWith(">=")) {
+                value = { $gte: valueClean.replace(">=", "") };
+            } else if (valueClean.toString().startWith(">")) {
+                value = { $gt: valueClean.replace(">", "") };
+            } else if (valueClean.toString().startWith("<=")) {
+                value = { $lte: valueClean.replace("<=", "") };
+            } else if (valueClean.toString().startWith("<")) {
+                value = { $lt: valueClean.replace("<", "") };
+            } else if (options && options.regex) {
                 value = new RegExp(valueClean, "i");
             } else {
                 value = valueClean;
@@ -374,6 +390,8 @@ export class Datatable {
                 };
 
                 if (valueClean.startsWith("==null")) {
+                    out[mappingKey] = null;
+                } else if (valueClean.startsWith("!=null")) {
                     out[mappingKey] = null;
                 } else if (valueClean.startsWith("<=")) {
                     const val = valueClean.replace("<=", "").trim();
