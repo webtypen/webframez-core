@@ -304,17 +304,17 @@ export class Datatable {
                 value = null;
             } else if (valueClean.toString().trim() === "!=null") {
                 value = { $ne: null };
-            } else if (valueClean.toString().startWith("!=")) {
+            } else if (valueClean.toString().startsWith("!=")) {
                 value = { $ne: valueClean.replace("!=", "") };
-            } else if (valueClean.toString().startWith("==")) {
+            } else if (valueClean.toString().startsWith("==")) {
                 value = valueClean.replace("==", "");
-            } else if (valueClean.toString().startWith(">=")) {
+            } else if (valueClean.toString().startsWith(">=")) {
                 value = { $gte: valueClean.replace(">=", "") };
-            } else if (valueClean.toString().startWith(">")) {
+            } else if (valueClean.toString().startsWith(">")) {
                 value = { $gt: valueClean.replace(">", "") };
-            } else if (valueClean.toString().startWith("<=")) {
+            } else if (valueClean.toString().startsWith("<=")) {
                 value = { $lte: valueClean.replace("<=", "") };
-            } else if (valueClean.toString().startWith("<")) {
+            } else if (valueClean.toString().startsWith("<")) {
                 value = { $lt: valueClean.replace("<", "") };
             } else if (options && options.regex) {
                 value = new RegExp(valueClean, "i");
