@@ -304,6 +304,22 @@ export class Datatable {
                 value = null;
             } else if (valueClean.toString().trim() === "!=null") {
                 value = { $ne: null };
+            } else if (valueClean.toString().startsWith("!=[") && valueClean.toString().trim().endsWith("]")) {
+                const arr = valueClean
+                    .trim()
+                    .substring(0, valueClean.length - 1)
+                    .replace("!=[", "")
+                    .split(",")
+                    .map((el: any) => el.trim());
+                value = { $nin: arr };
+            } else if (valueClean.toString().startsWith("==[") && valueClean.toString().trim().endsWith("]")) {
+                const arr = valueClean
+                    .trim()
+                    .substring(0, valueClean.length - 1)
+                    .replace("==[", "")
+                    .split(",")
+                    .map((el: any) => el.trim());
+                value = { $in: arr };
             } else if (valueClean.toString().startsWith("!=")) {
                 value = { $ne: valueClean.replace("!=", "") };
             } else if (valueClean.toString().startsWith("==")) {
@@ -417,6 +433,22 @@ export class Datatable {
                     out[mappingKey] = {
                         $gt: cleanVal(val),
                     };
+                } else if (valueClean.toString().startsWith("!=[") && valueClean.toString().trim().endsWith("]")) {
+                    const arr = valueClean
+                        .replace("!=[", "")
+                        .trim()
+                        .substring(0, valueClean.length - 1)
+                        .split(",")
+                        .map((el: any) => el.trim());
+                    out[mappingKey] = { $nin: arr.map((el: any) => cleanVal(el)) };
+                } else if (valueClean.toString().startsWith("==[") && valueClean.toString().trim().endsWith("]")) {
+                    const arr = valueClean
+                        .replace("==[", "")
+                        .trim()
+                        .substring(0, valueClean.length - 1)
+                        .split(",")
+                        .map((el: any) => el.trim());
+                    out[mappingKey] = { $in: arr.map((el: any) => cleanVal(el)) };
                 } else if (valueClean.startsWith("!=")) {
                     const val = valueClean.replace("!=", "").trim();
 
