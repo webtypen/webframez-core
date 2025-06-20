@@ -299,7 +299,7 @@ export class Datatable {
             } else if (entry.value === "false") {
                 value = false;
             }
-        } else if(valueClean) {
+        } else if (valueClean) {
             if (valueClean.toString().trim() === "==null") {
                 value = null;
             } else if (valueClean.toString().trim() === "!=null") {
@@ -522,7 +522,7 @@ export class Datatable {
                 } else if (filterEl.cast === "float") {
                     value = parseFloat(value);
                 } else if (filterEl.cast === "boolean") {
-                    value = value === true || value === 1 || value.toString() === "1" || value.toString() === "true" ? true : false;
+                    value = value === true || value === 1 || value.toString() === "1" || value.toString() === "true" ? true : { $ne: true };
                 }
             }
 
