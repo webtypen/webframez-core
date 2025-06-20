@@ -297,7 +297,7 @@ export class Datatable {
             if (entry.value === "true") {
                 value = true;
             } else if (entry.value === "false") {
-                value = false;
+                value = { $ne: true };
             }
         } else if (valueClean) {
             if (valueClean.toString().trim() === "==null") {
