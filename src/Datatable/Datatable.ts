@@ -73,16 +73,26 @@ export class Datatable {
 
         const aggr = typeof this.aggregation === "function" ? await this.aggregation(req) : this.aggregation;
         if (this.autoApplyFilter && req.body.filter && typeof req.body.filter === "object") {
+            const filterMatch = await this.getFilterMatch(req, req.body.filter);
             if (this.autoApplyFilter === "begin") {
-                return [...prefix, { $match: { ...(await this.getFilterMatch(req, req.body.filter)) } }, ...aggr];
+                return filterMatch && Object.keys(filterMatch).length > 0
+                    ? [...prefix, { $match: { ...filterMatch } }, ...aggr]
+                    : [...prefix, ...aggr];
             } else if (this.autoApplyFilter === "end") {
-                return [...prefix, ...aggr, { $match: { ...(await this.getFilterMatch(req, req.body.filter)) } }];
+                return filterMatch && Object.keys(filterMatch).length > 0
+                    ? [...prefix, ...aggr, { $match: { ...filterMatch } }]
+                    : [...prefix, ...aggr];
             }
         } else if (this.autoApplySearch && req.body.search && typeof req.body.search === "object") {
+            const filterMatch = await this.getFilterMatch(req, req.body.search);
             if (this.autoApplySearch === "begin") {
-                return [...prefix, { $match: { ...(await this.getFilterMatch(req, req.body.search)) } }, ...aggr];
+                return filterMatch && Object.keys(filterMatch).length > 0
+                    ? [...prefix, { $match: { ...filterMatch } }, ...aggr]
+                    : [...prefix, ...aggr];
             } else if (this.autoApplySearch === "end") {
-                return [...prefix, ...aggr, { $match: { ...(await this.getFilterMatch(req, req.body.search)) } }];
+                return filterMatch && Object.keys(filterMatch).length > 0
+                    ? [...prefix, ...aggr, { $match: { ...filterMatch } }]
+                    : [...prefix, ...aggr];
             }
         }
 
