@@ -307,10 +307,42 @@ export class Datatable {
             if (entry.value === "true") {
                 value = true;
             } else if (entry.value === "false") {
-                value = false;
+                value = { $ne: true };
             }
-        } else {
-            if (options && options.regex) {
+        } else if (valueClean) {
+            if (valueClean.toString().trim() === "==null") {
+                value = null;
+            } else if (valueClean.toString().trim() === "!=null") {
+                value = { $ne: null };
+            } else if (valueClean.toString().startsWith("!=[") && valueClean.toString().trim().endsWith("]")) {
+                const arr = valueClean
+                    .trim()
+                    .substring(0, valueClean.length - 1)
+                    .replace("!=[", "")
+                    .split(",")
+                    .map((el: any) => el.trim());
+                value = { $nin: arr };
+            } else if (valueClean.toString().startsWith("==[") && valueClean.toString().trim().endsWith("]")) {
+                const arr = valueClean
+                    .trim()
+                    .substring(0, valueClean.length - 1)
+                    .replace("==[", "")
+                    .split(",")
+                    .map((el: any) => el.trim());
+                value = { $in: arr };
+            } else if (valueClean.toString().startsWith("!=")) {
+                value = { $ne: valueClean.replace("!=", "") };
+            } else if (valueClean.toString().startsWith("==")) {
+                value = valueClean.replace("==", "");
+            } else if (valueClean.toString().startsWith(">=")) {
+                value = { $gte: valueClean.replace(">=", "") };
+            } else if (valueClean.toString().startsWith(">")) {
+                value = { $gt: valueClean.replace(">", "") };
+            } else if (valueClean.toString().startsWith("<=")) {
+                value = { $lte: valueClean.replace("<=", "") };
+            } else if (valueClean.toString().startsWith("<")) {
+                value = { $lt: valueClean.replace("<", "") };
+            } else if (options && options.regex) {
                 value = new RegExp(valueClean, "i");
             } else {
                 value = valueClean;
@@ -385,6 +417,8 @@ export class Datatable {
 
                 if (valueClean.startsWith("==null")) {
                     out[mappingKey] = null;
+                } else if (valueClean.startsWith("!=null")) {
+                    out[mappingKey] = null;
                 } else if (valueClean.startsWith("<=")) {
                     const val = valueClean.replace("<=", "").trim();
 
@@ -409,6 +443,22 @@ export class Datatable {
                     out[mappingKey] = {
                         $gt: cleanVal(val),
                     };
+                } else if (valueClean.toString().startsWith("!=[") && valueClean.toString().trim().endsWith("]")) {
+                    const arr = valueClean
+                        .replace("!=[", "")
+                        .trim()
+                        .substring(0, valueClean.length - 1)
+                        .split(",")
+                        .map((el: any) => el.trim());
+                    out[mappingKey] = { $nin: arr.map((el: any) => cleanVal(el)) };
+                } else if (valueClean.toString().startsWith("==[") && valueClean.toString().trim().endsWith("]")) {
+                    const arr = valueClean
+                        .replace("==[", "")
+                        .trim()
+                        .substring(0, valueClean.length - 1)
+                        .split(",")
+                        .map((el: any) => el.trim());
+                    out[mappingKey] = { $in: arr.map((el: any) => cleanVal(el)) };
                 } else if (valueClean.startsWith("!=")) {
                     const val = valueClean.replace("!=", "").trim();
 
@@ -482,7 +532,7 @@ export class Datatable {
                 } else if (filterEl.cast === "float") {
                     value = parseFloat(value);
                 } else if (filterEl.cast === "boolean") {
-                    value = value === true || value === 1 || value.toString() === "1" || value.toString() === "true" ? true : false;
+                    value = value === true || value === 1 || value.toString() === "1" || value.toString() === "true" ? true : { $ne: true };
                 }
             }
 
