@@ -14,6 +14,8 @@ export class Datatable {
     perPage: number = 25;
     onRow?: Function;
     onAttributes?: Function;
+    onInit?: Function;
+    onData?: Function;
     autoApplyFilter: "begin" | "end" | null = "begin";
     autoApplySearch: "begin" | "end" | null = null;
     logAggregation = false;
@@ -62,6 +64,10 @@ export class Datatable {
         }
 
         await Promise.all(promises);
+
+        if (typeof this.onInit === "function") {
+            await this.onInit(req, out);
+        }
         return out;
     }
 
@@ -232,7 +238,7 @@ export class Datatable {
             }
         }
 
-        return {
+        const data = {
             page: page,
             max_entries: stats && stats[0] && stats[0].count ? stats[0].count : 0,
             total_pages: stats && stats[0] && stats[0].count > 0 ? Math.ceil(stats[0].count / perPage) : 0,
@@ -240,6 +246,11 @@ export class Datatable {
             entries: results,
             sums: sums,
         };
+
+        if (typeof this.onData === "function") {
+            await this.onData(req, data);
+        }
+        return data;
     }
 
     async getTotalData(req: Request) {
