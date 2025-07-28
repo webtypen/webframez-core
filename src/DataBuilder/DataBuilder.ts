@@ -254,7 +254,7 @@ export class DataBuilder {
                 }
 
                 for (let form in type.forms) {
-                    if (!type.forms[form] || !type.forms[form].fields || type.forms[form].fields.length < 1) {
+                    if (!type.forms[form] || !type.forms[form].fields) {
                         continue;
                     }
 
@@ -273,6 +273,10 @@ export class DataBuilder {
                         newData.forms[form].fields = await type.forms[form].fields(req);
                     } else if (type.forms[form].fields) {
                         newData.forms[form].fields = JSON.parse(JSON.stringify(type.forms[form].fields));
+                    }
+
+                    if (!newData.forms[form].fields || newData.forms[form].fields.length < 1) {
+                        continue;
                     }
 
                     newData.forms[form].allowDeletion =
