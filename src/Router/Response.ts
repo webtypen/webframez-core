@@ -99,7 +99,7 @@ export class Response {
      * @returns Response
      */
     async sendCsv(
-        content: string | [string[]],
+        content: string | string[][],
         filename = "export.csv",
         options?: { seperator?: string; eol: string; skipUtf8BOM?: boolean; contentType?: string; contentDisposition?: string }
     ) {
