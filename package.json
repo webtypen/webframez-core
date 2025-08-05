@@ -34,10 +34,11 @@
     },
     "dependencies": {
         "busboy": "^1.6.0",
-        "commander": "^9.4.1",
         "dotenv": "^8.2.0",
         "lodash": "^4.17.20",
         "mime-types": "^2.1.35",
+        "moment-timezone": "^0.6.0",
+        "mongodb": "^6.18.0",
         "qs": "^6.11.0",
         "querystring": "^0.2.1"
     }

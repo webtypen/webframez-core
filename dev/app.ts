@@ -74,25 +74,3 @@ app.boot({
         });
     },
 });
-
-function getBoundary(contentType: string) {
-    const match = contentType.match(/boundary=(.+)$/);
-    return match ? `--${match[1]}` : null;
-}
-
-function parseHeaders(headerPart: string) {
-    const headers: { [key: string]: string } = {};
-    const lines = headerPart.split("\r\n");
-    lines.forEach((line) => {
-        const parts = line.split(":");
-        if (parts.length === 2) {
-            headers[parts[0].trim()] = parts[1].trim();
-        }
-    });
-    return headers;
-}
-
-function getFilename(contentDisposition: string) {
-    const match = contentDisposition.match(/filename="(.+?)"/);
-    return match ? match[1] : null;
-}

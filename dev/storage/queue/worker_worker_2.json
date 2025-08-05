@@ -1,0 +1,1 @@
+{"worker":"worker_2","config":{"is_active":true},"pid":504685,"started_at":"2025-08-05T00:24:33.702Z","status":"stopped","log_file":"queue/log_worker_2.log","autorestart":true,"status_at":"2025-08-05T01:04:42.316Z","current_job":null,"ended_at":"2025-08-05T01:04:43.327Z"}

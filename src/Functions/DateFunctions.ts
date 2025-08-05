@@ -1,6 +1,10 @@
 import moment from "moment";
 
 class DateFunctionsFacade {
+    getDays() {
+        return ["mondays", "tuesdays", "wednesdays", "thursdays", "fridays", "saturdays", "sundays"];
+    }
+
     formatDateRange(start: string, end: string): string {
         const startDate = moment(start, "YYYY-MM-DD", true);
         const endDate = moment(end, "YYYY-MM-DD", true);

@@ -1,6 +1,6 @@
-import os from "os";
 import readline from "readline";
 import { ConsoleProgressBar } from "./ConsoleProgressBar";
+import { ConsoleOutputHelper, WriteOptions } from "./ConsoleOutputHelper";
 
 export class ConsoleCommand {
     static signature: string;
@@ -8,6 +8,16 @@ export class ConsoleCommand {
 
     rl: readline.Interface | null = null;
     currentProgress: ConsoleProgressBar | null = null;
+    args: { arguments: string[]; options: { [key: string]: boolean | string } } = { arguments: [], options: {} };
+
+    constructor(args?: { arguments: string[]; options: { [key: string]: boolean | string } }) {
+        if (args && args.arguments) {
+            this.args.arguments = args.arguments;
+        }
+        if (args && args.options) {
+            this.args.options = args.options;
+        }
+    }
 
     async handle() {}
 
@@ -32,13 +42,45 @@ export class ConsoleCommand {
         }
     }
 
-    write(message: string) {
-        process.stdout.write(message);
+    getArguments() {
+        return this.args.arguments;
+    }
+
+    getOptions() {
+        return this.args.options;
+    }
+
+    getOption(name: string): string | boolean | null {
+        return this.args.options[name] || null;
+    }
+
+    write(message: string, options?: WriteOptions) {
+        ConsoleOutputHelper.writeln(message, options);
         return this;
     }
 
-    writeln(message: string) {
-        process.stdout.write(message + os.EOL);
+    writeln(message: string, options?: WriteOptions) {
+        ConsoleOutputHelper.writeln(message, options);
+        return this;
+    }
+
+    error(message: string, options?: WriteOptions) {
+        ConsoleOutputHelper.error(message, options);
+        return this;
+    }
+
+    success(message: string, options?: WriteOptions) {
+        ConsoleOutputHelper.success(message, options);
+        return this;
+    }
+
+    warning(message: string, options?: WriteOptions) {
+        ConsoleOutputHelper.warning(message, options);
+        return this;
+    }
+
+    info(message: string, options?: WriteOptions) {
+        ConsoleOutputHelper.info(message, options);
         return this;
     }
 

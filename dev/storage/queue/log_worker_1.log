@@ -1,0 +1,198 @@
+[worker_1 | 25-08-05 01:43:07] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 01:43:07] Queue stopped
+
+[worker_1 | 25-08-05 01:43:13] Starting worker
+[worker_1 | 25-08-05 01:43:16] Queue started
+[worker_1 | 25-08-05 01:43:43] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 01:43:43] Queue stopped
+
+[worker_1 | 25-08-05 01:43:48] Starting worker
+[worker_1 | 25-08-05 01:43:52] Queue started
+
+[41m[37m ERROR [1m[39m[41m[49m [31mQueue run failed: Cannot read properties of undefined (reading 'identifier')[39m[22m
+
+[worker_1 | 25-08-05 01:45:04] Queue stopped
+
+[worker_1 | 25-08-05 01:48:16] Starting worker
+[worker_1 | 25-08-05 01:48:19] Queue started
+[worker_1 | 25-08-05 01:50:02] Start Job #3 - TestJob (every_x_mins: 5)
+[worker_1 | 25-08-05 01:50:28] Finished Job #3 - TestJob - 25.83s
+[worker_1 | 25-08-05 01:55:04] Start Job #4 - TestJob (every_x_mins: 5)
+[worker_1 | 25-08-05 01:55:30] Finished Job #4 - TestJob - 25.81s
+[worker_1 | 25-08-05 02:00:02] Start Job #5 - TestJob (every_x_mins: 5)
+[worker_1 | 25-08-05 02:00:28] Finished Job #5 - TestJob - 25.80s
+[worker_1 | 25-08-05 02:03:47] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 02:03:47] Queue stopped
+
+[worker_1 | 25-08-05 02:03:54] Starting worker
+[worker_1 | 25-08-05 02:04:00] Queue started
+[worker_1 | 25-08-05 02:04:25] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 02:04:25] Queue stopped
+[worker_1 | 25-08-05 02:04:29] Queue started
+
+[worker_1 | 25-08-05 02:07:02] Starting worker
+[worker_1 | 25-08-05 02:07:08] Queue started
+[worker_1 | 25-08-05 02:07:17] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 02:07:17] Queue stopped
+
+[worker_1 | 25-08-05 02:07:35] Starting worker
+[worker_1 | 25-08-05 02:07:41] Queue started
+[worker_1 | 25-08-05 02:07:45] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 02:07:45] Queue stopped
+
+[worker_1 | 25-08-05 02:07:48] Starting worker
+[worker_1 | 25-08-05 02:07:57] Queue started
+[worker_1 | 25-08-05 02:09:07] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 02:09:07] Queue stopped
+
+[worker_1 | 25-08-05 02:09:10] Starting worker
+[worker_1 | 25-08-05 02:09:16] Queue started
+[worker_1 | 25-08-05 02:09:17] Start Job #6 - TestJob (every_x_mins: 1)
+[worker_1 | 25-08-05 02:09:21] Queue started
+[worker_1 | 25-08-05 02:10:03] Start Job #7 - TestJob (every_x_mins: 1)
+[worker_1 | 25-08-05 02:10:07] Queue started
+[worker_1 | 25-08-05 02:10:43] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 02:10:43] Queue stopped
+
+[worker_1 | 25-08-05 02:10:50] Starting worker
+[worker_1 | 25-08-05 02:10:56] Queue started
+[worker_1 | 25-08-05 02:11:01] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 02:11:01] Queue stopped
+
+[worker_1 | 25-08-05 02:11:04] Starting worker
+[worker_1 | 25-08-05 02:11:11] Queue started
+[worker_1 | 25-08-05 02:15:02] Start Job #8 - TestJob (every_x_mins: 5)
+[worker_1 | 25-08-05 02:15:04] Finished Job #8 - TestJob - 2.50s
+[worker_1 | 25-08-05 02:15:10] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 02:15:10] Queue stopped
+
+[worker_1 | 25-08-05 02:15:13] Starting worker
+[worker_1 | 25-08-05 02:15:19] Queue started
+[worker_1 | 25-08-05 02:15:19] Invalid execution type 'every_hour' for job 'TestJob' in worker automation.
+
+[41m[37m ERROR [1m[39m[41m[49m [31mInvalid execution type 'every_hour' for job 'TestJob' in worker automation.[39m[22m
+
+[worker_1 | 25-08-05 02:15:19] Invalid execution type 'every_hour' for job 'TestJob' in worker automation.
+
+[41m[37m ERROR [1m[39m[41m[49m [31mInvalid execution type 'every_hour' for job 'TestJob' in worker automation.[39m[22m
+
+[worker_1 | 25-08-05 02:15:19] Invalid execution type 'every_hour' for job 'TestJob' in worker automation.
+
+[41m[37m ERROR [1m[39m[41m[49m [31mInvalid execution type 'every_hour' for job 'TestJob' in worker automation.[39m[22m
+
+[worker_1 | 25-08-05 02:15:24] Invalid execution type 'every_hour' for job 'TestJob' in worker automation.
+
+[41m[37m ERROR [1m[39m[41m[49m [31mInvalid execution type 'every_hour' for job 'TestJob' in worker automation.[39m[22m
+
+[worker_1 | 25-08-05 02:15:24] Invalid execution type 'every_hour' for job 'TestJob' in worker automation.
+
+[41m[37m ERROR [1m[39m[41m[49m [31mInvalid execution type 'every_hour' for job 'TestJob' in worker automation.[39m[22m
+
+[worker_1 | 25-08-05 02:15:24] Invalid execution type 'every_hour' for job 'TestJob' in worker automation.
+
+[41m[37m ERROR [1m[39m[41m[49m [31mInvalid execution type 'every_hour' for job 'TestJob' in worker automation.[39m[22m
+
+[worker_1 | 25-08-05 02:15:29] Invalid execution type 'every_hour' for job 'TestJob' in worker automation.
+
+[41m[37m ERROR [1m[39m[41m[49m [31mInvalid execution type 'every_hour' for job 'TestJob' in worker automation.[39m[22m
+
+[worker_1 | 25-08-05 02:15:29] Invalid execution type 'every_hour' for job 'TestJob' in worker automation.
+
+[41m[37m ERROR [1m[39m[41m[49m [31mInvalid execution type 'every_hour' for job 'TestJob' in worker automation.[39m[22m
+
+[worker_1 | 25-08-05 02:15:29] Invalid execution type 'every_hour' for job 'TestJob' in worker automation.
+
+[41m[37m ERROR [1m[39m[41m[49m [31mInvalid execution type 'every_hour' for job 'TestJob' in worker automation.[39m[22m
+
+[worker_1 | 25-08-05 02:15:31] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 02:15:31] Queue stopped
+
+[worker_1 | 25-08-05 02:16:58] Starting worker
+[worker_1 | 25-08-05 02:17:05] Queue started
+[worker_1 | 25-08-05 02:17:59] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 02:18:00] Queue stopped
+
+[worker_1 | 25-08-05 02:18:03] Starting worker
+[worker_1 | 25-08-05 02:18:10] Queue started
+[worker_1 | 25-08-05 02:18:10] every_hour8===1
+[worker_1 | 25-08-05 02:18:10] every_hour8===16
+[worker_1 | 25-08-05 02:18:10] every_hour8===17
+[worker_1 | 25-08-05 02:18:10] every_hour8===20
+[worker_1 | 25-08-05 02:18:16] every_hour8===1
+[worker_1 | 25-08-05 02:18:16] every_hour8===16
+[worker_1 | 25-08-05 02:18:16] every_hour8===17
+[worker_1 | 25-08-05 02:18:16] every_hour8===20
+[worker_1 | 25-08-05 02:18:21] every_hour8===1
+[worker_1 | 25-08-05 02:18:21] every_hour8===16
+[worker_1 | 25-08-05 02:18:21] every_hour8===17
+[worker_1 | 25-08-05 02:18:21] every_hour8===20
+[worker_1 | 25-08-05 02:18:26] every_hour8===1
+[worker_1 | 25-08-05 02:18:26] every_hour8===16
+[worker_1 | 25-08-05 02:18:26] every_hour8===17
+[worker_1 | 25-08-05 02:18:26] every_hour8===20
+[worker_1 | 25-08-05 02:18:31] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 02:18:31] Queue stopped
+
+[worker_1 | 25-08-05 02:18:33] Starting worker
+[worker_1 | 25-08-05 02:18:40] Queue started
+[worker_1 | 25-08-05 02:18:59] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 02:18:59] Queue stopped
+
+[worker_1 | 25-08-05 02:19:03] Starting worker
+[worker_1 | 25-08-05 02:19:09] Queue started
+[worker_1 | 25-08-05 02:19:10] Start Job #2 - TestJob (every_hour: 19)
+[worker_1 | 25-08-05 02:19:13] Finished Job #2 - TestJob - 2.50s
+[worker_1 | 25-08-05 02:20:01] Start Job #3 - TestJob (every_hour: 20)
+[worker_1 | 25-08-05 02:20:04] Finished Job #3 - TestJob - 2.51s
+[worker_1 | 25-08-05 02:23:37] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 02:23:37] Queue stopped
+
+[worker_1 | 25-08-05 02:23:42] Starting worker
+[worker_1 | 25-08-05 02:23:49] Queue started
+[worker_1 | 25-08-05 02:23:49] Invalid execution format for job 'TestJob' in worker automation.
+
+[41m[37m ERROR [1m[39m[41m[49m [31mInvalid execution format for job 'TestJob' in worker automation.[39m[22m
+
+[worker_1 | 25-08-05 02:23:50] Start Job #4 - TestJob (daily: 02:23)
+[worker_1 | 25-08-05 02:23:53] Finished Job #4 - TestJob - 2.51s
+[worker_1 | 25-08-05 02:23:54] Invalid execution format for job 'TestJob' in worker automation.
+
+[41m[37m ERROR [1m[39m[41m[49m [31mInvalid execution format for job 'TestJob' in worker automation.[39m[22m
+
+[worker_1 | 25-08-05 02:23:59] Invalid execution format for job 'TestJob' in worker automation.
+
+[41m[37m ERROR [1m[39m[41m[49m [31mInvalid execution format for job 'TestJob' in worker automation.[39m[22m
+
+[worker_1 | 25-08-05 02:24:04] Invalid execution format for job 'TestJob' in worker automation.
+
+[41m[37m ERROR [1m[39m[41m[49m [31mInvalid execution format for job 'TestJob' in worker automation.[39m[22m
+
+[worker_1 | 25-08-05 02:24:05] Start Job #5 - TestJob (daily: 02:24)
+[worker_1 | 25-08-05 02:24:07] Finished Job #5 - TestJob - 2.50s
+[worker_1 | 25-08-05 02:24:09] Invalid execution format for job 'TestJob' in worker automation.
+
+[41m[37m ERROR [1m[39m[41m[49m [31mInvalid execution format for job 'TestJob' in worker automation.[39m[22m
+
+[worker_1 | 25-08-05 02:24:14] Invalid execution format for job 'TestJob' in worker automation.
+
+[41m[37m ERROR [1m[39m[41m[49m [31mInvalid execution format for job 'TestJob' in worker automation.[39m[22m
+
+[worker_1 | 25-08-05 02:24:20] Invalid execution format for job 'TestJob' in worker automation.
+
+[41m[37m ERROR [1m[39m[41m[49m [31mInvalid execution format for job 'TestJob' in worker automation.[39m[22m
+
+[worker_1 | 25-08-05 02:24:21] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 02:24:21] Queue stopped
+
+[worker_1 | 25-08-05 02:24:27] Starting worker
+[worker_1 | 25-08-05 02:24:33] Queue started
+[worker_1 | 25-08-05 02:25:03] Start Job #5 - TestJob (daily: 02:24)
+[worker_1 | 25-08-05 02:25:05] Finished Job #5 - TestJob - 2.50s
+[worker_1 | 25-08-05 02:25:06] Start Job #6 - TestJob (daily: 02:25)
+[worker_1 | 25-08-05 02:25:09] Finished Job #6 - TestJob - 2.51s
+[worker_1 | 25-08-05 03:00:03] Start Job #7 - TestJob (every_hour: NaN)
+[worker_1 | 25-08-05 03:00:05] Finished Job #7 - TestJob - 2.50s
+[worker_1 | 25-08-05 03:01:04] Start Job #8 - TestJob (every_hour: 1)
+[worker_1 | 25-08-05 03:01:06] Finished Job #8 - TestJob - 2.50s
+[worker_1 | 25-08-05 03:04:43] Worker worker_1 received stop signal.
+[worker_1 | 25-08-05 03:04:43] Queue stopped

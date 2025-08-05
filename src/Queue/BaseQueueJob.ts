@@ -52,6 +52,14 @@ export class BaseQueueJob {
         return this.currentLog && this.currentLog.trim() !== "" ? this.currentLog : null;
     }
 
+    wait(ms: number) {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve(true);
+            }, ms);
+        });
+    }
+
     executeAgain(
         value: number = 30,
         unit:
