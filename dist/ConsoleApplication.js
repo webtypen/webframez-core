@@ -8,14 +8,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConsoleApplication = void 0;
 const Config_1 = require("./Config");
 const ConsoleOutputHelper_1 = require("./Commands/ConsoleOutputHelper");
-const package_json_1 = __importDefault(require("../package.json"));
 const QueueWorkerCommand_1 = require("./Commands/QueueWorkerCommand");
 const BuildFinishCommand_1 = require("./Commands/BuildFinishCommand");
 const DatatableRegistry_1 = require("./Datatable/DatatableRegistry");
@@ -25,6 +21,7 @@ const QueueStatusCommand_1 = require("./Commands/QueueStatusCommand");
 const QueueStopCommand_1 = require("./Commands/QueueStopCommand");
 const QueueLogCommand_1 = require("./Commands/QueueLogCommand");
 const QueueWorkerAutorestartCommand_1 = require("./Commands/QueueWorkerAutorestartCommand");
+const info_1 = require("./info");
 class ConsoleApplication {
     constructor() {
         this.systemCommands = [
@@ -170,7 +167,7 @@ class ConsoleApplication {
             }
         }
         const { writeln } = ConsoleOutputHelper_1.ConsoleOutputHelper;
-        writeln("webframez Framework [color=green]" + package_json_1.default.version + "[/color]", {
+        writeln("webframez Framework [color=green]" + info_1.WebframezInfo.version + "[/color]", {
             minLength: 125,
         });
         writeln("[color=orange]Usage:[/color]", { linesBefore: 1 });
@@ -197,7 +194,7 @@ class ConsoleApplication {
         }
     }
     renderVersion() {
-        ConsoleOutputHelper_1.ConsoleOutputHelper.writeln("webframez Framework [color=green]" + package_json_1.default.version + "[/color]");
+        ConsoleOutputHelper_1.ConsoleOutputHelper.writeln("webframez Framework [color=green]" + info_1.WebframezInfo.version + "[/color]");
     }
 }
 exports.ConsoleApplication = ConsoleApplication;

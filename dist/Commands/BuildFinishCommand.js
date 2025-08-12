@@ -13,8 +13,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BuildFinishCommand = void 0;
-const child_process_1 = require("child_process");
 const fs_1 = __importDefault(require("fs"));
+const child_process_1 = require("child_process");
 const ConsoleCommand_1 = require("./ConsoleCommand");
 class BuildFinishCommand extends ConsoleCommand_1.ConsoleCommand {
     handle() {
