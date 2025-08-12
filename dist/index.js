@@ -46,3 +46,4 @@ __exportStar(require("./Queue/BaseQueueJob"), exports);
 __exportStar(require("./Queue/QueueJob"), exports);
 __exportStar(require("./Queue/QueueJobsRegisty"), exports);
 __exportStar(require("./Commands/ConsoleOutputHelper"), exports);
+__exportStar(require("./info"), exports);
