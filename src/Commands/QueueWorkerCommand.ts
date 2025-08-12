@@ -469,7 +469,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
                 moment()
                     .tz(this.workerConfig.timezone ? this.workerConfig.timezone : "Europe/Berlin")
                     .format("YYYYMMDDHHmmss") + StringFunctions.random(24);
-            const job = await connection.client
+            const jobUpdate = await connection.client
                 .db(null)
                 .collection("queue_jobs")
                 .findOneAndUpdate(
@@ -482,10 +482,10 @@ export class QueueWorkerCommand extends ConsoleCommand {
                         worker: { $in: [null, this.workerKey] },
                         $or: [
                             {
-                                started_at: null,
+                                not_before: null,
                             },
                             {
-                                started_at: { $lte: now.toDate() },
+                                not_before: { $lte: now.toDate() },
                             },
                         ],
                     },
@@ -501,6 +501,13 @@ export class QueueWorkerCommand extends ConsoleCommand {
                         returnDocument: "after",
                     }
                 );
+
+            const job =
+                jobUpdate && jobUpdate.jobclass && jobUpdate._id
+                    ? jobUpdate
+                    : jobUpdate.value && jobUpdate.ok && jobUpdate.value._id && jobUpdate.value.jobclass
+                    ? jobUpdate.value
+                    : null;
 
             if (!job || !job.jobclass || !job._id) {
                 this.currentJob = null;
