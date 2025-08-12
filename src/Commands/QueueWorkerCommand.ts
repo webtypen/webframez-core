@@ -84,6 +84,10 @@ export class QueueWorkerCommand extends ConsoleCommand {
             return false;
         }
 
+        if (!fs.existsSync(storageDir("queue"))) {
+            fs.mkdirSync(storageDir("queue"), { recursive: true });
+        }
+
         const filePath = storageDir("queue", `worker_${this.workerKey}.json`);
         let lastLogFile: any = null;
         if (fs.existsSync(filePath)) {
