@@ -74,6 +74,13 @@ export declare class Model {
      */
     save(): Promise<any>;
     /**
+     * Update model-data
+     * @returns Model
+     */
+    update(updateData: {
+        [key: string]: any;
+    }): Promise<void>;
+    /**
      * Deletes the object from the database
      * @returns boolean
      */

@@ -1,5 +1,5 @@
-import { exec, execSync } from "child_process";
 import fs from "fs";
+import { execSync } from "child_process";
 import { ConsoleCommand } from "./ConsoleCommand";
 
 export class BuildFinishCommand extends ConsoleCommand {

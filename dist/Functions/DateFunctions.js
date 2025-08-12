@@ -6,6 +6,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DateFunctions = void 0;
 const moment_1 = __importDefault(require("moment"));
 class DateFunctionsFacade {
+    getDays() {
+        return ["mondays", "tuesdays", "wednesdays", "thursdays", "fridays", "saturdays", "sundays"];
+    }
     formatDateRange(start, end) {
         const startDate = (0, moment_1.default)(start, "YYYY-MM-DD", true);
         const endDate = (0, moment_1.default)(end, "YYYY-MM-DD", true);

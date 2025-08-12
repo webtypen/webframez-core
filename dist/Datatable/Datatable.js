@@ -8,8 +8,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Datatable = void 0;
+const moment_1 = __importDefault(require("moment"));
 const DBConnection_1 = require("../Database/DBConnection");
 const NumericFunctions_1 = require("../Functions/NumericFunctions");
 class Datatable {
@@ -62,6 +66,9 @@ class Datatable {
                 }
             }
             yield Promise.all(promises);
+            if (typeof this.onInit === "function") {
+                yield this.onInit(req, out);
+            }
             return out;
         });
     }
@@ -73,19 +80,29 @@ class Datatable {
             }
             const aggr = typeof this.aggregation === "function" ? yield this.aggregation(req) : this.aggregation;
             if (this.autoApplyFilter && req.body.filter && typeof req.body.filter === "object") {
+                const filterMatch = yield this.getFilterMatch(req, req.body.filter);
                 if (this.autoApplyFilter === "begin") {
-                    return [...prefix, { $match: Object.assign({}, (yield this.getFilterMatch(req, req.body.filter))) }, ...aggr];
+                    return filterMatch && Object.keys(filterMatch).length > 0
+                        ? [...prefix, { $match: Object.assign({}, filterMatch) }, ...aggr]
+                        : [...prefix, ...aggr];
                 }
                 else if (this.autoApplyFilter === "end") {
-                    return [...prefix, ...aggr, { $match: Object.assign({}, (yield this.getFilterMatch(req, req.body.filter))) }];
+                    return filterMatch && Object.keys(filterMatch).length > 0
+                        ? [...prefix, ...aggr, { $match: Object.assign({}, filterMatch) }]
+                        : [...prefix, ...aggr];
                 }
             }
             else if (this.autoApplySearch && req.body.search && typeof req.body.search === "object") {
+                const filterMatch = yield this.getFilterMatch(req, req.body.search);
                 if (this.autoApplySearch === "begin") {
-                    return [...prefix, { $match: Object.assign({}, (yield this.getFilterMatch(req, req.body.search))) }, ...aggr];
+                    return filterMatch && Object.keys(filterMatch).length > 0
+                        ? [...prefix, { $match: Object.assign({}, filterMatch) }, ...aggr]
+                        : [...prefix, ...aggr];
                 }
                 else if (this.autoApplySearch === "end") {
-                    return [...prefix, ...aggr, { $match: Object.assign({}, (yield this.getFilterMatch(req, req.body.search))) }];
+                    return filterMatch && Object.keys(filterMatch).length > 0
+                        ? [...prefix, ...aggr, { $match: Object.assign({}, filterMatch) }]
+                        : [...prefix, ...aggr];
                 }
             }
             if (prefix && prefix.length > 0) {
@@ -212,7 +229,7 @@ class Datatable {
                     }
                 }
             }
-            return {
+            const data = {
                 page: page,
                 max_entries: stats && stats[0] && stats[0].count ? stats[0].count : 0,
                 total_pages: stats && stats[0] && stats[0].count > 0 ? Math.ceil(stats[0].count / perPage) : 0,
@@ -220,6 +237,10 @@ class Datatable {
                 entries: results,
                 sums: sums,
             };
+            if (typeof this.onData === "function") {
+                yield this.onData(req, data);
+            }
+            return data;
         });
     }
     getTotalData(req) {
@@ -287,11 +308,53 @@ class Datatable {
                 value = true;
             }
             else if (entry.value === "false") {
-                value = false;
+                value = { $ne: true };
             }
         }
-        else {
-            if (options && options.regex) {
+        else if (valueClean) {
+            if (valueClean.toString().trim() === "==null") {
+                value = null;
+            }
+            else if (valueClean.toString().trim() === "!=null") {
+                value = { $ne: null };
+            }
+            else if (valueClean.toString().startsWith("!=[") && valueClean.toString().trim().endsWith("]")) {
+                const arr = valueClean
+                    .trim()
+                    .substring(0, valueClean.length - 1)
+                    .replace("!=[", "")
+                    .split(",")
+                    .map((el) => el.trim());
+                value = { $nin: arr };
+            }
+            else if (valueClean.toString().startsWith("==[") && valueClean.toString().trim().endsWith("]")) {
+                const arr = valueClean
+                    .trim()
+                    .substring(0, valueClean.length - 1)
+                    .replace("==[", "")
+                    .split(",")
+                    .map((el) => el.trim());
+                value = { $in: arr };
+            }
+            else if (valueClean.toString().startsWith("!=")) {
+                value = { $ne: valueClean.replace("!=", "") };
+            }
+            else if (valueClean.toString().startsWith("==")) {
+                value = valueClean.replace("==", "");
+            }
+            else if (valueClean.toString().startsWith(">=")) {
+                value = { $gte: valueClean.replace(">=", "") };
+            }
+            else if (valueClean.toString().startsWith(">")) {
+                value = { $gt: valueClean.replace(">", "") };
+            }
+            else if (valueClean.toString().startsWith("<=")) {
+                value = { $lte: valueClean.replace("<=", "") };
+            }
+            else if (valueClean.toString().startsWith("<")) {
+                value = { $lt: valueClean.replace("<", "") };
+            }
+            else if (options && options.regex) {
                 value = new RegExp(valueClean, "i");
             }
             else {
@@ -325,68 +388,86 @@ class Datatable {
                     continue;
                 }
                 // Handle Boolean
-                if (filterEl.type === "boolean") {
+                if (filterEl && filterEl.type === "boolean") {
                     if ((typeof valueClean === "boolean" && valueClean) || (valueClean && valueClean.toString() === "true")) {
                         out[filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key] = true;
                         continue;
                     }
                 }
+                // Handle type
+                const tempType = filterEl && filterEl.type ? filterEl.type : entryType;
                 // Handle integer/float range
-                if ((filterEl.type === "integer-range" ||
-                    filterEl.type === "currency" ||
-                    filterEl.type === "float-range" ||
-                    filterEl.type === "date-range" ||
-                    filterEl.type === "daterange") &&
-                    valueClean !== undefined) {
+                if ((tempType === "integer-range" ||
+                    tempType === "currency" ||
+                    tempType === "float-range" ||
+                    tempType === "date-range" ||
+                    tempType === "daterange") &&
+                    valueClean !== undefined &&
+                    valueClean.toString().trim() !== "") {
                     const mappingKey = filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key;
-                    if (valueClean.startsWith("<=")) {
+                    const cleanVal = (val) => {
+                        return tempType === "float-range" || tempType === "currency"
+                            ? parseFloat(val.toString().replace(",", "."))
+                            : tempType === "integer-range"
+                                ? parseInt(val.toString().replace(",", "."))
+                                : tempType === "date-range" || tempType === "daterange"
+                                    ? val.indexOf(".") > 0
+                                        ? (0, moment_1.default)(val, "DD.MM.YYYY").format("YYYY-MM-DD")
+                                        : val
+                                    : val;
+                    };
+                    if (valueClean.startsWith("==null")) {
+                        out[mappingKey] = null;
+                    }
+                    else if (valueClean.startsWith("!=null")) {
+                        out[mappingKey] = null;
+                    }
+                    else if (valueClean.startsWith("<=")) {
                         const val = valueClean.replace("<=", "").trim();
                         out[mappingKey] = {
-                            $lte: filterEl.type === "float-range" || filterEl.type === "currency"
-                                ? parseFloat(val.toString().replace(",", "."))
-                                : filterEl.type === "integer-range"
-                                    ? parseInt(val.toString().replace(",", "."))
-                                    : val,
+                            $lte: cleanVal(val),
                         };
                     }
                     else if (valueClean.startsWith("<")) {
                         const val = valueClean.replace("<", "").trim();
                         out[mappingKey] = {
-                            $lt: filterEl.type === "float-range" || filterEl.type === "currency"
-                                ? parseFloat(val.toString().replace(",", "."))
-                                : filterEl.type === "integer-range"
-                                    ? parseInt(val.toString().replace(",", "."))
-                                    : val,
+                            $lt: cleanVal(val),
                         };
                     }
                     else if (valueClean.startsWith(">=")) {
                         const val = valueClean.replace(">=", "").trim();
                         out[mappingKey] = {
-                            $gte: filterEl.type === "float-range" || filterEl.type === "currency"
-                                ? parseFloat(val.toString().replace(",", "."))
-                                : filterEl.type === "integer-range"
-                                    ? parseInt(val.toString().replace(",", "."))
-                                    : val,
+                            $gte: cleanVal(val),
                         };
                     }
                     else if (valueClean.startsWith(">")) {
                         const val = valueClean.replace(">", "").trim();
                         out[mappingKey] = {
-                            $gt: filterEl.type === "float-range" || filterEl.type === "currency"
-                                ? parseFloat(val.toString().replace(",", "."))
-                                : filterEl.type === "integer-range"
-                                    ? parseInt(val.toString().replace(",", "."))
-                                    : val,
+                            $gt: cleanVal(val),
                         };
+                    }
+                    else if (valueClean.toString().startsWith("!=[") && valueClean.toString().trim().endsWith("]")) {
+                        const arr = valueClean
+                            .replace("!=[", "")
+                            .trim()
+                            .substring(0, valueClean.length - 1)
+                            .split(",")
+                            .map((el) => el.trim());
+                        out[mappingKey] = { $nin: arr.map((el) => cleanVal(el)) };
+                    }
+                    else if (valueClean.toString().startsWith("==[") && valueClean.toString().trim().endsWith("]")) {
+                        const arr = valueClean
+                            .replace("==[", "")
+                            .trim()
+                            .substring(0, valueClean.length - 1)
+                            .split(",")
+                            .map((el) => el.trim());
+                        out[mappingKey] = { $in: arr.map((el) => cleanVal(el)) };
                     }
                     else if (valueClean.startsWith("!=")) {
                         const val = valueClean.replace("!=", "").trim();
                         out[mappingKey] = {
-                            $ne: filterEl.type === "float-range" || filterEl.type === "currency"
-                                ? parseFloat(val.toString().replace(",", "."))
-                                : filterEl.type === "integer-range"
-                                    ? parseInt(val.toString().replace(",", "."))
-                                    : val,
+                            $ne: cleanVal(val),
                         };
                     }
                     else if (valueClean.indexOf("-") > 0) {
@@ -394,25 +475,12 @@ class Datatable {
                         const min = range[0].toString().replace(",", ".");
                         const max = range[1].toString().replace(",", ".");
                         out[mappingKey] = {
-                            $gte: filterEl.type === "float-range" || filterEl.type === "currency"
-                                ? parseFloat(min)
-                                : filterEl.type === "integer-range"
-                                    ? parseInt(min)
-                                    : min,
-                            $lte: filterEl.type === "float-range" || filterEl.type === "currency"
-                                ? parseFloat(max)
-                                : filterEl.type === "integer-range"
-                                    ? parseInt(max)
-                                    : max,
+                            $gte: cleanVal(min),
+                            $lte: cleanVal(max),
                         };
                     }
                     else {
-                        out[mappingKey] =
-                            filterEl.type === "float-range" || filterEl.type === "currency"
-                                ? parseFloat(valueClean.toString().replace(",", "."))
-                                : filterEl.type === "integer-range"
-                                    ? parseInt(valueClean)
-                                    : valueClean;
+                        out[mappingKey] = cleanVal(valueClean);
                     }
                     continue;
                 }
@@ -424,7 +492,12 @@ class Datatable {
                         value = { $ne: null };
                         break;
                     case "==":
-                        value = this.formatFilterEntryVal(entry, filterEl, { regex: filterEl && filterEl.regex ? true : false });
+                        if (!filterEl) {
+                            value = this.formatFilterEntryVal(entry, filterEl, { regex: true });
+                        }
+                        else {
+                            value = this.formatFilterEntryVal(entry, filterEl, { regex: filterEl && filterEl.regex ? true : false });
+                        }
                         break;
                     case "!=":
                         const temp = this.formatFilterEntryVal(entry, filterEl);
@@ -467,7 +540,7 @@ class Datatable {
                         value = parseFloat(value);
                     }
                     else if (filterEl.cast === "boolean") {
-                        value = value === true || value === 1 || value.toString() === "1" || value.toString() === "true" ? true : false;
+                        value = value === true || value === 1 || value.toString() === "1" || value.toString() === "true" ? true : { $ne: true };
                     }
                 }
                 if (value !== undefined) {

@@ -1,6 +1,5 @@
 import { Config } from "./Config";
 import { ConsoleOutputHelper } from "./Commands/ConsoleOutputHelper";
-import packageJson from "../package.json";
 import { QueueWorkerCommand } from "./Commands/QueueWorkerCommand";
 import { BuildFinishCommand } from "./Commands/BuildFinishCommand";
 import { DatatableRegistry } from "./Datatable/DatatableRegistry";
@@ -10,6 +9,7 @@ import { QueueStatusCommand } from "./Commands/QueueStatusCommand";
 import { QueueStopCommand } from "./Commands/QueueStopCommand";
 import { QueueLogCommand } from "./Commands/QueueLogCommand";
 import { QueueWorkerAutorestartCommand } from "./Commands/QueueWorkerAutorestartCommand";
+import { WebframezInfo } from "./info";
 
 export class ConsoleApplication {
     systemCommands: any = [
@@ -170,7 +170,7 @@ export class ConsoleApplication {
         }
 
         const { writeln } = ConsoleOutputHelper;
-        writeln("webframez Framework [color=green]" + packageJson.version + "[/color]", {
+        writeln("webframez Framework [color=green]" + WebframezInfo.version + "[/color]", {
             minLength: 125,
         });
 
@@ -201,6 +201,6 @@ export class ConsoleApplication {
     }
 
     renderVersion() {
-        ConsoleOutputHelper.writeln("webframez Framework [color=green]" + packageJson.version + "[/color]");
+        ConsoleOutputHelper.writeln("webframez Framework [color=green]" + WebframezInfo.version + "[/color]");
     }
 }

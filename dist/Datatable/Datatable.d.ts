@@ -18,6 +18,8 @@ export declare class Datatable {
     perPage: number;
     onRow?: Function;
     onAttributes?: Function;
+    onInit?: Function;
+    onData?: Function;
     autoApplyFilter: "begin" | "end" | null;
     autoApplySearch: "begin" | "end" | null;
     logAggregation: boolean;

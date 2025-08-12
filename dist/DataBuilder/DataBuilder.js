@@ -201,7 +201,7 @@ class DataBuilder {
                         newData.forms = yield type.forms(req);
                     }
                     for (let form in type.forms) {
-                        if (!type.forms[form] || !type.forms[form].fields || type.forms[form].fields.length < 1) {
+                        if (!type.forms[form] || !type.forms[form].fields) {
                             continue;
                         }
                         newData.forms[form] = {};
@@ -219,6 +219,9 @@ class DataBuilder {
                         }
                         else if (type.forms[form].fields) {
                             newData.forms[form].fields = JSON.parse(JSON.stringify(type.forms[form].fields));
+                        }
+                        if (!newData.forms[form].fields || newData.forms[form].fields.length < 1) {
+                            continue;
                         }
                         newData.forms[form].allowDeletion =
                             (typeof type.forms[form].allowDeletion === "boolean" && type.forms[form].allowDeletion) ||

@@ -13,13 +13,20 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConsoleCommand = void 0;
-const os_1 = __importDefault(require("os"));
 const readline_1 = __importDefault(require("readline"));
 const ConsoleProgressBar_1 = require("./ConsoleProgressBar");
+const ConsoleOutputHelper_1 = require("./ConsoleOutputHelper");
 class ConsoleCommand {
-    constructor() {
+    constructor(args) {
         this.rl = null;
         this.currentProgress = null;
+        this.args = { arguments: [], options: {} };
+        if (args && args.arguments) {
+            this.args.arguments = args.arguments;
+        }
+        if (args && args.options) {
+            this.args.options = args.options;
+        }
     }
     handle() {
         return __awaiter(this, void 0, void 0, function* () { });
@@ -48,12 +55,37 @@ class ConsoleCommand {
             }
         });
     }
-    write(message) {
-        process.stdout.write(message);
+    getArguments() {
+        return this.args.arguments;
+    }
+    getOptions() {
+        return this.args.options;
+    }
+    getOption(name) {
+        return this.args.options[name] || null;
+    }
+    write(message, options) {
+        ConsoleOutputHelper_1.ConsoleOutputHelper.writeln(message, options);
         return this;
     }
-    writeln(message) {
-        process.stdout.write(message + os_1.default.EOL);
+    writeln(message, options) {
+        ConsoleOutputHelper_1.ConsoleOutputHelper.writeln(message, options);
+        return this;
+    }
+    error(message, options) {
+        ConsoleOutputHelper_1.ConsoleOutputHelper.error(message, options);
+        return this;
+    }
+    success(message, options) {
+        ConsoleOutputHelper_1.ConsoleOutputHelper.success(message, options);
+        return this;
+    }
+    warning(message, options) {
+        ConsoleOutputHelper_1.ConsoleOutputHelper.warning(message, options);
+        return this;
+    }
+    info(message, options) {
+        ConsoleOutputHelper_1.ConsoleOutputHelper.info(message, options);
         return this;
     }
     ask(question) {

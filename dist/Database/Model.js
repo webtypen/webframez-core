@@ -315,6 +315,24 @@ class Model {
         });
     }
     /**
+     * Update model-data
+     * @returns Model
+     */
+    update(updateData) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!this[this.__primaryKey]) {
+                throw new Error("Missing primary-key-value for update ...");
+            }
+            yield DBConnection_1.DBConnection.execute({
+                type: "updateOne",
+                table: this.__table,
+                primaryKey: this.__primaryKey,
+                filter: { [this.__primaryKey]: this[this.__primaryKey] },
+                data: updateData,
+            });
+        });
+    }
+    /**
      * Deletes the object from the database
      * @returns boolean
      */

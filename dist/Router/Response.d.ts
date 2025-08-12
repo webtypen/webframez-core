@@ -1,5 +1,6 @@
 /// <reference types="node" />
 import { ServerResponse } from "http";
+import { Request } from "./Request";
 export declare class Response {
     res?: ServerResponse;
     statusCode: number;
@@ -42,6 +43,31 @@ export declare class Response {
      * @returns Response
      */
     send(content: any): this;
+    /**
+     * Sends a CSV file to the client
+     *
+     * @param content
+     * @param filename
+     * @param options
+     * @returns Response
+     */
+    sendCsv(content: string | string[][], filename?: string, options?: {
+        seperator?: string;
+        eol: string;
+        skipUtf8BOM?: boolean;
+        contentType?: string;
+        contentDisposition?: string;
+    }): Promise<this>;
+    /**
+     * Streams a media file to the client
+     *
+     * @param req
+     * @param filepath
+     * @param filename
+     * @param mimeType
+     * @returns void
+     */
+    stream(req: Request, filepath: string, filename: string, mimeType: string): Promise<unknown>;
     download(filepath: string, options?: any): Promise<unknown>;
     end(): this;
     registerEvent(eventKey: string, func: any): Promise<void>;

@@ -29,3 +29,4 @@ export * from "./Datatable/DatatableController";
 export * from "./Queue/BaseQueueJob";
 export * from "./Queue/QueueJob";
 export * from "./Queue/QueueJobsRegisty";
+export * from "./Commands/ConsoleOutputHelper";

@@ -45,3 +45,4 @@ __exportStar(require("./Datatable/DatatableController"), exports);
 __exportStar(require("./Queue/BaseQueueJob"), exports);
 __exportStar(require("./Queue/QueueJob"), exports);
 __exportStar(require("./Queue/QueueJobsRegisty"), exports);
+__exportStar(require("./Commands/ConsoleOutputHelper"), exports);

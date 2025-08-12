@@ -316,6 +316,24 @@ export class Model {
     }
 
     /**
+     * Update model-data
+     * @returns Model
+     */
+    async update(updateData: { [key: string]: any }) {
+        if (!this[this.__primaryKey]) {
+            throw new Error("Missing primary-key-value for update ...");
+        }
+
+        await DBConnection.execute({
+            type: "updateOne",
+            table: this.__table,
+            primaryKey: this.__primaryKey,
+            filter: { [this.__primaryKey]: this[this.__primaryKey] },
+            data: updateData,
+        });
+    }
+
+    /**
      * Deletes the object from the database
      * @returns boolean
      */

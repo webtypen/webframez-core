@@ -91,6 +91,89 @@ class Response {
         }
         return this;
     }
+    /**
+     * Sends a CSV file to the client
+     *
+     * @param content
+     * @param filename
+     * @param options
+     * @returns Response
+     */
+    sendCsv(content, filename = "export.csv", options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            this.header("Content-Type", options && options.contentType ? options.contentType : "text/csv");
+            this.header("Content-Disposition", (options && options.contentDisposition ? options.contentDisposition : "attachment") +
+                ";filename=" +
+                (filename ? filename : "export.csv"));
+            let str = "";
+            if (content && typeof content === "string") {
+                str = content;
+            }
+            else if (content && Array.isArray(content) && content.length > 0) {
+                for (let row of content) {
+                    str +=
+                        (str.trim() !== "" ? (options && options.eol ? options.eol : "\n") : "") +
+                            row.join(options && options.seperator ? options.seperator : ";");
+                }
+            }
+            return this.send((options && options.skipUtf8BOM ? "" : "\uFEFF") + str);
+        });
+    }
+    /**
+     * Streams a media file to the client
+     *
+     * @param req
+     * @param filepath
+     * @param filename
+     * @param mimeType
+     * @returns void
+     */
+    stream(req, filepath, filename, mimeType) {
+        var _a;
+        return __awaiter(this, void 0, void 0, function* () {
+            const stats = fs_1.default.statSync(filepath);
+            const range = ((_a = req.req) === null || _a === void 0 ? void 0 : _a.headers.range) || "";
+            const total = stats.size;
+            let start = undefined;
+            let end = undefined;
+            if (range) {
+                var parts = range.replace(/bytes=/, "").split("-");
+                var partialstart = parts[0];
+                var partialend = parts[1];
+                start = parseInt(partialstart, 10);
+                end = partialend ? parseInt(partialend, 10) : total - 1;
+                var chunksize = end - start + 1;
+                this.status(206);
+                this.header("Content-Range", "bytes " + start + "-" + end + "/" + total);
+                this.header("Accept-Ranges", "bytes");
+                this.header("Content-Length", chunksize.toString());
+                this.header("Content-Type", mimeType);
+                this.header("Content-Disposition", `attachment; filename="${filename}"`);
+            }
+            else {
+                this.status(200);
+                this.header("Accept-Ranges", "bytes");
+                this.header("Content-Length", stats.size.toString());
+                this.header("Content-Type", mimeType);
+                this.header("Content-Disposition", `attachment; filename="${filename}"`);
+            }
+            // @ts-ignore
+            var readStream = fs_1.default.createReadStream(filePath, { start: start, end: end });
+            readStream.on("error", (streamError) => {
+                console.error("WebframezStreamError:", streamError);
+            });
+            readStream.on("end", () => { });
+            // Prüfe ob res.res verfügbar ist
+            if (!this.res) {
+                throw new Error("Native Response-Objekt nicht verfügbar");
+            }
+            readStream.pipe(this.res);
+            return new Promise((resolve) => {
+                readStream.on("end", resolve);
+                readStream.on("error", resolve);
+            });
+        });
+    }
     download(filepath, options) {
         return __awaiter(this, void 0, void 0, function* () {
             return new Promise((resolve, reject) => {
