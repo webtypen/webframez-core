@@ -262,6 +262,8 @@ export class Datatable {
                 if (entry.skipStats) {
                     delete entry.skipStats;
                     aggregation.push(entry);
+                } else {
+                    aggregation.push(entry);
                 }
             }
         }
