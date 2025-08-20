@@ -192,11 +192,16 @@ export class Datatable {
             })
             .toArray();
 
+        const sumsAfter: any = [];
         const statsGroup: any = { $group: { _id: null, count: { $sum: 1 } } };
         if (req.body.sums && Object.keys(req.body.sums).length > 0) {
             for (let key in req.body.sums) {
                 if (req.body.sums[key] && req.body.sums[key].mapping) {
-                    statsGroup.$group["sum_" + req.body.sums[key].mapping] = { $sum: "$" + req.body.sums[key].mapping };
+                    if (req.body.sums[key].afterOnRow) {
+                        statsGroup.$group["sum_" + req.body.sums[key].mapping] = { $sum: "$" + req.body.sums[key].mapping };
+                    } else {
+                        sumsAfter.push(req.body.sums[key]);
+                    }
                 }
             }
         }
@@ -234,6 +239,25 @@ export class Datatable {
                                   (req.body.sums[key].suffix ? req.body.sums[key].suffix : "")
                                 : undefined,
                     };
+                }
+            }
+        }
+
+        if (sumsAfter && sumsAfter.length > 0) {
+            for (let i in results) {
+                for (let sum of sumsAfter) {
+                    if (!sums[req.body.sums[sum.mapping].mapping]) {
+                        sums[req.body.sums[sum.mapping].mapping] = {
+                            ...req.body.sums[sum.mapping],
+                        };
+                    }
+
+                    sums[req.body.sums[sum.mapping].mapping] +=
+                        results[i][sum.mapping] !== null &&
+                        results[i][sum.mapping] !== undefined &&
+                        !isNaN(parseFloat(results[i][sum.mapping]))
+                            ? parseFloat(results[i][sum.mapping])
+                            : 0;
                 }
             }
         }
