@@ -200,7 +200,7 @@ export class Datatable {
                     if (req.body.sums[key].afterOnRow) {
                         statsGroup.$group["sum_" + req.body.sums[key].mapping] = { $sum: "$" + req.body.sums[key].mapping };
                     } else {
-                        sumsAfter.push(req.body.sums[key]);
+                        sumsAfter.push({ ...req.body.sums[key], key: key });
                     }
                 }
             }
@@ -244,21 +244,24 @@ export class Datatable {
         }
 
         if (sumsAfter && sumsAfter.length > 0) {
-            for (let i in results) {
-                for (let sum of sumsAfter) {
-                    if (!sums[req.body.sums[sum.mapping].mapping]) {
-                        sums[req.body.sums[sum.mapping].mapping] = {
-                            ...req.body.sums[sum.mapping],
-                        };
+            for (let sum of sumsAfter) {
+                for (let i in results) {
+                    if (!sums[sum.mapping] || !sums[sum.mapping].value) {
+                        sums[sum.mapping] = { ...req.body.sums[sum.key], value: 0 };
                     }
 
-                    sums[req.body.sums[sum.mapping].mapping] +=
-                        results[i][sum.mapping] !== null &&
+                    sums[sum.mapping].value =
+                        (sums[sum.mapping].value ? sums[sum.mapping].value : 0) +
+                        (results[i][sum.mapping] !== null &&
                         results[i][sum.mapping] !== undefined &&
                         !isNaN(parseFloat(results[i][sum.mapping]))
                             ? parseFloat(results[i][sum.mapping])
-                            : 0;
+                            : 0);
                 }
+
+                sums[sum.mapping].value =
+                    NumericFunctions.numberFormat(sums[sum.mapping].value) +
+                    (req.body.sums[sum.key].suffix ? req.body.sums[sum.key].suffix : "");
             }
         }
 
