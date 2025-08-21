@@ -380,6 +380,22 @@ export class DataBuilder {
                         elementVal = parseInt(value);
                     }
 
+                    // Integer datetime
+                    else if (fields[key].type === "datetime") {
+                        if (typeof value === "string") {
+                            const [datePart, timePart] = value.trim().split(" ");
+                            if (!datePart || datePart.trim() === "") {
+                                elementVal = value;
+                            } else if (!datePart.includes("-") && datePart.match(/^\d{1,2}:\d{2}$/)) {
+                                elementVal = null;
+                            } else {
+                                elementVal = datePart.trim() + " " + (timePart && timePart.includes(":") ? timePart.trim() : "00:00");
+                            }
+                        } else {
+                            elementVal = null;
+                        }
+                    }
+
                     // Standard
                     else {
                         elementVal = value;
