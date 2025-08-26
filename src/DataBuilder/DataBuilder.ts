@@ -69,7 +69,10 @@ export class DataBuilder {
                 key: key,
                 singular: model.__singular,
                 plural: model.__plural,
-                schema: { ...model.__schema, collection: key },
+                schema: {
+                    ...model.__schema,
+                    collection: model.__schema.collection ? model.__schema.collection : model.__table ? model.__table : key,
+                },
                 forms: model.__forms,
             });
         }
