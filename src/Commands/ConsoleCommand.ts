@@ -55,7 +55,7 @@ export class ConsoleCommand {
     }
 
     write(message: string, options?: WriteOptions) {
-        ConsoleOutputHelper.writeln(message, options);
+        ConsoleOutputHelper.write(message, options);
         return this;
     }
 
