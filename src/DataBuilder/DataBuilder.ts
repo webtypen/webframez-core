@@ -449,9 +449,13 @@ export class DataBuilder {
         }
 
         if (type.unmapped) {
+            const appendData: any = {};
             try {
                 if (typeof type.schema.beforeSave === "function") {
-                    await type.schema.beforeSave(req.body.data, req);
+                    const result = await type.schema.beforeSave(req.body.data, req);
+                    if (result && result.__append_data) {
+                        Object.assign(appendData, result.__append_data);
+                    }
                 }
             } catch (e: any) {
                 throw e;
@@ -459,7 +463,10 @@ export class DataBuilder {
 
             try {
                 if (typeof type.schema.afterSave === "function") {
-                    await type.schema.afterSave(req.body.data, req);
+                    const result = await type.schema.afterSave(req.body.data, req);
+                    if (result && result.__append_data) {
+                        Object.assign(appendData, result.__append_data);
+                    }
                 }
             } catch (e: any) {
                 throw e;
@@ -476,6 +483,7 @@ export class DataBuilder {
                 data: {
                     _id: req.body.data._id ? req.body.data._id : "__unmapped",
                     redirect: redirect,
+                    ...appendData,
                 },
             };
         }
