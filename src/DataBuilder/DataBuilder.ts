@@ -24,6 +24,7 @@ export type DataBuilderType = {
     plural: string;
     schema: DataBuilderSchema;
     forms?: { [key: string]: any };
+    unmapped?: boolean;
 };
 
 export type DataBuilderFieldType =
@@ -425,12 +426,12 @@ export class DataBuilder {
     }
 
     async save(db: any, req: any) {
-        if (!req || !req.body || typeof req.body !== "object" || !req.body.__builder_id || req.body.__builder_id.toString().trim() === "") {
-            throw new Error("Missing id ...");
+        if (!req || !req.body || typeof req.body !== "object") {
+            throw new Error("Missing request-body ...");
         }
 
         if (typeof req.body.data !== "object") {
-            throw new Error("Missing id ...");
+            throw new Error("Missing request-data ...");
         }
 
         const type = this.getTypeFromRequest(req.body);
@@ -445,6 +446,42 @@ export class DataBuilder {
                 status: "error",
                 errors: errors,
             };
+        }
+
+        if (type.unmapped) {
+            try {
+                if (typeof type.schema.afterSave === "function") {
+                    await type.schema.beforeSave(req.body.data, req);
+                }
+            } catch (e: any) {
+                throw e;
+            }
+
+            try {
+                if (typeof type.schema.afterSave === "function") {
+                    await type.schema.afterSave(req.body.data, req);
+                }
+            } catch (e: any) {
+                throw e;
+            }
+
+            let redirect: any = undefined;
+            const forms = typeof type.forms === "function" ? await type.forms(req) : type.forms;
+            if (forms && forms.main && forms.main.onSaveRedirect && typeof forms.main.onSaveRedirect === "function") {
+                redirect = await forms.main.onSaveRedirect(req.body.data, req);
+            }
+
+            return {
+                status: "success",
+                data: {
+                    _id: req.body.data._id ? req.body.data._id : "__unmapped",
+                    redirect: redirect,
+                },
+            };
+        }
+
+        if (!req.body.__builder_id || req.body.__builder_id.toString().trim() === "") {
+            throw new Error("Missing id ...");
         }
 
         const collection = type.schema && type.schema.collection ? type.schema.collection : undefined;
