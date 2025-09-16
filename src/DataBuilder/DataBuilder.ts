@@ -450,7 +450,7 @@ export class DataBuilder {
 
         if (type.unmapped) {
             try {
-                if (typeof type.schema.afterSave === "function") {
+                if (typeof type.schema.beforeSave === "function") {
                     await type.schema.beforeSave(req.body.data, req);
                 }
             } catch (e: any) {
