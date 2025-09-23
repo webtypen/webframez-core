@@ -6,6 +6,7 @@ import { BaseKernelWeb } from "../src/BaseKernelWeb";
 import { Route } from "../src/Router/Route";
 import { Request } from "../src/Router/Request";
 import { Response } from "../src/Router/Response";
+import { MODULES } from "./modules";
 
 class Kernel extends BaseKernelWeb {
     static controller: { [key: string]: any } = {};
@@ -21,7 +22,14 @@ app.boot({
     },
     port: process.env.PORT ? process.env.PORT : 3000,
     basename: process.env.BASENAME ? process.env.BASENAME : null,
+    modules: MODULES,
     routesFunction: () => {
+        Route.get("/status", (req: Request, res: Response) => {
+            res.send({
+                message: "Seems to run ;)",
+            });
+        });
+
         Route.group({ prefix: "/main", middleware: [] }, () => {
             Route.group({ prefix: "/test", middleware: [] }, () => {
                 Route.get("/:test/details", (req: Request, res: Response) => {

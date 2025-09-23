@@ -3,9 +3,11 @@ import { Config } from "./Config";
 import { Router } from "./Router/Router";
 import { QueueJobsRegisty } from "./Queue/QueueJobsRegisty";
 import { DatatableRegistry } from "./Datatable/DatatableRegistry";
+import { ModulesLoader } from "./Modules/ModulesLoader";
 
 export class WebApplication {
     private server!: Server;
+    modulesLoader: ModulesLoader | null = null;
 
     /**
      * Init the routes and start the http-server
@@ -17,6 +19,13 @@ export class WebApplication {
             }
         }
 
+        this.modulesLoader = new ModulesLoader();
+        this.modulesLoader.load(options && options.modules ? options.modules : []);
+
+        if (options && options.kernel) {
+            this.modulesLoader.loadKernel(options.kernel);
+        }
+
         Router.init({
             mode: options && options.mode ? options.mode : null,
             kernel: options && options.kernel ? options.kernel : null,
@@ -24,6 +33,8 @@ export class WebApplication {
             routesFunction: options && options.routesFunction ? options.routesFunction : null,
             tempDir: options && options.tempDir ? options.tempDir : null,
         });
+
+        this.modulesLoader.initRoutes();
 
         if (options && options.datatables) {
             DatatableRegistry.registerMany(options.datatables);
