@@ -31,4 +31,5 @@ export * from "./Queue/QueueJob";
 export * from "./Queue/QueueJobsRegisty";
 export * from "./Commands/ConsoleOutputHelper";
 export * from "./Modules/ModuleProvider";
+export * from "./Telemetry/SigNozTelemetry";
 export * from "./info";

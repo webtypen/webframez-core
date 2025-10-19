@@ -1,9 +1,11 @@
+/// <reference types="node" />
 import http, { Server } from "http";
 import { Config } from "./Config";
 import { Router } from "./Router/Router";
 import { QueueJobsRegisty } from "./Queue/QueueJobsRegisty";
 import { DatatableRegistry } from "./Datatable/DatatableRegistry";
 import { ModulesLoader } from "./Modules/ModulesLoader";
+import { SigNozTelemetry } from "./Telemetry/SigNozTelemetry";
 
 export class WebApplication {
     private server!: Server;
@@ -17,6 +19,10 @@ export class WebApplication {
             for (let key in options.config) {
                 Config.register(key, options.config[key]);
             }
+        }
+
+        if (options && options.signoz) {
+            void SigNozTelemetry.init(options.signoz);
         }
 
         this.modulesLoader = new ModulesLoader();
@@ -45,16 +51,23 @@ export class WebApplication {
         }
 
         const port = options && options.port ? options.port : 3000;
-        this.server = http.createServer((req, res) => {
+        this.server = http.createServer((req: http.IncomingMessage, res: http.ServerResponse) => {
             Router.handleRequest(req, res);
         });
 
+        this.server.on("close", () => {
+            void SigNozTelemetry.shutdown();
+        });
+
         this.server.listen(port, () => {
-            console.log(
-                "Server started and listening on port " +
-                    port +
-                    (options && options.basename ? " (Basename: " + options && options.basename + ")" : "")
-            );
+            const runtimeConsole = typeof globalThis !== "undefined" ? (globalThis as any).console : undefined;
+            if (runtimeConsole && typeof runtimeConsole.log === "function") {
+                runtimeConsole.log(
+                    "Server started and listening on port " +
+                        port +
+                        (options && options.basename ? " (Basename: " + options && options.basename + ")" : "")
+                );
+            }
 
             if (options && options.onBoot) {
                 options.onBoot(port);

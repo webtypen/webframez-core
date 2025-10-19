@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { Config } from "./Config";
 import { ConsoleOutputHelper } from "./Commands/ConsoleOutputHelper";
 import { QueueWorkerCommand } from "./Commands/QueueWorkerCommand";
@@ -10,6 +11,7 @@ import { QueueStopCommand } from "./Commands/QueueStopCommand";
 import { QueueLogCommand } from "./Commands/QueueLogCommand";
 import { QueueWorkerAutorestartCommand } from "./Commands/QueueWorkerAutorestartCommand";
 import { WebframezInfo } from "./info";
+import { SigNozTelemetry } from "./Telemetry/SigNozTelemetry";
 
 export class ConsoleApplication {
     systemCommands: any = [
@@ -30,6 +32,10 @@ export class ConsoleApplication {
             for (let key in options.config) {
                 Config.register(key, options.config[key]);
             }
+        }
+
+        if (options && options.signoz) {
+            void SigNozTelemetry.init(options.signoz);
         }
 
         if (options && options.datatables) {
