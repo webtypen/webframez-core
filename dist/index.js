@@ -46,4 +46,6 @@ __exportStar(require("./Queue/BaseQueueJob"), exports);
 __exportStar(require("./Queue/QueueJob"), exports);
 __exportStar(require("./Queue/QueueJobsRegisty"), exports);
 __exportStar(require("./Commands/ConsoleOutputHelper"), exports);
-__exportStar(require("./info"), exports);
+__exportStar(require("./Modules/ModuleProvider"), exports);
+// export * from "./Telemetry/SigNozTelemetry";
+// export * from "./info";

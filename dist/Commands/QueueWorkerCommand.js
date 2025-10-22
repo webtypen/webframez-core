@@ -89,6 +89,9 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
         if (!this.canStart()) {
             return false;
         }
+        if (!fs_1.default.existsSync((0, FileFunctions_1.storageDir)("queue"))) {
+            fs_1.default.mkdirSync((0, FileFunctions_1.storageDir)("queue"), { recursive: true });
+        }
         const filePath = (0, FileFunctions_1.storageDir)("queue", `worker_${this.workerKey}.json`);
         let lastLogFile = null;
         if (fs_1.default.existsSync(filePath)) {
@@ -389,7 +392,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                 const executionKey = (0, moment_timezone_1.default)()
                     .tz(this.workerConfig.timezone ? this.workerConfig.timezone : "Europe/Berlin")
                     .format("YYYYMMDDHHmmss") + StringFunctions_1.StringFunctions.random(24);
-                const job = yield connection.client
+                const jobUpdate = yield connection.client
                     .db(null)
                     .collection("queue_jobs")
                     .findOneAndUpdate({
@@ -400,10 +403,10 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                     worker: { $in: [null, this.workerKey] },
                     $or: [
                         {
-                            started_at: null,
+                            not_before: null,
                         },
                         {
-                            started_at: { $lte: now.toDate() },
+                            not_before: { $lte: now.toDate() },
                         },
                     ],
                 }, {
@@ -416,6 +419,11 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                     sort: { priority: -1, created_at: 1 },
                     returnDocument: "after",
                 });
+                const job = jobUpdate && jobUpdate.jobclass && jobUpdate._id
+                    ? jobUpdate
+                    : jobUpdate.value && jobUpdate.ok && jobUpdate.value._id && jobUpdate.value.jobclass
+                        ? jobUpdate.value
+                        : null;
                 if (!job || !job.jobclass || !job._id) {
                     this.currentJob = null;
                     if (job && job._id) {

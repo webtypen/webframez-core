@@ -5,7 +5,7 @@ import { Router } from "./Router/Router";
 import { QueueJobsRegisty } from "./Queue/QueueJobsRegisty";
 import { DatatableRegistry } from "./Datatable/DatatableRegistry";
 import { ModulesLoader } from "./Modules/ModulesLoader";
-import { SigNozTelemetry } from "./Telemetry/SigNozTelemetry";
+// import { SigNozTelemetry } from "./Telemetry/SigNozTelemetry";
 
 export class WebApplication {
     private server!: Server;
@@ -21,9 +21,9 @@ export class WebApplication {
             }
         }
 
-        if (options && options.signoz) {
-            void SigNozTelemetry.init(options.signoz);
-        }
+        // if (options && options.signoz) {
+        //     void SigNozTelemetry.init(options.signoz);
+        // }
 
         this.modulesLoader = new ModulesLoader();
         this.modulesLoader.load(options && options.modules ? options.modules : []);
@@ -55,9 +55,9 @@ export class WebApplication {
             Router.handleRequest(req, res);
         });
 
-        this.server.on("close", () => {
-            void SigNozTelemetry.shutdown();
-        });
+        // this.server.on("close", () => {
+        //     void SigNozTelemetry.shutdown();
+        // });
 
         this.server.listen(port, () => {
             const runtimeConsole = typeof globalThis !== "undefined" ? (globalThis as any).console : undefined;

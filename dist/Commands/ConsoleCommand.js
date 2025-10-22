@@ -65,7 +65,7 @@ class ConsoleCommand {
         return this.args.options[name] || null;
     }
     write(message, options) {
-        ConsoleOutputHelper_1.ConsoleOutputHelper.writeln(message, options);
+        ConsoleOutputHelper_1.ConsoleOutputHelper.write(message, options);
         return this;
     }
     writeln(message, options) {

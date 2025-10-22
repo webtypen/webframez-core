@@ -10,6 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConsoleApplication = void 0;
+/// <reference types="node" />
 const Config_1 = require("./Config");
 const ConsoleOutputHelper_1 = require("./Commands/ConsoleOutputHelper");
 const QueueWorkerCommand_1 = require("./Commands/QueueWorkerCommand");
@@ -43,6 +44,9 @@ class ConsoleApplication {
                 Config_1.Config.register(key, options.config[key]);
             }
         }
+        // if (options && options.signoz) {
+        //     void SigNozTelemetry.init(options.signoz);
+        // }
         if (options && options.datatables) {
             DatatableRegistry_1.DatatableRegistry.registerMany(options.datatables);
         }

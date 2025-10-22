@@ -192,11 +192,17 @@ class Datatable {
                 },
             })
                 .toArray();
+            const sumsAfter = [];
             const statsGroup = { $group: { _id: null, count: { $sum: 1 } } };
             if (req.body.sums && Object.keys(req.body.sums).length > 0) {
                 for (let key in req.body.sums) {
                     if (req.body.sums[key] && req.body.sums[key].mapping) {
-                        statsGroup.$group["sum_" + req.body.sums[key].mapping] = { $sum: "$" + req.body.sums[key].mapping };
+                        if (req.body.sums[key].afterOnRow) {
+                            statsGroup.$group["sum_" + req.body.sums[key].mapping] = { $sum: "$" + req.body.sums[key].mapping };
+                        }
+                        else {
+                            sumsAfter.push(Object.assign(Object.assign({}, req.body.sums[key]), { key: key }));
+                        }
                     }
                 }
             }
@@ -229,6 +235,25 @@ class Datatable {
                     }
                 }
             }
+            if (sumsAfter && sumsAfter.length > 0) {
+                for (let sum of sumsAfter) {
+                    for (let i in results) {
+                        if (!sums[sum.mapping] || !sums[sum.mapping].value) {
+                            sums[sum.mapping] = Object.assign(Object.assign({}, req.body.sums[sum.key]), { value: 0 });
+                        }
+                        sums[sum.mapping].value =
+                            (sums[sum.mapping].value ? sums[sum.mapping].value : 0) +
+                                (results[i][sum.mapping] !== null &&
+                                    results[i][sum.mapping] !== undefined &&
+                                    !isNaN(parseFloat(results[i][sum.mapping]))
+                                    ? parseFloat(results[i][sum.mapping])
+                                    : 0);
+                    }
+                    sums[sum.mapping].value =
+                        NumericFunctions_1.NumericFunctions.numberFormat(sums[sum.mapping].value) +
+                            (req.body.sums[sum.key].suffix ? req.body.sums[sum.key].suffix : "");
+                }
+            }
             const data = {
                 page: page,
                 max_entries: stats && stats[0] && stats[0].count ? stats[0].count : 0,
@@ -251,6 +276,9 @@ class Datatable {
                 for (let entry of aggregationDef) {
                     if (entry.skipStats) {
                         delete entry.skipStats;
+                        aggregation.push(entry);
+                    }
+                    else {
                         aggregation.push(entry);
                     }
                 }

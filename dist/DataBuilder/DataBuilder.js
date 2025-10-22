@@ -40,7 +40,7 @@ class DataBuilder {
                 key: key,
                 singular: model.__singular,
                 plural: model.__plural,
-                schema: Object.assign(Object.assign({}, model.__schema), { collection: key }),
+                schema: Object.assign(Object.assign({}, model.__schema), { collection: model.__schema.collection ? model.__schema.collection : model.__table ? model.__table : key }),
                 forms: model.__forms,
             });
         }
@@ -303,6 +303,24 @@ class DataBuilder {
                         else if (fields[key].type === "integer") {
                             elementVal = parseInt(value);
                         }
+                        // Integer datetime
+                        else if (fields[key].type === "datetime") {
+                            if (typeof value === "string") {
+                                const [datePart, timePart] = value.trim().split(" ");
+                                if (!datePart || datePart.trim() === "") {
+                                    elementVal = value;
+                                }
+                                else if (!datePart.includes("-") && datePart.match(/^\d{1,2}:\d{2}$/)) {
+                                    elementVal = null;
+                                }
+                                else {
+                                    elementVal = datePart.trim() + " " + (timePart && timePart.includes(":") ? timePart.trim() : "00:00");
+                                }
+                            }
+                            else {
+                                elementVal = null;
+                            }
+                        }
                         // Standard
                         else {
                             elementVal = value;
@@ -329,11 +347,11 @@ class DataBuilder {
     }
     save(db, req) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (!req || !req.body || typeof req.body !== "object" || !req.body.__builder_id || req.body.__builder_id.toString().trim() === "") {
-                throw new Error("Missing id ...");
+            if (!req || !req.body || typeof req.body !== "object") {
+                throw new Error("Missing request-body ...");
             }
             if (typeof req.body.data !== "object") {
-                throw new Error("Missing id ...");
+                throw new Error("Missing request-data ...");
             }
             const type = this.getTypeFromRequest(req.body);
             if (!type || !type.schema || !type.schema.fields) {
@@ -346,6 +364,43 @@ class DataBuilder {
                     status: "error",
                     errors: errors,
                 };
+            }
+            if (type.unmapped) {
+                const appendData = {};
+                try {
+                    if (typeof type.schema.beforeSave === "function") {
+                        const result = yield type.schema.beforeSave(req.body.data, req);
+                        if (result && result.__append_data) {
+                            Object.assign(appendData, result.__append_data);
+                        }
+                    }
+                }
+                catch (e) {
+                    throw e;
+                }
+                try {
+                    if (typeof type.schema.afterSave === "function") {
+                        const result = yield type.schema.afterSave(req.body.data, req);
+                        if (result && result.__append_data) {
+                            Object.assign(appendData, result.__append_data);
+                        }
+                    }
+                }
+                catch (e) {
+                    throw e;
+                }
+                let redirect = undefined;
+                const forms = typeof type.forms === "function" ? yield type.forms(req) : type.forms;
+                if (forms && forms.main && forms.main.onSaveRedirect && typeof forms.main.onSaveRedirect === "function") {
+                    redirect = yield forms.main.onSaveRedirect(req.body.data, req);
+                }
+                return {
+                    status: "success",
+                    data: Object.assign({ _id: req.body.data._id ? req.body.data._id : "__unmapped", redirect: redirect }, appendData),
+                };
+            }
+            if (!req.body.__builder_id || req.body.__builder_id.toString().trim() === "") {
+                throw new Error("Missing id ...");
             }
             const collection = type.schema && type.schema.collection ? type.schema.collection : undefined;
             if (!collection || collection.trim() === "") {

@@ -26,6 +26,7 @@ export type DataBuilderType = {
     forms?: {
         [key: string]: any;
     };
+    unmapped?: boolean;
 };
 export type DataBuilderFieldType = {
     key: string;
@@ -68,10 +69,7 @@ export declare class DataBuilder {
         data?: undefined;
     } | {
         status: string;
-        data: {
-            _id: any;
-            redirect: any;
-        };
+        data: any;
         errors?: undefined;
     }>;
     delete(db: any, req: any): Promise<{

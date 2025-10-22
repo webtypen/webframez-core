@@ -11,7 +11,6 @@ import { QueueStopCommand } from "./Commands/QueueStopCommand";
 import { QueueLogCommand } from "./Commands/QueueLogCommand";
 import { QueueWorkerAutorestartCommand } from "./Commands/QueueWorkerAutorestartCommand";
 import { WebframezInfo } from "./info";
-import { SigNozTelemetry } from "./Telemetry/SigNozTelemetry";
 
 export class ConsoleApplication {
     systemCommands: any = [
@@ -34,9 +33,9 @@ export class ConsoleApplication {
             }
         }
 
-        if (options && options.signoz) {
-            void SigNozTelemetry.init(options.signoz);
-        }
+        // if (options && options.signoz) {
+        //     void SigNozTelemetry.init(options.signoz);
+        // }
 
         if (options && options.datatables) {
             DatatableRegistry.registerMany(options.datatables);

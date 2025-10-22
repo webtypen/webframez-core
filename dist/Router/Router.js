@@ -191,10 +191,12 @@ class RouterFacade {
         else {
             for (const route in routes) {
                 const routeObj = routes[route];
-                const regex = routeObj.path
-                    .replace(/\/:\w+\?/g, "(?:/([^/]+))?")
-                    .replace(/\/:\w+/g, "/([^/]+)")
-                    .replace(/\//g, "\\/");
+                const regex = "^" +
+                    routeObj.path
+                        .replace(/\/:\w+\?/g, "(?:/([^/]+))?")
+                        .replace(/\/:\w+/g, "/([^/]+)")
+                        .replace(/\//g, "\\/") +
+                    "$";
                 const match = url.match(regex);
                 if (match) {
                     if (request) {
