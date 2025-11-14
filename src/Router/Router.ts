@@ -212,14 +212,14 @@ class RouterFacade {
         // Extract wildcard parameters
         let wildcardIndex = paramNames.length + 1;
         wildcards.forEach((wildcard, index) => {
-            if (wildcard === '/**') {
-                params['wildcard'] = match[wildcardIndex] || '';
-            } else if (wildcard === '/*') {
-                params['splat'] = match[wildcardIndex] || '';
-            } else if (wildcard === '**') {
-                params['wildcard'] = match[wildcardIndex] || '';
-            } else if (wildcard === '*') {
-                params['splat'] = match[wildcardIndex] || '';
+            if (wildcard === "/**") {
+                params["wildcard"] = match[wildcardIndex] || "";
+            } else if (wildcard === "/*") {
+                params["splat"] = match[wildcardIndex] || "";
+            } else if (wildcard === "**") {
+                params["wildcard"] = match[wildcardIndex] || "";
+            } else if (wildcard === "*") {
+                params["splat"] = match[wildcardIndex] || "";
             }
             wildcardIndex++;
         });
@@ -245,7 +245,7 @@ class RouterFacade {
                     routeObj.path
                         .replace(/\/:\w+\?/g, "(?:/([^/]+))?")
                         .replace(/\/:\w+/g, "/([^/]+)")
-                        .replace(/\/\*\*/g, "/(.*)")  // Catchall wildcard: /**
+                        .replace(/\/\*\*/g, "/(.*)") // Catchall wildcard: /**
                         .replace(/\/\*/g, "/([^/]*)")
                         .replace(/\*\*/g, "(.*)")
                         .replace(/\*/g, "([^/]*)")
