@@ -246,9 +246,9 @@ class RouterFacade {
                         .replace(/\/:\w+\?/g, "(?:/([^/]+))?")
                         .replace(/\/:\w+/g, "/([^/]+)")
                         .replace(/\/\*\*/g, "/(.*)") // Catchall wildcard: /**
-                        .replace(/\/\*/g, "/([^/]*)")
+                        .replace(/\/\*/g, "(?:/(.*))??") // Single wildcard: /* (optional trailing content)
                         .replace(/\*\*/g, "(.*)")
-                        .replace(/\*/g, "([^/]*)")
+                        .replace(/\*/g, "(.*)")
                         .replace(/\//g, "\\/") +
                     "$";
                 const match = url.match(regex);
