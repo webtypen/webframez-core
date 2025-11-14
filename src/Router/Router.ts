@@ -201,10 +201,27 @@ class RouterFacade {
      */
     extractParams(path: string, match: any) {
         const params: any = {};
-        const paramNames = path.match(/\/:([\w]+)\??/g) || [];
+        const paramNames = path.match(/\/:(\[\w]+)\??/g) || [];
+        const wildcards = path.match(/\/\*\*|\/\*|\*\*/g) || [];
 
+        // Extract named parameters
         paramNames.forEach((param, index) => {
             params[param.substring(2).replace("?", "")] = match[index + 1] || null;
+        });
+
+        // Extract wildcard parameters
+        let wildcardIndex = paramNames.length + 1;
+        wildcards.forEach((wildcard, index) => {
+            if (wildcard === '/**') {
+                params['wildcard'] = match[wildcardIndex] || '';
+            } else if (wildcard === '/*') {
+                params['splat'] = match[wildcardIndex] || '';
+            } else if (wildcard === '**') {
+                params['wildcard'] = match[wildcardIndex] || '';
+            } else if (wildcard === '*') {
+                params['splat'] = match[wildcardIndex] || '';
+            }
+            wildcardIndex++;
         });
 
         return params;
@@ -228,6 +245,10 @@ class RouterFacade {
                     routeObj.path
                         .replace(/\/:\w+\?/g, "(?:/([^/]+))?")
                         .replace(/\/:\w+/g, "/([^/]+)")
+                        .replace(/\/\*\*/g, "/(.*)")  // Catchall wildcard: /**
+                        .replace(/\/\*/g, "/([^/]*)")
+                        .replace(/\*\*/g, "(.*)")
+                        .replace(/\*/g, "([^/]*)")
                         .replace(/\//g, "\\/") +
                     "$";
                 const match = url.match(regex);
