@@ -170,6 +170,10 @@ class StorageFacade {
     async readDir(dirpath: string, options: StorageReadDirOptions) {
         return await this.disk().readDir(dirpath, options);
     }
+
+    async upload(req: any, options: { storagePath: string; storageFilename: string; payload?: any }) {
+        return await this.disk().driver.upload(req, options);
+    }
 }
 
 class StorageFileFacade {

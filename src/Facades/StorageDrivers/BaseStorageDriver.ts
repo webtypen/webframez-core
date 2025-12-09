@@ -27,4 +27,5 @@ export interface BaseStorageDriver {
     extension(filepath: string): Promise<string | null>;
     mime(filepath: string): Promise<string | null>;
     readDir(dirpath: string, options?: StorageReadDirOptions): Promise<any[]>;
+    upload(req: any, options: { storagePath: string; storageFilename: string; payload?: any }): Promise<boolean>;
 }
