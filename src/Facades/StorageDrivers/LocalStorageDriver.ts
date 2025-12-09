@@ -36,8 +36,8 @@ export class LocalStorageDriver implements BaseStorageDriver {
                     return key === mime;
                 });
 
-                if (configKey && this.config.fileHandlers[configKey]) {
-                    for (let handler of this.config.fileHandlers[configKey]) {
+                if (configKey && this.config.fileHandlers[configKey]?.handlers) {
+                    for (let handler of this.config.fileHandlers[configKey].handlers) {
                         await handler(p, contents, payload);
                     }
                 }
