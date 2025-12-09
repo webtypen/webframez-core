@@ -54,9 +54,9 @@ class StorageDisk {
 
     constructor(key: string) {
         this.diskKey = key;
-        this.config = Config.get("storage.storages." + this.diskKey);
-        if (!this.config.driver) {
-            throw new Error(`[STORAGE ERROR] Missing driver for disk '${this.diskKey}'.`);
+        this.config = Config.get("storage.disks." + this.diskKey);
+        if (!this.config?.driver) {
+            throw new Error(`[STORAGE ERROR] Missing config / config-driver-key for disk '${this.diskKey}'.`);
         }
 
         if (!StorageDriverRegisty || !StorageDriverRegisty.drivers || !StorageDriverRegisty.drivers[this.config.driver]) {
@@ -126,7 +126,7 @@ class StorageFacade {
     drivers: { [key: string]: any } = {};
 
     disk(diskKey?: string) {
-        const key = diskKey ?? Config.get("storage.defaultStorage");
+        const key = diskKey ?? Config.get("storage.defaultDisk");
         if (this.disks[key]) {
             return this.disks[key];
         }
