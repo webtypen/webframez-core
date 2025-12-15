@@ -16,6 +16,7 @@ exports.LocalStorageDriver = void 0;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const mime_types_1 = __importDefault(require("mime-types"));
+const busboy_1 = __importDefault(require("busboy"));
 const FileFunctions_1 = require("../../Functions/FileFunctions");
 class LocalStorageDriver {
     constructor(conf) {
@@ -25,13 +26,34 @@ class LocalStorageDriver {
     path(...args) {
         return path_1.default.join(this.basepath, ...args);
     }
-    put(filepath, contents) {
+    put(filepath, contents, payload) {
+        var _a;
         return __awaiter(this, void 0, void 0, function* () {
-            fs_1.default.writeFileSync(this.path(filepath), contents);
+            const p = this.path(filepath);
+            // @ts-ignore
+            fs_1.default.writeFileSync(p, contents);
+            if (this.config.fileHandlers) {
+                const keys = Object.keys(this.config.fileHandlers);
+                const mime = yield this.mime(p);
+                if (mime) {
+                    const configKey = keys.find((key) => {
+                        if (key.includes("*")) {
+                            const regex = new RegExp("^" + key.replace("*", ".+") + "$");
+                            return regex.test(mime);
+                        }
+                        return key === mime;
+                    });
+                    if (configKey && ((_a = this.config.fileHandlers[configKey]) === null || _a === void 0 ? void 0 : _a.handlers)) {
+                        for (let handler of this.config.fileHandlers[configKey].handlers) {
+                            yield handler(p, contents, payload);
+                        }
+                    }
+                }
+            }
             return {
                 status: "success",
                 filepath: filepath,
-                payload: {},
+                payload: payload,
             };
         });
     }
@@ -122,6 +144,62 @@ class LocalStorageDriver {
         return __awaiter(this, void 0, void 0, function* () {
             const entries = fs_1.default.readdirSync(this.path(dirpath));
             return entries && entries.length > 0 ? entries : [];
+        });
+    }
+    upload(req, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const busboy = (0, busboy_1.default)({ headers: req.headers });
+            const dir = path_1.default.join((0, FileFunctions_1.storageDir)(), options.storagePath);
+            if (!fs_1.default.existsSync(dir)) {
+                fs_1.default.mkdirSync(dir, { recursive: true });
+            }
+            let hasSuccess = false;
+            const promises = [
+                new Promise((resolve) => {
+                    if (!req.message) {
+                        throw Error("Missing IncomingMessage ...");
+                    }
+                    let fileOptions = null;
+                    let filepath = null;
+                    busboy.on("file", (fieldname, file, options) => __awaiter(this, void 0, void 0, function* () {
+                        if (fileOptions === null && options) {
+                            fileOptions = options;
+                        }
+                        filepath = path_1.default.join(dir, options.storageFilename);
+                        const writeStream = fs_1.default.createWriteStream(filepath);
+                        file.pipe(writeStream);
+                    }));
+                    busboy.on("error", (error, error2) => {
+                        console.error("Busboy error:", error);
+                        resolve(false);
+                    });
+                    busboy.on("finish", () => __awaiter(this, void 0, void 0, function* () {
+                        if (this.config.fileHandlers) {
+                            const keys = Object.keys(this.config.fileHandlers);
+                            const mime = yield this.mime(filepath);
+                            if (mime) {
+                                const configKey = keys.find((key) => {
+                                    if (key.includes("*")) {
+                                        const regex = new RegExp("^" + key.replace("*", ".+") + "$");
+                                        return regex.test(mime);
+                                    }
+                                    return key === mime;
+                                });
+                                if (configKey && this.config.fileHandlers[configKey]) {
+                                    for (let handler of this.config.fileHandlers[configKey]) {
+                                        yield handler(filepath, fs_1.default.readFileSync(filepath), options.payload);
+                                    }
+                                }
+                            }
+                        }
+                        hasSuccess = true;
+                        resolve(true);
+                    }));
+                    req.message.pipe(busboy);
+                }),
+            ];
+            yield Promise.all(promises);
+            return hasSuccess;
         });
     }
 }

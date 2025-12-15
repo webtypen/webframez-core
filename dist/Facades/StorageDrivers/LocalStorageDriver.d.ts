@@ -1,14 +1,15 @@
 /// <reference types="node" />
 import { BaseStorageDriver, StorageDeleteOptions, StorageMkdirOptions, StorageReadDirOptions } from "./BaseStorageDriver";
+import { Request } from "../../Router/Request";
 export declare class LocalStorageDriver implements BaseStorageDriver {
     config: any;
     basepath: string;
     constructor(conf: any);
     path(...args: string[]): string;
-    put(filepath: string, contents: string | Buffer): Promise<{
+    put(filepath: string, contents: string | Buffer, payload?: any): Promise<{
         status: string;
         filepath: string;
-        payload: {};
+        payload: any;
     }>;
     copy(filepath: string, target: string): Promise<{
         status: string;
@@ -38,4 +39,9 @@ export declare class LocalStorageDriver implements BaseStorageDriver {
     extension(filepath: string): Promise<string | null>;
     mime(filepath: string): Promise<string | null>;
     readDir(dirpath: string, options?: StorageReadDirOptions): Promise<string[]>;
+    upload(req: Request, options: {
+        storagePath: string;
+        storageFilename: string;
+        payload?: any;
+    }): Promise<boolean>;
 }

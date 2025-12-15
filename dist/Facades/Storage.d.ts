@@ -119,6 +119,11 @@ declare class StorageFacade {
     }>;
     file(filepath: string): Promise<StorageFileInstance>;
     readDir(dirpath: string, options: StorageReadDirOptions): Promise<any[]>;
+    upload(req: any, options: {
+        storagePath: string;
+        storageFilename: string;
+        payload?: any;
+    }): Promise<boolean>;
 }
 declare class StorageFileFacade {
     storage: StorageFacade;

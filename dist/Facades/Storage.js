@@ -62,10 +62,11 @@ class StorageFileInstance {
 }
 class StorageDisk {
     constructor(key) {
+        var _a;
         this.diskKey = key;
-        this.config = Config_1.Config.get("storage.storages." + this.diskKey);
-        if (!this.config.driver) {
-            throw new Error(`[STORAGE ERROR] Missing driver for disk '${this.diskKey}'.`);
+        this.config = Config_1.Config.get("storage.disks." + this.diskKey);
+        if (!((_a = this.config) === null || _a === void 0 ? void 0 : _a.driver)) {
+            throw new Error(`[STORAGE ERROR] Missing config / config-driver-key for disk '${this.diskKey}'.`);
         }
         if (!exports.StorageDriverRegisty || !exports.StorageDriverRegisty.drivers || !exports.StorageDriverRegisty.drivers[this.config.driver]) {
             throw new Error(`[STORAGE ERROR] Invalid driver '${this.config.driver}' for disk '${this.diskKey}'.`);
@@ -146,7 +147,7 @@ class StorageFacade {
         this.drivers = {};
     }
     disk(diskKey) {
-        const key = diskKey !== null && diskKey !== void 0 ? diskKey : Config_1.Config.get("storage.defaultStorage");
+        const key = diskKey !== null && diskKey !== void 0 ? diskKey : Config_1.Config.get("storage.defaultDisk");
         if (this.disks[key]) {
             return this.disks[key];
         }
@@ -196,6 +197,11 @@ class StorageFacade {
     readDir(dirpath, options) {
         return __awaiter(this, void 0, void 0, function* () {
             return yield this.disk().readDir(dirpath, options);
+        });
+    }
+    upload(req, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return yield this.disk().driver.upload(req, options);
         });
     }
 }

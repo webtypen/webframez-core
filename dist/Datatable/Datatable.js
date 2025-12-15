@@ -549,6 +549,9 @@ class Datatable {
                         }
                         break;
                 }
+                if (tempType === "date") {
+                    value = value.date1;
+                }
                 if (value !== undefined && filterEl && filterEl.cast) {
                     if (typeof filterEl.cast === "function") {
                         value = yield filterEl.cast(value, entry, req);
@@ -569,6 +572,9 @@ class Datatable {
                     }
                     else if (filterEl.cast === "boolean") {
                         value = value === true || value === 1 || value.toString() === "1" || value.toString() === "true" ? true : { $ne: true };
+                    }
+                    else if (filterEl.cast === "date") {
+                        value = value ? (0, moment_1.default)(value).toDate() : null;
                     }
                 }
                 if (value !== undefined) {
