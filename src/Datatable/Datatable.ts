@@ -30,7 +30,7 @@ export class Datatable {
             isAvailable?: Function;
             payload?: any;
             confirmMessage?: string;
-            confirmAttributes?: any;
+            confirmOptions?: any;
         };
     } | null = null;
 
@@ -114,7 +114,7 @@ export class Datatable {
                 label: this.selectableFunctions[key].label,
                 icon: this.selectableFunctions[key].icon,
                 confirmMessage: this.selectableFunctions[key].confirmMessage,
-                confirmAttributes: this.selectableFunctions[key].confirmAttributes,
+                confirmOptions: this.selectableFunctions[key].confirmOptions,
                 apiFunction: key,
                 apiFunctionPayload: this.selectableFunctions[key].payload
                     ? typeof this.selectableFunctions[key].payload === "function"
