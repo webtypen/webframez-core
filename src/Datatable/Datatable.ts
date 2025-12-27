@@ -23,7 +23,15 @@ export class Datatable {
     disablePerPageConfig = false;
     selectable = false;
     selectableFunctions: {
-        [key: string]: { label: string; icon?: string; handle: Function; isAvailable?: Function; payload?: any };
+        [key: string]: {
+            label: string;
+            icon?: string;
+            handle: Function;
+            isAvailable?: Function;
+            payload?: any;
+            confirmMessage?: string;
+            confirmAttributes?: any;
+        };
     } | null = null;
 
     async getInit(req: Request) {
@@ -105,6 +113,8 @@ export class Datatable {
             out.push({
                 label: this.selectableFunctions[key].label,
                 icon: this.selectableFunctions[key].icon,
+                confirmMessage: this.selectableFunctions[key].confirmMessage,
+                confirmAttributes: this.selectableFunctions[key].confirmAttributes,
                 apiFunction: key,
                 apiFunctionPayload: this.selectableFunctions[key].payload
                     ? typeof this.selectableFunctions[key].payload === "function"
