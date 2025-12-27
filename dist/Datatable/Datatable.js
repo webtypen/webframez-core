@@ -31,10 +31,16 @@ class Datatable {
         this.logAggregation = false;
         this.defaultUnwind = null;
         this.disablePerPageConfig = false;
+        this.selectable = false;
+        this.selectableFunctions = null;
     }
     getInit(req) {
         return __awaiter(this, void 0, void 0, function* () {
-            const out = { table: req.body._table };
+            const out = {
+                table: req.body._table,
+                selectable: this.selectable ? true : false,
+                selectableFunctions: yield this.getSelectableFunctionsDef(req),
+            };
             const promises = [];
             promises.push(new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
                 out.filter = yield this.getFilter(req);
@@ -70,6 +76,42 @@ class Datatable {
                 yield this.onInit(req, out);
             }
             return out;
+        });
+    }
+    getSelectableFunctionsDef(req) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!this.selectableFunctions) {
+                return null;
+            }
+            const out = [];
+            for (let key in this.selectableFunctions) {
+                if (!this.selectableFunctions[key] || !this.selectableFunctions[key].handle) {
+                    continue;
+                }
+                if (this.selectableFunctions[key].isAvailable && typeof this.selectableFunctions[key].isAvailable === "function") {
+                    try {
+                        // @ts-ignore
+                        const available = yield this.selectableFunctions[key].isAvailable(req);
+                        if (!available) {
+                            continue;
+                        }
+                    }
+                    catch (e) {
+                        continue;
+                    }
+                }
+                out.push({
+                    label: this.selectableFunctions[key].label,
+                    icon: this.selectableFunctions[key].icon,
+                    apiFunction: key,
+                    apiFunctionPayload: this.selectableFunctions[key].payload
+                        ? typeof this.selectableFunctions[key].payload === "function"
+                            ? yield this.selectableFunctions[key].payload(req)
+                            : this.selectableFunctions[key].payload
+                        : null,
+                });
+            }
+            return out && out.length > 0 ? out : null;
         });
     }
     getAggregation(req) {

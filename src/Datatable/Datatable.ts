@@ -92,6 +92,7 @@ export class Datatable {
 
             if (this.selectableFunctions[key].isAvailable && typeof this.selectableFunctions[key].isAvailable === "function") {
                 try {
+                    // @ts-ignore
                     const available = await this.selectableFunctions[key].isAvailable(req);
                     if (!available) {
                         continue;

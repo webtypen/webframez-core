@@ -14,6 +14,7 @@ const Controller_1 = require("../Controller/Controller");
 const DatatableRegistry_1 = require("./DatatableRegistry");
 class DatatableController extends Controller_1.Controller {
     restApi(req, res) {
+        var _a;
         return __awaiter(this, void 0, void 0, function* () {
             if (!req.body._table || req.body._table.trim() === "") {
                 return res.status(404).send({
@@ -42,6 +43,45 @@ class DatatableController extends Controller_1.Controller {
                 });
             }
             const table = new tableClass();
+            if (req.body.apiFunction && typeof req.body.apiFunction === "string" && req.body.apiFunction.trim() !== "") {
+                const func = (_a = table.selectableFunctions) === null || _a === void 0 ? void 0 : _a[req.body.apiFunction];
+                if (!func || !func.handle) {
+                    return res.status(404).send({
+                        status: "error",
+                        message: "Unknown api-function ...",
+                    });
+                }
+                if (func.isAvailable) {
+                    try {
+                        const available = yield func.isAvailable(req);
+                        if (!available) {
+                            return res.status(403).send({
+                                status: "error",
+                                message: "Api-function not available ...",
+                            });
+                        }
+                    }
+                    catch (e) {
+                        return res.status(403).send({
+                            status: "error",
+                            message: e instanceof Error ? e.message : "Api-function not available ...",
+                        });
+                    }
+                }
+                try {
+                    yield func.handle(req, res);
+                }
+                catch (e) {
+                    console.error(e);
+                    return res.status(500).send({
+                        status: "error",
+                        message: e instanceof Error ? e.message : "Unknown error ...",
+                    });
+                }
+                return res.send({
+                    status: "success",
+                });
+            }
             return res.send({
                 status: "success",
                 data: yield table.getData(req),

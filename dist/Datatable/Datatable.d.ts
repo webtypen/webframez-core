@@ -25,7 +25,23 @@ export declare class Datatable {
     logAggregation: boolean;
     defaultUnwind?: string | null;
     disablePerPageConfig: boolean;
+    selectable: boolean;
+    selectableFunctions: {
+        [key: string]: {
+            label: string;
+            icon?: string;
+            handle: Function;
+            isAvailable?: Function;
+            payload?: any;
+        };
+    } | null;
     getInit(req: Request): Promise<any>;
+    getSelectableFunctionsDef(req: Request): Promise<{
+        label: string;
+        icon: string | undefined;
+        apiFunction: string;
+        apiFunctionPayload: any;
+    }[] | null>;
     getAggregation(req: Request): Promise<any>;
     getSubAggregation(req: Request): Promise<any>;
     getCollection(req: Request): Promise<any>;
