@@ -21,9 +21,17 @@ export class Datatable {
     logAggregation = false;
     defaultUnwind?: string | null = null;
     disablePerPageConfig = false;
+    selectable = false;
+    selectableFunctions: {
+        [key: string]: { label: string; icon?: string; handle: Function; isAvailable?: Function; payload?: any };
+    } | null = null;
 
     async getInit(req: Request) {
-        const out: any = { table: req.body._table };
+        const out: any = {
+            table: req.body._table,
+            selectable: this.selectable ? true : false,
+            selectableFunctions: await this.getSelectableFunctionsDef(req),
+        };
         const promises = [];
         promises.push(
             new Promise(async (resolve) => {
@@ -69,6 +77,42 @@ export class Datatable {
             await this.onInit(req, out);
         }
         return out;
+    }
+
+    async getSelectableFunctionsDef(req: Request) {
+        if (!this.selectableFunctions) {
+            return null;
+        }
+
+        const out = [];
+        for (let key in this.selectableFunctions) {
+            if (!this.selectableFunctions[key] || !this.selectableFunctions[key].handle) {
+                continue;
+            }
+
+            if (this.selectableFunctions[key].isAvailable && typeof this.selectableFunctions[key].isAvailable === "function") {
+                try {
+                    const available = await this.selectableFunctions[key].isAvailable(req);
+                    if (!available) {
+                        continue;
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+
+            out.push({
+                label: this.selectableFunctions[key].label,
+                icon: this.selectableFunctions[key].icon,
+                apiFunction: key,
+                apiFunctionPayload: this.selectableFunctions[key].payload
+                    ? typeof this.selectableFunctions[key].payload === "function"
+                        ? await this.selectableFunctions[key].payload(req)
+                        : this.selectableFunctions[key].payload
+                    : null,
+            });
+        }
+        return out && out.length > 0 ? out : null;
     }
 
     async getAggregation(req: Request) {

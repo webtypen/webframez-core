@@ -36,6 +36,48 @@ export class DatatableController extends Controller {
         }
 
         const table = new tableClass();
+        if (req.body.apiFunction && typeof req.body.apiFunction === "string" && req.body.apiFunction.trim() !== "") {
+            const func = table.selectableFunctions?.[req.body.apiFunction];
+            if (!func || !func.handle) {
+                return res.status(404).send({
+                    status: "error",
+                    message: "Unknown api-function ...",
+                });
+            }
+
+            if (func.isAvailable) {
+                try {
+                    const available = await func.isAvailable(req);
+                    if (!available) {
+                        return res.status(403).send({
+                            status: "error",
+                            message: "Api-function not available ...",
+                        });
+                    }
+                } catch (e) {
+                    return res.status(403).send({
+                        status: "error",
+                        message: e instanceof Error ? e.message : "Api-function not available ...",
+                    });
+                }
+            }
+
+            try {
+                await func.handle(req, res);
+            } catch (e) {
+                console.error(e);
+
+                return res.status(500).send({
+                    status: "error",
+                    message: e instanceof Error ? e.message : "Unknown error ...",
+                });
+            }
+
+            return res.send({
+                status: "success",
+            });
+        }
+
         return res.send({
             status: "success",
             data: await table.getData(req),
