@@ -37,8 +37,11 @@ export class LocalStorageDriver implements BaseStorageDriver {
                 });
 
                 if (configKey && this.config.fileHandlers[configKey]?.handlers) {
-                    for (let handler of this.config.fileHandlers[configKey].handlers) {
-                        await handler(p, contents, payload);
+                    for (let handlerKey in this.config.fileHandlers[configKey].handlers) {
+                        const handler = this.config.fileHandlers[configKey].handlers[handlerKey];
+                        if (typeof handler === "function") {
+                            await handler(p, contents, payload);
+                        }
                     }
                 }
             }
