@@ -166,7 +166,7 @@ export class Response {
         }
 
         // @ts-ignore
-        var readStream = fs.createReadStream(filePath, { start: start, end: end });
+        var readStream = fs.createReadStream(filepath, { start: start, end: end });
 
         readStream.on("error", (streamError) => {
             console.error("WebframezStreamError:", streamError);
