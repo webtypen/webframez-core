@@ -103,6 +103,8 @@ class Datatable {
                 out.push({
                     label: this.selectableFunctions[key].label,
                     icon: this.selectableFunctions[key].icon,
+                    confirmMessage: this.selectableFunctions[key].confirmMessage,
+                    confirmOptions: this.selectableFunctions[key].confirmOptions,
                     apiFunction: key,
                     apiFunctionPayload: this.selectableFunctions[key].payload
                         ? typeof this.selectableFunctions[key].payload === "function"

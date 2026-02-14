@@ -158,7 +158,7 @@ class Response {
                 this.header("Content-Disposition", `attachment; filename="${filename}"`);
             }
             // @ts-ignore
-            var readStream = fs_1.default.createReadStream(filePath, { start: start, end: end });
+            var readStream = fs_1.default.createReadStream(filepath, { start: start, end: end });
             readStream.on("error", (streamError) => {
                 console.error("WebframezStreamError:", streamError);
             });

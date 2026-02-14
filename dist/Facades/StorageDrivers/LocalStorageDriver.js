@@ -44,8 +44,11 @@ class LocalStorageDriver {
                         return key === mime;
                     });
                     if (configKey && ((_a = this.config.fileHandlers[configKey]) === null || _a === void 0 ? void 0 : _a.handlers)) {
-                        for (let handler of this.config.fileHandlers[configKey].handlers) {
-                            yield handler(p, contents, payload);
+                        for (let handlerKey in this.config.fileHandlers[configKey].handlers) {
+                            const handler = this.config.fileHandlers[configKey].handlers[handlerKey];
+                            if (typeof handler === "function") {
+                                yield handler(p, contents, payload);
+                            }
                         }
                     }
                 }

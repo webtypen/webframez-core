@@ -6,6 +6,32 @@ class RouteFacade {
     constructor() {
         this.tempGroupPrefix = null;
         this.tempGroupMiddleware = null;
+        this.registerWithGroupContext = (method, path, component, options) => {
+            Router_1.Router.register(method, (this.tempGroupPrefix ? this.tempGroupPrefix : "") + path, component, options || this.tempGroupMiddleware
+                ? Object.assign(Object.assign({}, (options ? options : {})), { middleware: this.tempGroupMiddleware || (options && options.middleware)
+                        ? [
+                            ...(this.tempGroupMiddleware ? this.tempGroupMiddleware : []),
+                            ...(options && options.middleware ? options.middleware : []),
+                        ]
+                        : null }) : {});
+        };
+    }
+    /**
+     * Register a custom route-method on the Route facade.
+     * Allows optional packages to add framework-specific route helpers.
+     */
+    extend(name, factory) {
+        if (!name || name.trim() === "") {
+            throw new Error("Route.extend requires a non-empty method name");
+        }
+        if (name in this && typeof this[name] === "function") {
+            throw new Error("Route method '" + name + "' already exists");
+        }
+        if (!factory || typeof factory !== "function") {
+            throw new Error("Route.extend requires a factory function");
+        }
+        this[name] = factory(this);
+        return this;
     }
     /**
      * Register a GET-Method
@@ -15,13 +41,7 @@ class RouteFacade {
      * @param options
      */
     get(path, component, options) {
-        Router_1.Router.register("GET", (this.tempGroupPrefix ? this.tempGroupPrefix : "") + path, component, options || this.tempGroupMiddleware
-            ? Object.assign(Object.assign({}, (options ? options : {})), { middleware: this.tempGroupMiddleware || (options && options.middleware)
-                    ? [
-                        ...(this.tempGroupMiddleware ? this.tempGroupMiddleware : []),
-                        ...(options && options.middleware ? options.middleware : []),
-                    ]
-                    : null }) : {});
+        this.registerWithGroupContext("GET", path, component, options);
     }
     /**
      * Register a POST-Method
@@ -31,13 +51,7 @@ class RouteFacade {
      * @param options
      */
     post(path, component, options) {
-        Router_1.Router.register("POST", (this.tempGroupPrefix ? this.tempGroupPrefix : "") + path, component, options || this.tempGroupMiddleware
-            ? Object.assign(Object.assign({}, (options ? options : {})), { middleware: this.tempGroupMiddleware || (options && options.middleware)
-                    ? [
-                        ...(this.tempGroupMiddleware ? this.tempGroupMiddleware : []),
-                        ...(options && options.middleware ? options.middleware : []),
-                    ]
-                    : null }) : {});
+        this.registerWithGroupContext("POST", path, component, options);
     }
     /**
      * Register a PUT-Method
@@ -47,13 +61,7 @@ class RouteFacade {
      * @param options
      */
     put(path, component, options) {
-        Router_1.Router.register("PUT", (this.tempGroupPrefix ? this.tempGroupPrefix : "") + path, component, options || this.tempGroupMiddleware
-            ? Object.assign(Object.assign({}, (options ? options : {})), { middleware: this.tempGroupMiddleware || (options && options.middleware)
-                    ? [
-                        ...(this.tempGroupMiddleware ? this.tempGroupMiddleware : []),
-                        ...(options && options.middleware ? options.middleware : []),
-                    ]
-                    : null }) : {});
+        this.registerWithGroupContext("PUT", path, component, options);
     }
     /**
      * Register a DELETE-Method
@@ -63,13 +71,7 @@ class RouteFacade {
      * @param options
      */
     delete(path, component, options) {
-        Router_1.Router.register("DELETE", (this.tempGroupPrefix ? this.tempGroupPrefix : "") + path, component, options || this.tempGroupMiddleware
-            ? Object.assign(Object.assign({}, (options ? options : {})), { middleware: this.tempGroupMiddleware || (options && options.middleware)
-                    ? [
-                        ...(this.tempGroupMiddleware ? this.tempGroupMiddleware : []),
-                        ...(options && options.middleware ? options.middleware : []),
-                    ]
-                    : null }) : {});
+        this.registerWithGroupContext("DELETE", path, component, options);
     }
     group(config, children) {
         // Handle group prefix

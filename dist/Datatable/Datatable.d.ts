@@ -33,12 +33,16 @@ export declare class Datatable {
             handle: Function;
             isAvailable?: Function;
             payload?: any;
+            confirmMessage?: string;
+            confirmOptions?: any;
         };
     } | null;
     getInit(req: Request): Promise<any>;
     getSelectableFunctionsDef(req: Request): Promise<{
         label: string;
         icon: string | undefined;
+        confirmMessage: string | undefined;
+        confirmOptions: any;
         apiFunction: string;
         apiFunctionPayload: any;
     }[] | null>;
