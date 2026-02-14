@@ -1,207 +1,422 @@
-# webtypen webframez Docs
+# @webtypen/webframez-core
 
-## Controller
+TypeScript-first backend framework core for Node.js.
 
-### Register a controller
+This README reflects the current API in this repository and focuses on:
+- Routing
+- Datatables
+- DataBuilder
+- Console Commands
+- Queue and Jobs
 
-A new controller is registered via the `controller` attribute in `app/Kernel.ts`. Just add a new entry for the controller to the object. The key of the object is the unique name of the controller, this is used again when connecting routes.
+## Requirements
 
-The controllers are initialized once when the web service is started. When calling a route, a single controller instance is created per request and thrown away after the request finishes.
+- Node.js `>= 20` (recommended)
+- TypeScript for development
 
-## Routing
+## Installation
 
-### Register a route
-
-Routes are managed via the app/routes.ts. Routes can be registered and configured with the Route Facade. Routes can be associated strictly with a request method (GET, POST, PUT, DELETE) or all request methods (ANY):
-
-```ts
-Route.get("/", "TestController@test");
-Route.post("/test2", "TestController@test");
-Route.put("/test2", "TestController@test");
-Route.delete("/test2", "TestController@test");
-Route.any("/test2", "TestController@test");
+```bash
+npm i @webtypen/webframez-core
 ```
 
-The URL path is specified in the first parameter. The second parameter connects the route to a controller method. A previously registered controller can be connected using the syntax `[CONTROLLER]@[METHODE]`.
-
-Alternatively, a function can be specified directly or a previously imported one can be used:
+## Basic Web Setup
 
 ```ts
-// Directly
-Route.get("/", (req: Request, res: Response) => res.send({ status: "success" }));
+import { BaseKernelWeb, Request, Response, Route, WebApplication } from "@webtypen/webframez-core";
 
-// Imported
-import { myFunction } from "./myfunction";
-Route.get("/", myFunction);
-```
+class Kernel extends BaseKernelWeb {
+  static controller = {
+    TestController: class {
+      async index(req: Request, res: Response) {
+        return res.send({ status: "ok" });
+      }
+    }
+  };
 
-### Register a middleware
+  static middleware = {
+    auth: async (next: Function, reject: Function, req: Request, res: Response) => {
+      const isAllowed = true;
+      if (!isAllowed) {
+        return reject(new Error("Unauthorized"));
+      }
+      next(true);
+    }
+  };
+}
 
-Middleware functions are also registered in `app/Kernel.ts.` A middleware function can be associated with one or more routes. When calling these routes, the middleware function is called before executing the route logic. In this function, the request can be continued or aborted, for example, authorization rules can be implemented and easily reused for multiple routes.
-
-Middleware functions are usually created under `app/Middleware`. A middleware function is called with the parameters (next, abort, req and res):
-
--   `next`: Function that signals when called that the request may be continued
--   `abort`: Function that aborts the request when called. An HTTP status code can be specified in the first parameter and a request body (usually text or JSON) in the second.
--   `req`: The Request-Object
--   `res`: The Response-Object
-
-Alternatively, middleware functions can also be defined directly in Kernel.ts:
-
-```ts
-static middleware: { [key: string]: any } = {
-  auth: async (next: any, abort: any, req: Request, res: Response) => {
-    console.log("auth-middleware");
-    next();
-  },
-};
-```
-
-A route can be connected to several middleware functions, which are called one after the other but before executing the route logic.
-
-### Connect a route with a middleware
-
-When registering a route, a configuration object can be passed in the third parameter. This can contain an array with middleware keys in the `middleware` parameter. The middlewares specified here are executed prior to executing the route logic when invoking this route. If a specified middleware aborts the request, it will not be executed:
-
-```ts
-Route.get("/auth-data", "AuthController@authData", { middleware: ["auth"] });
-```
-
-### Group routes
-
-With the grouping of routes, the code of the application can be significantly reduced and kept clear. Here's how the following configurations can be used with a multiple route definition:
-
--   `prefix`: A route path prefix used for all routes in this group:
-
-```ts
-Route.group({ prefix: "/admin", () => {
-    Route.get("/dashboard", "AdminDashboardController@data");
-    // Path for this route would be: /admin/dashboard
-}});
-```
-
--   `middleware`: An array of middleware-keys used for all routes in this group:
-
-```ts
-Route.group({ middleware: ["auth"], () => {
-    // Route with middleware auth
-    Route.get("/auth-data", "AuthController@authData");
-
-    // Route with middleware auth and admin
-    Route.get("/dashboard", "AdminDashboardController@data", { middleware: ["admin"] });
-}});
-```
-
-The configuration parameters of a route group can of course be combined with each other.
-
-Nesting of the route groups is also possible:
-
-```ts
-Route.group({ prefix: "/test" }, () => {
-    Route.get("/", "TestController@test"); // Path: /test/
-    Route.get("/test2", "TestController@test"); // Path: /test2/
-
-    Route.group({ middleware: ["auth"], prefix: "/auth" }, () => {
-        Route.get("/data", "AuthController@data"); // Path: /test/auth/data; Middleware: auth
-    });
+const app = new WebApplication();
+app.boot({
+  kernel: Kernel,
+  port: 3000,
+  basename: null,
+  routesFunction: () => {
+    Route.get("/", "TestController@index");
+  }
 });
 ```
 
-## Database
+`WebApplication.boot(...)` supports:
+- `kernel`
+- `port`
+- `basename`
+- `routesFunction`
+- `modules`
+- `config`
+- `datatables`
+- `jobs`
+- `mode`
+- `onBoot`
 
-### Connect
+## Routing
 
-The application can handle multiple database connections, but one is defined as the default connection and is automatically used by the system if models and database requests are not explicitly executed over another connection.
-
-The connections are configured in the `config/database.ts` file. Each connection is given a unique key in the `connections` object and uses a driver. The following drivers are currently available:
-
--   MongoDB Driver
-
-Depending on the driver, the database connection must be configured with different parameters.
-
-**MongoDB Connection example:**
+### Register Routes
 
 ```ts
-export default {
-    defaultConnection: "default",
-    connections: {
-        ["default"]: {
-            driver: "mongodb",
-            url: "mongodb://...",
-        },
-    },
-};
+Route.get("/", "HomeController@index");
+Route.post("/login", "AuthController@login");
+Route.put("/users/:id", "UserController@update");
+Route.delete("/users/:id", "UserController@delete");
 ```
 
-### Model
-
-Models are usually placed under `app/Models`. Each model class inherits from `Model` and must store the table / collection name, in which the models data sets are stored, in the `__table` attribute.
+You can also register inline handlers:
 
 ```ts
-import { Model, hasMany, QueryBuilder } from "@webtypen/webframez-core";
-import { File } from "./File";
-import { Session } from "./Session";
-import { CustomerGroups } from "./CustomerGroups";
+Route.get("/health", (req: Request, res: Response) => {
+  return res.send({ status: "ok" });
+});
+```
 
-export class User extends Model {
-    __table = "users";
+### Path Parameters and Wildcards
 
-    /**
-     * @param File                 Dependency Model
-     * @param foreignKey
-     * @param localKey             (optional)
-     * @param queryBuilderFunction (optional) customize the query
-     **/
-    @hasOne(() => File, "_user_avatar", "_id", (query: QueryBuilder) => {
-        query.where("status", "=", "uploaded");
-    })
-    avatar!: () => File;
+Supported path patterns:
+- Required parameter: `/:id`
+- Optional parameter: `/:id?`
+- Single wildcard: `/*`
+- Catch-all wildcard: `/**`
 
-    /**
-     * @param Session              Dependency Model
-     * @param foreignKey
-     * @param localKey             (optional)
-     * @param queryBuilderFunction (optional) customize the query
-     **/
-    @hasMany(() => Session, "_user")
-    sessions!: () => Session[];
+Matched values are available in `req.params`.
 
-    /**
-     * @param CustomerGroups       Dependency Model
-     * @param foreignKey
-     * @param localKey             (optional)
-     * @param queryBuilderFunction (optional) customize the query
-     **/
-    @hasManyArray(() => CustomerGroups, "_groups")
-    groups!: () => CustomerGroups[];
+### Route Groups
+
+```ts
+Route.group({ prefix: "/admin", middleware: ["auth"] }, () => {
+  Route.get("/dashboard", "AdminController@dashboard");
+
+  Route.group({ prefix: "/users" }, () => {
+    Route.get("/:id", "AdminUserController@details");
+  });
+});
+```
+
+### Route Middleware
+
+Attach middleware by key via route options:
+
+```ts
+Route.get("/me", "AccountController@me", { middleware: ["auth"] });
+```
+
+Middleware signature:
+
+```ts
+(next, reject, req, res) => {
+  // allow:
+  next(true);
+
+  // abort with error:
+  // reject(new Error("Forbidden"));
 }
 ```
 
-### Load a model
+### Extend the Route Facade
+
+You can add custom route registration helpers:
 
 ```ts
-import { User } from "../Models/User";
+Route.extend("jsonGet", (route) => {
+  return (path: string, component: any, options?: any) => {
+    route.get(path, async (req: Request, res: Response) => {
+      res.header("Content-Type", "application/json");
+      return component(req, res);
+    }, options);
+  };
+});
 
-const users = await User.where("is_active", "=", true).get();
-const testUser = await User.where("email", "=", "test@test.de").where("is_active", "=", true).first();
+(Route as any).jsonGet("/x", (req: Request, res: Response) => res.send({ ok: true }));
 ```
 
-#### Dependency Injection
+## Request and Response
+
+### Request
+
+`Request` includes:
+- `method`, `url`, `headers`, `rawHeaders`
+- `body`, `bodyPlain`
+- `query`, `queryRaw`
+- `params`
+- `files`
+- `message` (native `IncomingMessage`)
+
+### Response
+
+Common helpers:
 
 ```ts
-const sessions = await testUser.session();
-const avatarUrl = await testUser.avatar()?.url;
-const customerGroups = await testUser.groups();
+res.status(201);
+res.header("X-Test", "1");
+res.send({ status: "success" });
 ```
 
-##### Disable cache / force dependency-reload:
+Also available:
+- `sendCsv(...)`
+- `download(filepath, options?)`
+- `stream(req, filepath, filename, mimeType)`
+- `registerEvent("after", fn)`
+
+## Datatables
+
+Use `Datatable` + `DatatableRegistry` + `DatatableController`.
+
+### Define a Datatable
 
 ```ts
-const refreshedData = await testUser.session({ force: true });
+import { Datatable, Request } from "@webtypen/webframez-core";
+
+export class UsersTable extends Datatable {
+  collection = "users";
+  perPage = 25;
+
+  columns = {
+    name: { label: "Name" },
+    email: { label: "E-Mail" }
+  };
+
+  filter = {
+    name: { type: "text", mapping: "name" }
+  };
+
+  aggregation = async (req: Request) => {
+    return [{ $sort: { created_at: -1 } }];
+  };
+}
 ```
 
-##### Get dependency-query:
+### Register Datatables
 
 ```ts
-const oldSessions = await testUser.session({ query: true }).where("date", "<", moment().subtract(30, "days").format("YYYY-MM-DD")).get();
+app.boot({
+  // ...
+  datatables: {
+    users: UsersTable
+  }
+});
+```
+
+### Datatable Endpoints
+
+Use `DatatableController` in your routes:
+
+```ts
+import { DatatableController, Route } from "@webtypen/webframez-core";
+
+Route.post("/api/datatable", "DatatableController@restApi");
+Route.post("/api/datatable/export", "DatatableController@tableExport");
+```
+
+`restApi` supports:
+- init requests (`init_request`)
+- paginated data
+- selectable functions (`apiFunction`)
+
+`tableExport` uses your table `exports` definition.
+
+## DataBuilder
+
+Use `DataBuilder` + `DataBuilderController` for schema-driven CRUD flows.
+
+### Define and Register Types
+
+```ts
+import { DataBuilder } from "@webtypen/webframez-core";
+
+const builder = new DataBuilder();
+
+builder.registerType({
+  key: "user",
+  singular: "User",
+  plural: "Users",
+  schema: {
+    version: "1.0.0",
+    collection: "users",
+    fields: {
+      email: { type: "text", required: true, unique: { match: {} } },
+      age: { type: "integer" }
+    }
+  }
+});
+```
+
+You can also use:
+- `registerModelType(...)`
+- `registerFieldType(...)`
+
+### Expose the REST API
+
+```ts
+import { DataBuilderController, Route } from "@webtypen/webframez-core";
+
+class MyDataBuilderController extends DataBuilderController {
+  constructor() {
+    super(builder);
+  }
+}
+
+// Register controller in kernel, then:
+Route.post("/api/builder", "MyDataBuilderController@restApi");
+```
+
+`__builder_rest_api` actions:
+- `type`
+- `details`
+- `details-newdata`
+- `save`
+- `delete`
+- `api-autocomplete`
+
+## Console Commands
+
+Use `ConsoleApplication` with `BaseKernelConsole`.
+
+```ts
+import { BaseKernelConsole, ConsoleApplication, ConsoleCommand } from "@webtypen/webframez-core";
+
+class HelloCommand extends ConsoleCommand {
+  static signature = "hello";
+  static description = "Print a greeting";
+
+  async handle() {
+    this.success("Hello world");
+  }
+}
+
+class KernelConsole extends BaseKernelConsole {
+  static commands = [HelloCommand];
+}
+
+const app = new ConsoleApplication();
+app.boot({
+  kernel: KernelConsole,
+  config: {}
+});
+```
+
+`ConsoleCommand` helpers include:
+- `getArguments()`, `getOptions()`, `getOption(...)`
+- `ask(...)`
+- `write`, `writeln`, `info`, `warning`, `success`, `error`
+- progress helpers (`progress`, `progressIncrement`, `progressFinish`)
+
+## Queue and Jobs
+
+Queue workers run through console commands and use `queue_jobs` storage.
+
+### Create a Job
+
+```ts
+import { BaseQueueJob } from "@webtypen/webframez-core";
+
+export class SendMailJob extends BaseQueueJob {
+  async handle(job: any) {
+    this.log("Sending mail", job.payload);
+    // do work...
+
+    // optional delayed re-run:
+    // return this.executeAgain(5, "minutes");
+  }
+}
+```
+
+Create a new queue entry:
+
+```ts
+await SendMailJob.create({
+  payload: { userId: "..." },
+  priority: 5,
+  worker: null
+});
+```
+
+### Register Jobs
+
+```ts
+app.boot({
+  // ConsoleApplication or WebApplication
+  jobs: [SendMailJob]
+});
+```
+
+### Queue Config
+
+Configure workers in `config.queue`:
+
+```ts
+export default {
+  workers: {
+    default: {
+      is_active: true,
+      jobclasses: ["SendMailJob"],
+      automation: [
+        {
+          jobclass: "SendMailJob",
+          executions: [
+            ["every_x_mins", 15],
+            ["daily", "08:00"],
+            ["every_hour", 5],
+            ["mondays", "09:30"]
+          ]
+        }
+      ]
+    }
+  }
+};
+```
+
+### Built-in Queue Commands
+
+- `queue:start`
+- `queue:status`
+- `queue:stop`
+- `queue:log`
+- `queue:worker`
+- `queue:worker:autorestart`
+
+Additional built-in command:
+- `build`
+
+## Modules
+
+You can load module providers via `modules` in `WebApplication.boot(...)`.
+
+A module provider can:
+- register controllers/middleware
+- define `boot()`
+- define `routes()`
+
+## Lambda Mode
+
+`LambdaApplication` uses the same router in AWS Lambda mode:
+
+```ts
+import { LambdaApplication } from "@webtypen/webframez-core";
+
+const app = new LambdaApplication();
+export const handler = (event: any, context: any) => {
+  return app.boot(event, context, {
+    kernel: Kernel,
+    routesFunction: () => {
+      Route.get("/status", (req, res) => res.send({ ok: true }));
+    }
+  });
+};
 ```
