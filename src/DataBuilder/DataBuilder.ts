@@ -255,6 +255,20 @@ export class DataBuilder {
                 newData.forms = {};
                 if (typeof type.forms === "function") {
                     newData.forms = await type.forms(req);
+
+                    if (newData?.forms) {
+                        for (let form in newData.forms) {
+                            if (typeof newData.forms[form].pageActions === "function") {
+                                newData.forms[form].pageActions = await newData.forms[form].pageActions(req);
+                            }
+                            if (typeof newData.forms[form].fields === "function") {
+                                newData.forms[form].fields = await newData.forms[form].fields(req);
+                            }
+                            if (typeof newData.forms[form].backLink === "function") {
+                                newData.forms[form].backLink = await newData.forms[form].backLink(req);
+                            }
+                        }
+                    }
                 }
 
                 for (let form in type.forms) {
@@ -277,16 +291,6 @@ export class DataBuilder {
                         newData.forms[form].fields = await type.forms[form].fields(req);
                     } else if (type.forms[form].fields) {
                         newData.forms[form].fields = JSON.parse(JSON.stringify(type.forms[form].fields));
-                    }
-
-                    if (typeof newData.forms[form].pageActions === "function") {
-                        newData.forms[form].pageActions = await newData.forms[form].pageActions(req);
-                    }
-                    if (typeof newData.forms[form].fields === "function") {
-                        newData.forms[form].fields = await newData.forms[form].fields(req);
-                    }
-                    if (typeof newData.forms[form].backLink === "function") {
-                        newData.forms[form].backLink = await newData.forms[form].backLink(req);
                     }
 
                     if (!newData.forms[form].fields || newData.forms[form].fields.length < 1) {
