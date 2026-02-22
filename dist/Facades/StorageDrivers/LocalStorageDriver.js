@@ -26,8 +26,26 @@ class LocalStorageDriver {
     path(...args) {
         return path_1.default.join(this.basepath, ...args);
     }
+    resolveHandlers(entry) {
+        if (!entry) {
+            return [];
+        }
+        if (typeof entry === "function") {
+            return [entry];
+        }
+        if (Array.isArray(entry)) {
+            return entry.filter((handler) => typeof handler === "function");
+        }
+        if (entry.handlers) {
+            const handlers = Array.isArray(entry.handlers) ? entry.handlers : Object.values(entry.handlers);
+            return handlers.filter((handler) => typeof handler === "function");
+        }
+        if (typeof entry === "object") {
+            return Object.values(entry).filter((handler) => typeof handler === "function");
+        }
+        return [];
+    }
     put(filepath, contents, payload) {
-        var _a;
         return __awaiter(this, void 0, void 0, function* () {
             const p = this.path(filepath);
             // @ts-ignore
@@ -43,12 +61,10 @@ class LocalStorageDriver {
                         }
                         return key === mime;
                     });
-                    if (configKey && ((_a = this.config.fileHandlers[configKey]) === null || _a === void 0 ? void 0 : _a.handlers)) {
-                        for (let handlerKey in this.config.fileHandlers[configKey].handlers) {
-                            const handler = this.config.fileHandlers[configKey].handlers[handlerKey];
-                            if (typeof handler === "function") {
-                                yield handler(p, contents, payload);
-                            }
+                    if (configKey) {
+                        const handlers = this.resolveHandlers(this.config.fileHandlers[configKey]);
+                        for (const handler of handlers) {
+                            yield handler(p, contents, payload);
                         }
                     }
                 }
@@ -164,9 +180,9 @@ class LocalStorageDriver {
                     }
                     let fileOptions = null;
                     let filepath = null;
-                    busboy.on("file", (fieldname, file, options) => __awaiter(this, void 0, void 0, function* () {
-                        if (fileOptions === null && options) {
-                            fileOptions = options;
+                    busboy.on("file", (fieldname, file, opts) => __awaiter(this, void 0, void 0, function* () {
+                        if (fileOptions === null && opts) {
+                            fileOptions = opts;
                         }
                         filepath = path_1.default.join(dir, options.storageFilename);
                         const writeStream = fs_1.default.createWriteStream(filepath);
@@ -188,8 +204,9 @@ class LocalStorageDriver {
                                     }
                                     return key === mime;
                                 });
-                                if (configKey && this.config.fileHandlers[configKey]) {
-                                    for (let handler of this.config.fileHandlers[configKey]) {
+                                if (configKey) {
+                                    const handlers = this.resolveHandlers(this.config.fileHandlers[configKey]);
+                                    for (const handler of handlers) {
                                         yield handler(filepath, fs_1.default.readFileSync(filepath), options.payload);
                                     }
                                 }

@@ -49,9 +49,9 @@ class StorageFileInstance {
             return this.driver.delete(this.filepath, options);
         });
     }
-    extension(options) {
+    extension() {
         return __awaiter(this, void 0, void 0, function* () {
-            return this.driver.delete(this.filepath, options);
+            return this.driver.extension(this.filepath);
         });
     }
     mime() {
@@ -116,14 +116,14 @@ class StorageDisk {
         return __awaiter(this, void 0, void 0, function* () {
             if (!this.driver)
                 throw new Error(`[STORAGE ERROR] No driver configured for disk '${this.diskKey}'.`);
-            return yield this.driver.mkdir(filepath);
+            return yield this.driver.isDir(filepath);
         });
     }
     isFile(filepath) {
         return __awaiter(this, void 0, void 0, function* () {
             if (!this.driver)
                 throw new Error(`[STORAGE ERROR] No driver configured for disk '${this.diskKey}'.`);
-            return yield this.driver.mkdir(filepath);
+            return yield this.driver.isFile(filepath);
         });
     }
     file(filepath) {
@@ -209,34 +209,38 @@ class StorageFileFacade {
     constructor(storage) {
         this.storage = storage;
     }
+    createFileInstance(filepath, diskKey) {
+        const disk = this.storage.disk(diskKey);
+        return new StorageFileInstance(filepath, disk.driver);
+    }
     exists(filepath, diskKey) {
         return __awaiter(this, void 0, void 0, function* () {
-            return new StorageFileInstance(filepath, this.storage.disk(diskKey)).exists();
+            return this.createFileInstance(filepath, diskKey).exists();
         });
     }
     isDir(filepath, diskKey) {
         return __awaiter(this, void 0, void 0, function* () {
-            return new StorageFileInstance(filepath, this.storage.disk(diskKey)).isDir();
+            return this.createFileInstance(filepath, diskKey).isDir();
         });
     }
     isFile(filepath, diskKey) {
         return __awaiter(this, void 0, void 0, function* () {
-            return new StorageFileInstance(filepath, this.storage.disk(diskKey)).isFile();
+            return this.createFileInstance(filepath, diskKey).isFile();
         });
     }
     delete(filepath, options, diskKey) {
         return __awaiter(this, void 0, void 0, function* () {
-            return new StorageFileInstance(filepath, this.storage.disk(diskKey)).delete(options);
+            return this.createFileInstance(filepath, diskKey).delete(options);
         });
     }
     extension(filepath, diskKey) {
         return __awaiter(this, void 0, void 0, function* () {
-            return new StorageFileInstance(filepath, this.storage.disk(diskKey)).extension();
+            return this.createFileInstance(filepath, diskKey).extension();
         });
     }
     mime(filepath, diskKey) {
         return __awaiter(this, void 0, void 0, function* () {
-            return new StorageFileInstance(filepath, this.storage.disk(diskKey)).mime();
+            return this.createFileInstance(filepath, diskKey).mime();
         });
     }
 }

@@ -23,6 +23,7 @@ const StringFunctions_1 = require("../Functions/StringFunctions");
 const Config_1 = require("../Config");
 const DBConnection_1 = require("../Database/DBConnection");
 const DateFunctions_1 = require("../Functions/DateFunctions");
+const ErrorHandler_1 = require("../ErrorHandling/ErrorHandler");
 class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
     constructor() {
         super(...arguments);
@@ -70,6 +71,18 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                 yield this.run();
             }
             catch (e) {
+                yield ErrorHandler_1.ErrorHandler.report(e, {
+                    scope: "command",
+                    source: "queue.worker.run",
+                    command: {
+                        signature: this.constructor.signature,
+                        className: this.constructor.name,
+                        args: this.args,
+                    },
+                    metadata: {
+                        worker: this.workerKey,
+                    },
+                });
                 this.error(`Queue run failed: ${e instanceof Error ? e.message : String(e)}`);
             }
             finally {
@@ -354,7 +367,18 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                 }
             }
             catch (e) {
-                console.error(e);
+                yield ErrorHandler_1.ErrorHandler.report(e, {
+                    scope: "command",
+                    source: "queue.worker.automation",
+                    command: {
+                        signature: this.constructor.signature,
+                        className: this.constructor.name,
+                        args: this.args,
+                    },
+                    metadata: {
+                        worker: this.workerKey,
+                    },
+                });
             }
         });
     }
@@ -500,6 +524,19 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                     this.log(`Finished Job #${job.number} - ${job.jobclass} - ${(job.executions[0].duration_ms / 1000).toFixed(2)}s`);
                 }
                 catch (e) {
+                    yield ErrorHandler_1.ErrorHandler.report(e, {
+                        scope: "job",
+                        source: "queue.worker.job.handle",
+                        job: {
+                            id: job && job._id ? job._id.toString() : undefined,
+                            number: job && job.number ? job.number : undefined,
+                            jobclass: job && job.jobclass ? job.jobclass : undefined,
+                            worker: this.workerKey,
+                        },
+                        metadata: {
+                            executionKey: executionKey,
+                        },
+                    });
                     const errorMessage = e instanceof Error ? e.stack || e.message : String(e);
                     const endedAt = new Date();
                     job.status = "failed";

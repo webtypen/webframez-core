@@ -11,6 +11,7 @@ const Router_1 = require("./Router/Router");
 const QueueJobsRegisty_1 = require("./Queue/QueueJobsRegisty");
 const DatatableRegistry_1 = require("./Datatable/DatatableRegistry");
 const ModulesLoader_1 = require("./Modules/ModulesLoader");
+const ErrorHandler_1 = require("./ErrorHandling/ErrorHandler");
 // import { SigNozTelemetry } from "./Telemetry/SigNozTelemetry";
 class WebApplication {
     constructor() {
@@ -23,6 +24,14 @@ class WebApplication {
         if (options && options.config) {
             for (let key in options.config) {
                 Config_1.Config.register(key, options.config[key]);
+            }
+        }
+        if (options && options.errorHandler) {
+            if (Array.isArray(options.errorHandler)) {
+                ErrorHandler_1.ErrorHandler.setHandlers(options.errorHandler);
+            }
+            else {
+                ErrorHandler_1.ErrorHandler.setHandler(options.errorHandler);
             }
         }
         // if (options && options.signoz) {

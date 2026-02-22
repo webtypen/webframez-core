@@ -51,7 +51,7 @@ export class QueueStopCommand extends ConsoleCommand {
 
         let promises: Promise<void>[] = [];
         for (let worker of stopping) {
-            if (!worker || !worker.worker || !worker.pid) return;
+            if (!worker || !worker.worker || !worker.pid) continue;
 
             promises.push(
                 new Promise(async (resolve) => {
@@ -65,7 +65,7 @@ export class QueueStopCommand extends ConsoleCommand {
                         }
                     }
                     resolve();
-                })
+                }),
             );
         }
         await Promise.all(promises);
@@ -91,7 +91,7 @@ export class QueueStopCommand extends ConsoleCommand {
         fs.writeFileSync(
             path.join(storageDir(), "queue", workerKey + ".stop"),
             JSON.stringify({ date: new Date(), worker: workerKey, pid: pid }),
-            "utf8"
+            "utf8",
         );
 
         let isRunning = this.isRunning(pid);

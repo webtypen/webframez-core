@@ -1,6 +1,7 @@
 import readline from "readline";
 import { ConsoleProgressBar } from "./ConsoleProgressBar";
 import { ConsoleOutputHelper, WriteOptions } from "./ConsoleOutputHelper";
+import { ErrorHandler } from "../ErrorHandling/ErrorHandler";
 
 export class ConsoleCommand {
     static signature: string;
@@ -30,7 +31,15 @@ export class ConsoleCommand {
         try {
             await this.handle();
         } catch (e) {
-            console.error(e);
+            await ErrorHandler.report(e, {
+                scope: "command",
+                source: "console.command.handleSystem",
+                command: {
+                    signature: (this.constructor as any).signature,
+                    className: this.constructor.name,
+                    args: this.args,
+                },
+            });
         } finally {
             await this.finallySystem();
         }

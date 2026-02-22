@@ -5,6 +5,7 @@ const Config_1 = require("./Config");
 const DatatableRegistry_1 = require("./Datatable/DatatableRegistry");
 const QueueJobsRegisty_1 = require("./Queue/QueueJobsRegisty");
 const Router_1 = require("./Router/Router");
+const ErrorHandler_1 = require("./ErrorHandling/ErrorHandler");
 class LambdaApplication {
     /**
      * Init the routes and handle the request
@@ -13,6 +14,14 @@ class LambdaApplication {
         if (options && options.config) {
             for (let key in options.config) {
                 Config_1.Config.register(key, options.config[key]);
+            }
+        }
+        if (options && options.errorHandler) {
+            if (Array.isArray(options.errorHandler)) {
+                ErrorHandler_1.ErrorHandler.setHandlers(options.errorHandler);
+            }
+            else {
+                ErrorHandler_1.ErrorHandler.setHandler(options.errorHandler);
             }
         }
         Router_1.Router.init({

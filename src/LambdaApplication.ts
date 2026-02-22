@@ -2,6 +2,7 @@ import { Config } from "./Config";
 import { DatatableRegistry } from "./Datatable/DatatableRegistry";
 import { QueueJobsRegisty } from "./Queue/QueueJobsRegisty";
 import { Router } from "./Router/Router";
+import { ErrorHandler } from "./ErrorHandling/ErrorHandler";
 
 export class LambdaApplication {
     /**
@@ -11,6 +12,14 @@ export class LambdaApplication {
         if (options && options.config) {
             for (let key in options.config) {
                 Config.register(key, options.config[key]);
+            }
+        }
+
+        if (options && options.errorHandler) {
+            if (Array.isArray(options.errorHandler)) {
+                ErrorHandler.setHandlers(options.errorHandler);
+            } else {
+                ErrorHandler.setHandler(options.errorHandler);
             }
         }
 

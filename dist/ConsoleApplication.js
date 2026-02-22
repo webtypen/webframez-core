@@ -23,6 +23,7 @@ const QueueStopCommand_1 = require("./Commands/QueueStopCommand");
 const QueueLogCommand_1 = require("./Commands/QueueLogCommand");
 const QueueWorkerAutorestartCommand_1 = require("./Commands/QueueWorkerAutorestartCommand");
 const info_1 = require("./info");
+const ErrorHandler_1 = require("./ErrorHandling/ErrorHandler");
 class ConsoleApplication {
     constructor() {
         this.systemCommands = [
@@ -44,6 +45,14 @@ class ConsoleApplication {
                 Config_1.Config.register(key, options.config[key]);
             }
         }
+        if (options && options.errorHandler) {
+            if (Array.isArray(options.errorHandler)) {
+                ErrorHandler_1.ErrorHandler.setHandlers(options.errorHandler);
+            }
+            else {
+                ErrorHandler_1.ErrorHandler.setHandler(options.errorHandler);
+            }
+        }
         // if (options && options.signoz) {
         //     void SigNozTelemetry.init(options.signoz);
         // }
@@ -62,10 +71,23 @@ class ConsoleApplication {
                 return;
             }
             (() => __awaiter(this, void 0, void 0, function* () {
-                const commandInstance = new command(args);
-                yield commandInstance.handleSystem();
-                if (options && options.onEnd) {
-                    yield options.onEnd(command.signature);
+                try {
+                    const commandInstance = new command(args);
+                    yield commandInstance.handleSystem();
+                    if (options && options.onEnd) {
+                        yield options.onEnd(command.signature);
+                    }
+                }
+                catch (e) {
+                    yield ErrorHandler_1.ErrorHandler.report(e, {
+                        scope: "command",
+                        source: "console.application.boot",
+                        command: {
+                            signature: command.signature,
+                            className: command.name,
+                            args: args,
+                        },
+                    });
                 }
             }))();
         }

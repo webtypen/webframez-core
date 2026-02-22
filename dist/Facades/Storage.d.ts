@@ -19,11 +19,7 @@ declare class StorageFileInstance {
         filepath: string | string[];
         payload?: any;
     }>;
-    extension(options?: StorageDeleteOptions): Promise<{
-        status: string;
-        filepath: string | string[];
-        payload?: any;
-    }>;
+    extension(): Promise<string | null>;
     mime(): Promise<string | null>;
 }
 declare class StorageDisk {
@@ -59,16 +55,8 @@ declare class StorageDisk {
         dirpath: string;
         payload?: any;
     }>;
-    isDir(filepath: string): Promise<{
-        status: string;
-        dirpath: string;
-        payload?: any;
-    }>;
-    isFile(filepath: string): Promise<{
-        status: string;
-        dirpath: string;
-        payload?: any;
-    }>;
+    isDir(filepath: string): Promise<boolean>;
+    isFile(filepath: string): Promise<boolean>;
     file(filepath: string): Promise<StorageFileInstance>;
     readDir(dirpath: string, options: StorageReadDirOptions): Promise<any[]>;
 }
@@ -107,16 +95,8 @@ declare class StorageFacade {
         dirpath: string;
         payload?: any;
     }>;
-    isDir(filepath: string): Promise<{
-        status: string;
-        dirpath: string;
-        payload?: any;
-    }>;
-    isFile(filepath: string): Promise<{
-        status: string;
-        dirpath: string;
-        payload?: any;
-    }>;
+    isDir(filepath: string): Promise<boolean>;
+    isFile(filepath: string): Promise<boolean>;
     file(filepath: string): Promise<StorageFileInstance>;
     readDir(dirpath: string, options: StorageReadDirOptions): Promise<any[]>;
     upload(req: any, options: {
@@ -128,6 +108,7 @@ declare class StorageFacade {
 declare class StorageFileFacade {
     storage: StorageFacade;
     constructor(storage: StorageFacade);
+    private createFileInstance;
     exists(filepath: string, diskKey?: string): Promise<boolean>;
     isDir(filepath: string, diskKey?: string): Promise<boolean>;
     isFile(filepath: string, diskKey?: string): Promise<boolean>;
@@ -136,11 +117,7 @@ declare class StorageFileFacade {
         filepath: string | string[];
         payload?: any;
     }>;
-    extension(filepath: string, diskKey?: string): Promise<{
-        status: string;
-        filepath: string | string[];
-        payload?: any;
-    }>;
+    extension(filepath: string, diskKey?: string): Promise<string | null>;
     mime(filepath: string, diskKey?: string): Promise<string | null>;
 }
 export declare const Storage: StorageFacade;

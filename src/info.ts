@@ -1,3 +1,3 @@
 export const WebframezInfo = {
-    version: "0.3.1",
+    version: "0.3.31",
 };

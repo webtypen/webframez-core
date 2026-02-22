@@ -63,7 +63,7 @@ class QueueStopCommand extends ConsoleCommand_1.ConsoleCommand {
             let promises = [];
             for (let worker of stopping) {
                 if (!worker || !worker.worker || !worker.pid)
-                    return;
+                    continue;
                 promises.push(new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
                     try {
                         yield this.stopWorker(worker.worker, worker.pid);

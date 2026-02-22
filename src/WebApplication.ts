@@ -5,6 +5,7 @@ import { Router } from "./Router/Router";
 import { QueueJobsRegisty } from "./Queue/QueueJobsRegisty";
 import { DatatableRegistry } from "./Datatable/DatatableRegistry";
 import { ModulesLoader } from "./Modules/ModulesLoader";
+import { ErrorHandler } from "./ErrorHandling/ErrorHandler";
 // import { SigNozTelemetry } from "./Telemetry/SigNozTelemetry";
 
 export class WebApplication {
@@ -18,6 +19,14 @@ export class WebApplication {
         if (options && options.config) {
             for (let key in options.config) {
                 Config.register(key, options.config[key]);
+            }
+        }
+
+        if (options && options.errorHandler) {
+            if (Array.isArray(options.errorHandler)) {
+                ErrorHandler.setHandlers(options.errorHandler);
+            } else {
+                ErrorHandler.setHandler(options.errorHandler);
             }
         }
 

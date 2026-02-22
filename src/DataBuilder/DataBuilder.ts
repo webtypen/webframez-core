@@ -127,11 +127,11 @@ export class DataBuilder {
             req.body && req.body.__builder_type
                 ? this.getType(req.body.__builder_type)
                 : req.__builder_type
-                ? this.getType(req.__builder_type)
-                : null;
+                  ? this.getType(req.__builder_type)
+                  : null;
         if (!type) {
             throw new Error(
-                "Missing builder-type '" + (req.body && req.body.__builder_type ? req.body.__builder_type : req.__builder_type) + "' ..."
+                "Missing builder-type '" + (req.body && req.body.__builder_type ? req.body.__builder_type : req.__builder_type) + "' ...",
             );
         }
         return type;
@@ -213,22 +213,22 @@ export class DataBuilder {
             ...(typeof field.unique.match === "function"
                 ? await field.unique.match(req)
                 : typeof field.unique.match === "object"
-                ? field.unique.match
-                : {}),
+                  ? field.unique.match
+                  : {}),
         };
         const check = await db
             .collection(
                 typeof field.unique.collection === "string" && field.unique.collection.trim() !== ""
                     ? field.unique.collection
-                    : type.schema.collection
+                    : type.schema.collection,
             )
             .aggregate([
                 { $match: match },
                 ...(typeof field.unique.aggregation === "function"
                     ? await field.aggregation(req)
                     : field.aggregation && Array.isArray(field.aggregation)
-                    ? field.aggregation
-                    : []),
+                      ? field.aggregation
+                      : []),
             ])
             .toArray();
 
@@ -279,6 +279,16 @@ export class DataBuilder {
                         newData.forms[form].fields = JSON.parse(JSON.stringify(type.forms[form].fields));
                     }
 
+                    if (typeof newData.forms[form].pageActions === "function") {
+                        newData.forms[form].pageActions = await newData.forms[form].pageActions(req);
+                    }
+                    if (typeof newData.forms[form].fields === "function") {
+                        newData.forms[form].fields = await newData.forms[form].fields(req);
+                    }
+                    if (typeof newData.forms[form].backLink === "function") {
+                        newData.forms[form].backLink = await newData.forms[form].backLink(req);
+                    }
+
                     if (!newData.forms[form].fields || newData.forms[form].fields.length < 1) {
                         continue;
                     }
@@ -316,9 +326,9 @@ export class DataBuilder {
                                 ? await type.schema.fields(req)
                                 : type.schema.fields
                             : typeof type.fields === "function"
-                            ? await type.fields(req)
-                            : type.fields,
-                        req
+                              ? await type.fields(req)
+                              : type.fields,
+                        req,
                     ),
                 },
             },
@@ -352,7 +362,7 @@ export class DataBuilder {
                     lodash.set(
                         element,
                         fieldPath,
-                        await customType.onSave(lodash.get(element, fieldPath), { ...payload, ...fields[key].payload })
+                        await customType.onSave(lodash.get(element, fieldPath), { ...payload, ...fields[key].payload }),
                     );
                 }
             } else {
@@ -517,7 +527,7 @@ export class DataBuilder {
                     type.schema && typeof type.schema.getAggregation === "function"
                         ? await type.schema.getAggregation(await this.getAggregation(type, req), req)
                         : await this.getAggregation(type, req),
-                    collection
+                    collection,
                 )
                 .toArray();
 
@@ -552,7 +562,7 @@ export class DataBuilder {
                 {
                     _id: type.schema.primaryKeyPlain ? updateId.toString() : await Model.objectId(updateId),
                 },
-                { $set: { ...element } }
+                { $set: { ...element } },
             );
             if (status && status.matchedCount) {
                 changedId = updateId;
@@ -629,7 +639,7 @@ export class DataBuilder {
                     type.schema && typeof type.schema.getAggregation === "function"
                         ? await type.schema.getAggregation(await this.getAggregation(type, req), req)
                         : await this.getAggregation(type, req),
-                    collection
+                    collection,
                 )
                 .toArray();
 
@@ -711,7 +721,7 @@ export class DataBuilder {
                     type.schema && typeof type.schema.getAggregation === "function"
                         ? await type.schema.getAggregation(await this.getAggregation(type, req), req)
                         : await this.getAggregation(type, req),
-                    collection
+                    collection,
                 )
                 .toArray();
         } catch (e: any) {

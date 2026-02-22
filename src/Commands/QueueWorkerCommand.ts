@@ -8,6 +8,7 @@ import { StringFunctions } from "../Functions/StringFunctions";
 import { Config } from "../Config";
 import { DBConnection } from "../Database/DBConnection";
 import { DateFunctions } from "../Functions/DateFunctions";
+import { ErrorHandler } from "../ErrorHandling/ErrorHandler";
 
 export class QueueWorkerCommand extends ConsoleCommand {
     // Command
@@ -64,6 +65,18 @@ export class QueueWorkerCommand extends ConsoleCommand {
             this.log("Queue started");
             await this.run();
         } catch (e) {
+            await ErrorHandler.report(e, {
+                scope: "command",
+                source: "queue.worker.run",
+                command: {
+                    signature: (this.constructor as any).signature,
+                    className: this.constructor.name,
+                    args: this.args,
+                },
+                metadata: {
+                    worker: this.workerKey,
+                },
+            });
             this.error(`Queue run failed: ${e instanceof Error ? e.message : String(e)}`);
         } finally {
             this.log("Queue stopped");
@@ -424,7 +437,18 @@ export class QueueWorkerCommand extends ConsoleCommand {
                 await this.wait(5000);
             }
         } catch (e) {
-            console.error(e);
+            await ErrorHandler.report(e, {
+                scope: "command",
+                source: "queue.worker.automation",
+                command: {
+                    signature: (this.constructor as any).signature,
+                    className: this.constructor.name,
+                    args: this.args,
+                },
+                metadata: {
+                    worker: this.workerKey,
+                },
+            });
         }
     }
 
@@ -604,6 +628,19 @@ export class QueueWorkerCommand extends ConsoleCommand {
                 this.jobsSucceeded++;
                 this.log(`Finished Job #${job.number} - ${job.jobclass} - ${(job.executions[0].duration_ms / 1000).toFixed(2)}s`);
             } catch (e) {
+                await ErrorHandler.report(e, {
+                    scope: "job",
+                    source: "queue.worker.job.handle",
+                    job: {
+                        id: job && job._id ? job._id.toString() : undefined,
+                        number: job && job.number ? job.number : undefined,
+                        jobclass: job && job.jobclass ? job.jobclass : undefined,
+                        worker: this.workerKey,
+                    },
+                    metadata: {
+                        executionKey: executionKey,
+                    },
+                });
                 const errorMessage = e instanceof Error ? e.stack || e.message : String(e);
                 const endedAt = new Date();
                 job.status = "failed";

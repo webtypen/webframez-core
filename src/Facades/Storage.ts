@@ -38,8 +38,8 @@ class StorageFileInstance {
         return this.driver.delete(this.filepath, options);
     }
 
-    async extension(options?: StorageDeleteOptions) {
-        return this.driver.delete(this.filepath, options);
+    async extension() {
+        return this.driver.extension(this.filepath);
     }
 
     async mime() {
@@ -102,12 +102,12 @@ class StorageDisk {
 
     async isDir(filepath: string) {
         if (!this.driver) throw new Error(`[STORAGE ERROR] No driver configured for disk '${this.diskKey}'.`);
-        return await this.driver.mkdir(filepath);
+        return await this.driver.isDir(filepath);
     }
 
     async isFile(filepath: string) {
         if (!this.driver) throw new Error(`[STORAGE ERROR] No driver configured for disk '${this.diskKey}'.`);
-        return await this.driver.mkdir(filepath);
+        return await this.driver.isFile(filepath);
     }
 
     async file(filepath: string) {
@@ -183,28 +183,33 @@ class StorageFileFacade {
         this.storage = storage;
     }
 
+    private createFileInstance(filepath: string, diskKey?: string) {
+        const disk = this.storage.disk(diskKey);
+        return new StorageFileInstance(filepath, disk.driver);
+    }
+
     async exists(filepath: string, diskKey?: string) {
-        return new StorageFileInstance(filepath, this.storage.disk(diskKey)).exists();
+        return this.createFileInstance(filepath, diskKey).exists();
     }
 
     async isDir(filepath: string, diskKey?: string) {
-        return new StorageFileInstance(filepath, this.storage.disk(diskKey)).isDir();
+        return this.createFileInstance(filepath, diskKey).isDir();
     }
 
     async isFile(filepath: string, diskKey?: string) {
-        return new StorageFileInstance(filepath, this.storage.disk(diskKey)).isFile();
+        return this.createFileInstance(filepath, diskKey).isFile();
     }
 
     async delete(filepath: string, options?: StorageDeleteOptions, diskKey?: string) {
-        return new StorageFileInstance(filepath, this.storage.disk(diskKey)).delete(options);
+        return this.createFileInstance(filepath, diskKey).delete(options);
     }
 
     async extension(filepath: string, diskKey?: string) {
-        return new StorageFileInstance(filepath, this.storage.disk(diskKey)).extension();
+        return this.createFileInstance(filepath, diskKey).extension();
     }
 
     async mime(filepath: string, diskKey?: string) {
-        return new StorageFileInstance(filepath, this.storage.disk(diskKey)).mime();
+        return this.createFileInstance(filepath, diskKey).mime();
     }
 }
 

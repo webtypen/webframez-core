@@ -5,3 +5,4 @@ class BaseKernelWeb {
 }
 exports.BaseKernelWeb = BaseKernelWeb;
 BaseKernelWeb.controller = {};
+BaseKernelWeb.middleware = {};

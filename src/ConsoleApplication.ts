@@ -11,6 +11,7 @@ import { QueueStopCommand } from "./Commands/QueueStopCommand";
 import { QueueLogCommand } from "./Commands/QueueLogCommand";
 import { QueueWorkerAutorestartCommand } from "./Commands/QueueWorkerAutorestartCommand";
 import { WebframezInfo } from "./info";
+import { ErrorHandler } from "./ErrorHandling/ErrorHandler";
 
 export class ConsoleApplication {
     systemCommands: any = [
@@ -30,6 +31,14 @@ export class ConsoleApplication {
         if (options && options.config) {
             for (let key in options.config) {
                 Config.register(key, options.config[key]);
+            }
+        }
+
+        if (options && options.errorHandler) {
+            if (Array.isArray(options.errorHandler)) {
+                ErrorHandler.setHandlers(options.errorHandler);
+            } else {
+                ErrorHandler.setHandler(options.errorHandler);
             }
         }
 
@@ -56,11 +65,23 @@ export class ConsoleApplication {
             }
 
             (async () => {
-                const commandInstance = new command(args);
-                await commandInstance.handleSystem();
+                try {
+                    const commandInstance = new command(args);
+                    await commandInstance.handleSystem();
 
-                if (options && options.onEnd) {
-                    await options.onEnd(command.signature);
+                    if (options && options.onEnd) {
+                        await options.onEnd(command.signature);
+                    }
+                } catch (e) {
+                    await ErrorHandler.report(e, {
+                        scope: "command",
+                        source: "console.application.boot",
+                        command: {
+                            signature: command.signature,
+                            className: command.name,
+                            args: args,
+                        },
+                    });
                 }
             })();
         } else {

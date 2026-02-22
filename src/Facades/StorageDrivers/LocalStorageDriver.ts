@@ -19,6 +19,31 @@ export class LocalStorageDriver implements BaseStorageDriver {
         return path.join(this.basepath, ...args);
     }
 
+    private resolveHandlers(entry: any): Function[] {
+        if (!entry) {
+            return [];
+        }
+
+        if (typeof entry === "function") {
+            return [entry];
+        }
+
+        if (Array.isArray(entry)) {
+            return entry.filter((handler: any): handler is Function => typeof handler === "function");
+        }
+
+        if (entry.handlers) {
+            const handlers: any[] = Array.isArray(entry.handlers) ? entry.handlers : (Object.values(entry.handlers) as any[]);
+            return handlers.filter((handler: any): handler is Function => typeof handler === "function");
+        }
+
+        if (typeof entry === "object") {
+            return (Object.values(entry) as any[]).filter((handler: any): handler is Function => typeof handler === "function");
+        }
+
+        return [];
+    }
+
     async put(filepath: string, contents: string | Buffer, payload?: any) {
         const p = this.path(filepath);
         // @ts-ignore
@@ -36,12 +61,10 @@ export class LocalStorageDriver implements BaseStorageDriver {
                     return key === mime;
                 });
 
-                if (configKey && this.config.fileHandlers[configKey]?.handlers) {
-                    for (let handlerKey in this.config.fileHandlers[configKey].handlers) {
-                        const handler = this.config.fileHandlers[configKey].handlers[handlerKey];
-                        if (typeof handler === "function") {
-                            await handler(p, contents, payload);
-                        }
+                if (configKey) {
+                    const handlers = this.resolveHandlers(this.config.fileHandlers[configKey]);
+                    for (const handler of handlers) {
+                        await handler(p, contents, payload);
                     }
                 }
             }
@@ -151,9 +174,9 @@ export class LocalStorageDriver implements BaseStorageDriver {
 
                 let fileOptions: any = null;
                 let filepath: any = null;
-                busboy.on("file", async (fieldname: any, file: any, options: any) => {
-                    if (fileOptions === null && options) {
-                        fileOptions = options;
+                busboy.on("file", async (fieldname: any, file: any, opts: any) => {
+                    if (fileOptions === null && opts) {
+                        fileOptions = opts;
                     }
 
                     filepath = path.join(dir, options.storageFilename);
@@ -179,8 +202,9 @@ export class LocalStorageDriver implements BaseStorageDriver {
                                 return key === mime;
                             });
 
-                            if (configKey && this.config.fileHandlers[configKey]) {
-                                for (let handler of this.config.fileHandlers[configKey]) {
+                            if (configKey) {
+                                const handlers = this.resolveHandlers(this.config.fileHandlers[configKey]);
+                                for (const handler of handlers) {
                                     await handler(filepath, fs.readFileSync(filepath), options.payload);
                                 }
                             }

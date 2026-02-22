@@ -18,6 +18,7 @@ const Response_1 = require("./Response");
 const Request_1 = require("./Request");
 const querystring_1 = __importDefault(require("querystring"));
 const url_1 = __importDefault(require("url"));
+const ErrorHandler_1 = require("../ErrorHandling/ErrorHandler");
 class RouterFacade {
     constructor() {
         /**
@@ -32,6 +33,7 @@ class RouterFacade {
          * Mode
          */
         this.mode = null;
+        this.maxRequestBodySizeBytes = 10 * 1024 * 1024;
         /**
          * GET Route Store
          */
@@ -56,6 +58,14 @@ class RouterFacade {
         this.basename = options && options.basename ? options.basename : null;
         this.kernel = options && options.kernel ? options.kernel : null;
         this.mode = options && options.mode ? options.mode : null;
+        this.maxRequestBodySizeBytes =
+            options && options.maxRequestBodySizeBytes !== undefined
+                ? options.maxRequestBodySizeBytes
+                : 10 * 1024 * 1024;
+        this.routesGET = {};
+        this.routesPOST = {};
+        this.routesPUT = {};
+        this.routesDELETE = {};
         // Load routes
         if (options.routesFunction) {
             options.routesFunction();
@@ -171,7 +181,7 @@ class RouterFacade {
      */
     extractParams(path, match) {
         const params = {};
-        const paramNames = path.match(/\/:(\[\w]+)\??/g) || [];
+        const paramNames = path.match(/\/:\w+\??/g) || [];
         const wildcards = path.match(/\/\*\*|\/\*|\*\*/g) || [];
         // Extract named parameters
         paramNames.forEach((param, index) => {
@@ -196,6 +206,36 @@ class RouterFacade {
         });
         return params;
     }
+    escapeRegexPart(value) {
+        return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+    buildRouteRegex(path) {
+        const placeholders = [];
+        const addPlaceholder = (fragment) => {
+            const key = "__WFZ_TOKEN_" + placeholders.length + "__";
+            placeholders.push(fragment);
+            return key;
+        };
+        const withPlaceholders = path
+            .replace(/\/:\w+\?/g, () => addPlaceholder("(?:/([^/]+))?"))
+            .replace(/\/:\w+/g, () => addPlaceholder("/([^/]+)"))
+            .replace(/\/\*\*/g, () => addPlaceholder("/(.*)"))
+            .replace(/\/\*/g, () => addPlaceholder("(?:/(.*))?"))
+            .replace(/\*\*/g, () => addPlaceholder("(.*)"))
+            .replace(/\*/g, () => addPlaceholder("(.*)"));
+        const escaped = this.escapeRegexPart(withPlaceholders);
+        const regexString = "^" + escaped.replace(/__WFZ_TOKEN_(\d+)__/g, (all, tokenIndex) => placeholders[tokenIndex]) + "$";
+        return new RegExp(regexString);
+    }
+    createMiddlewareRejectSignal(reason) {
+        return {
+            __middlewareReject: true,
+            reason: reason,
+        };
+    }
+    isMiddlewareRejectSignal(error) {
+        return !!(error && typeof error === "object" && error.__middlewareReject === true);
+    }
     /**
      * Dissolves the matching route based on the request-url and an object of routes
      *
@@ -210,17 +250,7 @@ class RouterFacade {
         else {
             for (const route in routes) {
                 const routeObj = routes[route];
-                const regex = "^" +
-                    routeObj.path
-                        .replace(/\/:\w+\?/g, "(?:/([^/]+))?")
-                        .replace(/\/:\w+/g, "/([^/]+)")
-                        .replace(/\/\*\*/g, "/(.*)") // Catchall wildcard: /**
-                        .replace(/\/\*/g, "(?:/(.*))??") // Single wildcard: /* (optional trailing content)
-                        .replace(/\*\*/g, "(.*)")
-                        .replace(/\*/g, "(.*)")
-                        .replace(/\//g, "\\/") +
-                    "$";
-                const match = url.match(regex);
+                const match = url.match(this.buildRouteRegex(routeObj.path));
                 if (match) {
                     if (request) {
                         request.params = this.extractParams(routeObj.path, match);
@@ -239,7 +269,34 @@ class RouterFacade {
      */
     handleRequest(req, res, options) {
         return __awaiter(this, void 0, void 0, function* () {
-            const request = yield this.mapRequest(req, options);
+            let request;
+            try {
+                request = yield this.mapRequest(req, options);
+            }
+            catch (e) {
+                const response = new Response_1.Response({ mode: this.mode });
+                if (res) {
+                    response.setServerResponse(res);
+                }
+                const fallbackRequest = new Request_1.Request();
+                if (req) {
+                    fallbackRequest.headers = req.headers;
+                    fallbackRequest.url = req.url ? req.url : "";
+                    fallbackRequest.method = req.method ? req.method : "";
+                }
+                const statusCode = e && typeof e === "object" && e.statusCode && !isNaN(parseInt(e.statusCode))
+                    ? parseInt(e.statusCode)
+                    : 500;
+                yield ErrorHandler_1.ErrorHandler.report(e, {
+                    scope: "controller",
+                    source: "router.mapRequest",
+                    controller: {
+                        method: fallbackRequest.method,
+                        url: fallbackRequest.url,
+                    },
+                });
+                return this.handleError(fallbackRequest, response, statusCode, e);
+            }
             const route = this.dissolve(request);
             const response = new Response_1.Response({ mode: this.mode });
             if (res) {
@@ -270,6 +327,22 @@ class RouterFacade {
                 this.handleReturn(request, response, result);
             }
             catch (e) {
+                if (this.isMiddlewareRejectSignal(e)) {
+                    return this.handleError(request, response, 500, e.reason);
+                }
+                yield ErrorHandler_1.ErrorHandler.report(e, {
+                    scope: "controller",
+                    source: "router.handleRequest",
+                    controller: {
+                        routePath: route.path,
+                        method: request.method,
+                        url: request.url,
+                    },
+                    metadata: {
+                        params: request.params,
+                        query: request.query,
+                    },
+                });
                 return this.handleError(request, response, 500, e);
             }
         });
@@ -286,7 +359,7 @@ class RouterFacade {
                 }
                 yield new Promise((resolve, reject) => {
                     try {
-                        middleware(resolve, reject, request, response);
+                        middleware(resolve, (reason) => reject(this.createMiddlewareRejectSignal(reason)), request, response);
                     }
                     catch (e) {
                         reject(e);
@@ -308,13 +381,10 @@ class RouterFacade {
                 request.bodyPlain = options && options.event && options.event.body ? options.event.body : "";
             }
             else if (req && req instanceof http_1.IncomingMessage) {
-                const parsedBody = yield this.parseRequestBody(req);
                 const parsedUrl = req.url ? url_1.default.parse(req.url) : null;
                 const searchParams = parsedUrl && parsedUrl.query ? new URLSearchParams(parsedUrl.query) : null;
                 const queryParams = searchParams ? Object.fromEntries(searchParams.entries()) : {};
                 request.message = req;
-                request.bodyPlain = parsedBody ? parsedBody.plain : "";
-                request.body = parsedBody ? parsedBody.parsed : {};
                 request.headers = req.headers;
                 request.rawHeaders = req.rawHeaders;
                 request.url = req.url ? req.url : "";
@@ -323,6 +393,16 @@ class RouterFacade {
                 request.query = queryParams;
                 request.queryRaw = parsedUrl && parsedUrl.query ? parsedUrl.query : "";
                 request.pathname = parsedUrl ? parsedUrl.pathname : "";
+                const shouldParseBody = ["POST", "PUT", "PATCH", "DELETE"].includes(request.method.toUpperCase());
+                if (shouldParseBody) {
+                    const parsedBody = yield this.parseRequestBody(req);
+                    request.bodyPlain = parsedBody ? parsedBody.plain : "";
+                    request.body = parsedBody ? parsedBody.parsed : {};
+                }
+                else {
+                    request.bodyPlain = "";
+                    request.body = {};
+                }
             }
             return request;
         });
@@ -330,36 +410,61 @@ class RouterFacade {
     parseRequestBody(req) {
         return __awaiter(this, void 0, void 0, function* () {
             return new Promise((resolve, reject) => {
+                let settled = false;
+                const safeResolve = (value) => {
+                    if (settled)
+                        return;
+                    settled = true;
+                    resolve(value);
+                };
+                const safeReject = (error) => {
+                    if (settled)
+                        return;
+                    settled = true;
+                    reject(error);
+                };
                 const contentType = req.headers["content-type"] || "";
                 if (contentType.includes("multipart/form-data")) {
-                    resolve({ plain: {}, parsed: {} });
+                    safeResolve({ plain: {}, parsed: {} });
                     return;
                 }
-                let body = [];
+                const chunks = [];
+                let bodyLength = 0;
+                const maxBodySize = this.maxRequestBodySizeBytes;
                 req.on("data", (chunk) => {
-                    body.push(chunk);
+                    const chunkBuffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+                    bodyLength += chunkBuffer.length;
+                    if (maxBodySize !== null && maxBodySize !== undefined && maxBodySize >= 0 && bodyLength > maxBodySize) {
+                        const error = new Error("Payload too large");
+                        error.statusCode = 413;
+                        safeReject(error);
+                        return;
+                    }
+                    chunks.push(chunkBuffer);
                 });
                 req.on("end", () => {
-                    body = Buffer.concat(body);
+                    const body = Buffer.concat(chunks);
                     // Content-Type Verarbeitung
                     if (contentType.includes("application/json")) {
                         try {
                             const text = body.toString();
-                            resolve({ plain: body, parsed: text && text.trim() !== "" ? JSON.parse(text) : {} });
+                            safeResolve({ plain: body, parsed: text && text.trim() !== "" ? JSON.parse(text) : {} });
                         }
                         catch (e) {
-                            reject(new Error("Invalid JSON"));
+                            const error = new Error("Invalid JSON");
+                            error.statusCode = 400;
+                            safeReject(error);
                         }
                     }
                     else if (contentType.includes("application/x-www-form-urlencoded")) {
-                        resolve({ plain: body, parsed: querystring_1.default.parse(body.toString()) });
+                        safeResolve({ plain: body, parsed: querystring_1.default.parse(body.toString()) });
                     }
                     else {
-                        resolve({ plain: body, parsed: body.toString() });
+                        safeResolve({ plain: body, parsed: body.toString() });
                     }
                 });
                 req.on("error", (err) => {
-                    reject(err);
+                    safeReject(err);
                 });
             });
         });

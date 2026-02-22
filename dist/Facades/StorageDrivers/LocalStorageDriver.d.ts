@@ -6,6 +6,7 @@ export declare class LocalStorageDriver implements BaseStorageDriver {
     basepath: string;
     constructor(conf: any);
     path(...args: string[]): string;
+    private resolveHandlers;
     put(filepath: string, contents: string | Buffer, payload?: any): Promise<{
         status: string;
         filepath: string;

@@ -16,6 +16,7 @@ exports.ConsoleCommand = void 0;
 const readline_1 = __importDefault(require("readline"));
 const ConsoleProgressBar_1 = require("./ConsoleProgressBar");
 const ConsoleOutputHelper_1 = require("./ConsoleOutputHelper");
+const ErrorHandler_1 = require("../ErrorHandling/ErrorHandler");
 class ConsoleCommand {
     constructor(args) {
         this.rl = null;
@@ -41,7 +42,15 @@ class ConsoleCommand {
                 yield this.handle();
             }
             catch (e) {
-                console.error(e);
+                yield ErrorHandler_1.ErrorHandler.report(e, {
+                    scope: "command",
+                    source: "console.command.handleSystem",
+                    command: {
+                        signature: this.constructor.signature,
+                        className: this.constructor.name,
+                        args: this.args,
+                    },
+                });
             }
             finally {
                 yield this.finallySystem();

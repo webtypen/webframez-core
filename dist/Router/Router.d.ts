@@ -12,6 +12,10 @@ type RouteObject = {
     };
     params: object;
 };
+type MiddlewareRejectSignal = {
+    __middlewareReject: true;
+    reason?: any;
+};
 declare class RouterFacade {
     /**
      * Basename
@@ -25,6 +29,7 @@ declare class RouterFacade {
      * Mode
      */
     mode: any | null;
+    maxRequestBodySizeBytes: number | null;
     /**
      * GET Route Store
      */
@@ -105,6 +110,10 @@ declare class RouterFacade {
      * @returns {Object} - Ein Objekt mit den extrahierten Parametern.
      */
     extractParams(path: string, match: any): any;
+    escapeRegexPart(value: string): string;
+    buildRouteRegex(path: string): RegExp;
+    createMiddlewareRejectSignal(reason?: any): MiddlewareRejectSignal;
+    isMiddlewareRejectSignal(error: any): error is MiddlewareRejectSignal;
     /**
      * Dissolves the matching route based on the request-url and an object of routes
      *
