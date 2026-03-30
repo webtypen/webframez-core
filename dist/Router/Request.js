@@ -12,6 +12,8 @@ class Request {
         this.query = {};
         this.queryRaw = "";
         this.params = {};
+        this.routeDomainMatch = null;
+        this.routeDomainWildcard = null;
         this.files = {};
         this.socket = undefined;
         this.message = null;

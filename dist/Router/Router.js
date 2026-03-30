@@ -118,16 +118,28 @@ class RouterFacade {
             routeConf.component = component;
         }
         if (type === "GET") {
-            this.routesGET[path] = routeConf;
+            if (!this.routesGET[path]) {
+                this.routesGET[path] = [];
+            }
+            this.routesGET[path].push(routeConf);
         }
         else if (type === "POST") {
-            this.routesPOST[path] = routeConf;
+            if (!this.routesPOST[path]) {
+                this.routesPOST[path] = [];
+            }
+            this.routesPOST[path].push(routeConf);
         }
         else if (type === "PUT") {
-            this.routesPUT[path] = routeConf;
+            if (!this.routesPUT[path]) {
+                this.routesPUT[path] = [];
+            }
+            this.routesPUT[path].push(routeConf);
         }
         else if (type === "DELETE") {
-            this.routesDELETE[path] = routeConf;
+            if (!this.routesDELETE[path]) {
+                this.routesDELETE[path] = [];
+            }
+            this.routesDELETE[path].push(routeConf);
         }
     }
     /**
@@ -227,6 +239,107 @@ class RouterFacade {
         const regexString = "^" + escaped.replace(/__WFZ_TOKEN_(\d+)__/g, (all, tokenIndex) => placeholders[tokenIndex]) + "$";
         return new RegExp(regexString);
     }
+    normalizeDomainString(value) {
+        if (!value || value.trim() === "") {
+            return null;
+        }
+        let normalized = value.trim().toLowerCase();
+        if (normalized.includes("://")) {
+            normalized = normalized.split("://")[1];
+        }
+        if (normalized.includes("/")) {
+            normalized = normalized.split("/")[0];
+        }
+        if (normalized.startsWith("[")) {
+            const bracketEnd = normalized.indexOf("]");
+            if (bracketEnd > 0) {
+                normalized = normalized.substring(1, bracketEnd);
+            }
+        }
+        else {
+            normalized = normalized.replace(/:\d+$/, "");
+        }
+        normalized = normalized.replace(/\.$/, "");
+        return normalized.trim() !== "" ? normalized : null;
+    }
+    getRequestHostCandidates(request) {
+        if (!request || !request.headers) {
+            return [];
+        }
+        const possibleHeaders = [
+            request.headers["x-forwarded-host"],
+            request.headers["x-original-host"],
+            request.headers["host"],
+        ];
+        const values = [];
+        for (const headerValue of possibleHeaders) {
+            if (!headerValue) {
+                continue;
+            }
+            if (Array.isArray(headerValue)) {
+                for (const singleHeaderValue of headerValue) {
+                    if (typeof singleHeaderValue === "string") {
+                        values.push(...singleHeaderValue.split(","));
+                    }
+                }
+            }
+            else if (typeof headerValue === "string") {
+                values.push(...headerValue.split(","));
+            }
+        }
+        const normalizedValues = values
+            .map((value) => this.normalizeDomainString(value))
+            .filter((value) => !!value);
+        return [...new Set(normalizedValues)];
+    }
+    getRouteDomainFilters(routeObj) {
+        if (!routeObj || !routeObj.options || !Array.isArray(routeObj.options.domains)) {
+            return [];
+        }
+        const domains = routeObj.options.domains
+            .filter((domain) => typeof domain === "string")
+            .map((domain) => this.normalizeDomainString(domain))
+            .filter((domain) => !!domain);
+        return [...new Set(domains)];
+    }
+    buildDomainRegex(domainFilter) {
+        const escapedSegments = domainFilter.split("*").map((segment) => this.escapeRegexPart(segment));
+        const regexBody = escapedSegments.join("(.*)");
+        return new RegExp("^" + regexBody + "$", "i");
+    }
+    matchDomainFilter(hostname, domainFilter) {
+        const regex = this.buildDomainRegex(domainFilter);
+        const match = hostname.match(regex);
+        if (!match) {
+            return { matches: false, matchedDomain: null, wildcard: null };
+        }
+        const wildcardValue = domainFilter.includes("*") && match.length > 1 ? match[1] || "" : null;
+        return {
+            matches: true,
+            matchedDomain: hostname,
+            wildcard: wildcardValue,
+        };
+    }
+    resolveDomainMatch(routeObj, request) {
+        const domainFilters = this.getRouteDomainFilters(routeObj);
+        if (domainFilters.length < 1) {
+            return { matches: true, matchedDomain: null, wildcard: null };
+        }
+        const hostCandidates = this.getRequestHostCandidates(request);
+        for (const hostCandidate of hostCandidates) {
+            for (const domainFilter of domainFilters) {
+                const match = this.matchDomainFilter(hostCandidate, domainFilter);
+                if (match.matches) {
+                    return match;
+                }
+            }
+        }
+        return { matches: false, matchedDomain: null, wildcard: null };
+    }
+    applyDomainMatchToRequest(request, domainMatch) {
+        request.routeDomainMatch = domainMatch.matchedDomain;
+        request.routeDomainWildcard = domainMatch.wildcard;
+    }
     createMiddlewareRejectSignal(reason) {
         return {
             __middlewareReject: true,
@@ -244,20 +357,40 @@ class RouterFacade {
      * @returns
      */
     dissolveRoute(routes, url, request) {
-        if (routes[url]) {
-            return Object.assign(Object.assign({}, routes[url]), { params: {} });
-        }
-        else {
-            for (const route in routes) {
-                const routeObj = routes[route];
-                const match = url.match(this.buildRouteRegex(routeObj.path));
-                if (match) {
-                    if (request) {
-                        request.params = this.extractParams(routeObj.path, match);
-                        return Object.assign({}, routeObj);
-                    }
-                    return Object.assign(Object.assign({}, routeObj), { params: this.extractParams(routeObj.path, match) });
+        const exactRouteCandidates = routes[url];
+        if (exactRouteCandidates && exactRouteCandidates.length > 0) {
+            for (const routeObj of exactRouteCandidates) {
+                const domainMatch = this.resolveDomainMatch(routeObj, request);
+                if (!domainMatch.matches) {
+                    continue;
                 }
+                if (request) {
+                    request.params = {};
+                    this.applyDomainMatchToRequest(request, domainMatch);
+                }
+                return Object.assign(Object.assign({}, routeObj), { params: {} });
+            }
+        }
+        for (const route in routes) {
+            const routeCandidates = routes[route];
+            if (!Array.isArray(routeCandidates)) {
+                continue;
+            }
+            for (const routeObj of routeCandidates) {
+                const match = url.match(this.buildRouteRegex(routeObj.path));
+                if (!match) {
+                    continue;
+                }
+                const domainMatch = this.resolveDomainMatch(routeObj, request);
+                if (!domainMatch.matches) {
+                    continue;
+                }
+                const extractedParams = this.extractParams(routeObj.path, match);
+                if (request) {
+                    request.params = extractedParams;
+                    this.applyDomainMatchToRequest(request, domainMatch);
+                }
+                return Object.assign(Object.assign({}, routeObj), { params: extractedParams });
             }
         }
     }

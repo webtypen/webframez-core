@@ -10,11 +10,16 @@ type RouteObject = {
     options: {
         [key: string]: any;
     };
-    params: object;
+    params?: object;
 };
 type MiddlewareRejectSignal = {
     __middlewareReject: true;
     reason?: any;
+};
+type RouteDomainMatchResult = {
+    matches: boolean;
+    matchedDomain: string | null;
+    wildcard: string | null;
 };
 declare class RouterFacade {
     /**
@@ -34,45 +39,25 @@ declare class RouterFacade {
      * GET Route Store
      */
     routesGET: {
-        [key: string]: {
-            path: string;
-            component: any;
-            options: object;
-            params?: object;
-        };
+        [key: string]: RouteObject[];
     };
     /**
      * POST Route Store
      */
     routesPOST: {
-        [key: string]: {
-            path: string;
-            component: any;
-            options: object;
-            params?: object;
-        };
+        [key: string]: RouteObject[];
     };
     /**
      * PUT Route Store
      */
     routesPUT: {
-        [key: string]: {
-            path: string;
-            component: any;
-            options: object;
-            params?: object;
-        };
+        [key: string]: RouteObject[];
     };
     /**
      * DELETE Route Store
      */
     routesDELETE: {
-        [key: string]: {
-            path: string;
-            component: any;
-            options: object;
-            params?: object;
-        };
+        [key: string]: RouteObject[];
     };
     /**
      * Load the application-routes
@@ -112,6 +97,13 @@ declare class RouterFacade {
     extractParams(path: string, match: any): any;
     escapeRegexPart(value: string): string;
     buildRouteRegex(path: string): RegExp;
+    normalizeDomainString(value: string): string | null;
+    getRequestHostCandidates(request?: Request): string[];
+    getRouteDomainFilters(routeObj: RouteObject): string[];
+    buildDomainRegex(domainFilter: string): RegExp;
+    matchDomainFilter(hostname: string, domainFilter: string): RouteDomainMatchResult;
+    resolveDomainMatch(routeObj: RouteObject, request?: Request): RouteDomainMatchResult;
+    applyDomainMatchToRequest(request: Request, domainMatch: RouteDomainMatchResult): void;
     createMiddlewareRejectSignal(reason?: any): MiddlewareRejectSignal;
     isMiddlewareRejectSignal(error: any): error is MiddlewareRejectSignal;
     /**

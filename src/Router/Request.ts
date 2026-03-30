@@ -11,6 +11,8 @@ export class Request {
     query: any = {};
     queryRaw: any = "";
     params: any = {};
+    routeDomainMatch: string | null = null;
+    routeDomainWildcard: string | null = null;
     files: any = {};
     socket: any = undefined;
     message: IncomingMessage | null = null;

@@ -5,6 +5,8 @@ type RouteExtensionFactory = (route: RouteFacade) => (...args: any[]) => any;
 export declare class RouteFacade {
     tempGroupPrefix: string | null;
     tempGroupMiddleware: string[] | null;
+    tempGroupDomains: string[] | null;
+    private normalizeStringArray;
     private registerWithGroupContext;
     /**
      * Register a custom route-method on the Route facade.

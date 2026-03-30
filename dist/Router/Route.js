@@ -6,15 +6,31 @@ class RouteFacade {
     constructor() {
         this.tempGroupPrefix = null;
         this.tempGroupMiddleware = null;
+        this.tempGroupDomains = null;
         this.registerWithGroupContext = (method, path, component, options) => {
-            Router_1.Router.register(method, (this.tempGroupPrefix ? this.tempGroupPrefix : "") + path, component, options || this.tempGroupMiddleware
-                ? Object.assign(Object.assign({}, (options ? options : {})), { middleware: this.tempGroupMiddleware || (options && options.middleware)
-                        ? [
-                            ...(this.tempGroupMiddleware ? this.tempGroupMiddleware : []),
-                            ...(options && options.middleware ? options.middleware : []),
-                        ]
-                        : null }) : {});
+            const mergedOptions = Object.assign({}, (options ? options : {}));
+            const middlewareFromGroup = this.normalizeStringArray(this.tempGroupMiddleware);
+            const middlewareFromRoute = this.normalizeStringArray(options && options.middleware ? options.middleware : []);
+            const domainsFromGroup = this.normalizeStringArray(this.tempGroupDomains);
+            const domainsFromRoute = this.normalizeStringArray(options && options.domains ? options.domains : []);
+            const mergedMiddleware = [...middlewareFromGroup, ...middlewareFromRoute];
+            if (mergedMiddleware.length > 0) {
+                mergedOptions.middleware = Array.from(new Set(mergedMiddleware));
+            }
+            const mergedDomains = [...domainsFromGroup, ...domainsFromRoute];
+            if (mergedDomains.length > 0) {
+                mergedOptions.domains = Array.from(new Set(mergedDomains));
+            }
+            Router_1.Router.register(method, (this.tempGroupPrefix ? this.tempGroupPrefix : "") + path, component, mergedOptions);
         };
+    }
+    normalizeStringArray(values) {
+        if (!Array.isArray(values)) {
+            return [];
+        }
+        return values
+            .filter((value) => typeof value === "string" && value.trim() !== "")
+            .map((value) => value.trim());
     }
     /**
      * Register a custom route-method on the Route facade.
@@ -76,17 +92,29 @@ class RouteFacade {
     group(config, children) {
         // Handle group prefix
         const tempGroupPrefixBefore = this.tempGroupPrefix ? this.tempGroupPrefix + "" : null;
-        const tempGroupMiddlewareBefore = this.tempGroupMiddleware && this.tempGroupMiddleware.length > 0 ? this.tempGroupMiddleware : null;
+        const tempGroupMiddlewareBefore = this.tempGroupMiddleware && this.tempGroupMiddleware.length > 0 ? [...this.tempGroupMiddleware] : null;
+        const tempGroupDomainsBefore = this.tempGroupDomains && this.tempGroupDomains.length > 0 ? [...this.tempGroupDomains] : null;
         if (config && config.prefix && config.prefix.trim() !== "") {
             this.tempGroupPrefix = (this.tempGroupPrefix ? this.tempGroupPrefix : "") + config.prefix;
         }
         // Handle group middleware
-        if (config && config.middleware && config.middleware.length > 0) {
+        const groupMiddleware = this.normalizeStringArray(config && config.middleware ? config.middleware : []);
+        if (groupMiddleware.length > 0) {
             if (!this.tempGroupMiddleware || this.tempGroupMiddleware.length === 0) {
-                this.tempGroupMiddleware = config.middleware;
+                this.tempGroupMiddleware = [...groupMiddleware];
             }
             else {
-                this.tempGroupMiddleware = [...this.tempGroupMiddleware, ...config.middleware];
+                this.tempGroupMiddleware = [...new Set([...this.tempGroupMiddleware, ...groupMiddleware])];
+            }
+        }
+        // Handle group domains
+        const groupDomains = this.normalizeStringArray(config && config.domains ? config.domains : []);
+        if (groupDomains.length > 0) {
+            if (!this.tempGroupDomains || this.tempGroupDomains.length === 0) {
+                this.tempGroupDomains = [...groupDomains];
+            }
+            else {
+                this.tempGroupDomains = [...new Set([...this.tempGroupDomains, ...groupDomains])];
             }
         }
         // Handle children / group body
@@ -94,6 +122,7 @@ class RouteFacade {
         // Reset temp-group data
         this.tempGroupPrefix = tempGroupPrefixBefore;
         this.tempGroupMiddleware = tempGroupMiddlewareBefore;
+        this.tempGroupDomains = tempGroupDomainsBefore;
     }
 }
 exports.RouteFacade = RouteFacade;

@@ -117,6 +117,25 @@ Attach middleware by key via route options:
 Route.get("/me", "AccountController@me", { middleware: ["auth"] });
 ```
 
+### Route Domain Filter
+
+You can restrict routes (or groups) to specific domains:
+
+```ts
+Route.group({ domains: ["websites.simplebis.com", "*.local.dev"] }, () => {
+  Route.get("/", "HomeController@index");
+});
+
+Route.get("/api/health", "HealthController@index", {
+  domains: ["api.example.com"]
+});
+```
+
+Domain matching also works behind reverse proxies (`x-forwarded-host` is respected).
+If a wildcard domain matches, the extracted wildcard value is available in
+`req.routeDomainWildcard`. The matched request hostname is available in
+`req.routeDomainMatch`.
+
 Middleware signature:
 
 ```ts
@@ -155,6 +174,7 @@ Route.extend("jsonGet", (route) => {
 - `body`, `bodyPlain`
 - `query`, `queryRaw`
 - `params`
+- `routeDomainMatch`, `routeDomainWildcard`
 - `files`
 - `message` (native `IncomingMessage`)
 

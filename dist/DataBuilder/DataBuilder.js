@@ -199,6 +199,19 @@ class DataBuilder {
                     newData.forms = {};
                     if (typeof type.forms === "function") {
                         newData.forms = yield type.forms(req);
+                        if (newData === null || newData === void 0 ? void 0 : newData.forms) {
+                            for (let form in newData.forms) {
+                                if (typeof newData.forms[form].pageActions === "function") {
+                                    newData.forms[form].pageActions = yield newData.forms[form].pageActions(req);
+                                }
+                                if (typeof newData.forms[form].fields === "function") {
+                                    newData.forms[form].fields = yield newData.forms[form].fields(req);
+                                }
+                                if (typeof newData.forms[form].backLink === "function") {
+                                    newData.forms[form].backLink = yield newData.forms[form].backLink(req);
+                                }
+                            }
+                        }
                     }
                     for (let form in type.forms) {
                         if (!type.forms[form] || !type.forms[form].fields) {
@@ -219,15 +232,6 @@ class DataBuilder {
                         }
                         else if (type.forms[form].fields) {
                             newData.forms[form].fields = JSON.parse(JSON.stringify(type.forms[form].fields));
-                        }
-                        if (typeof newData.forms[form].pageActions === "function") {
-                            newData.forms[form].pageActions = yield newData.forms[form].pageActions(req);
-                        }
-                        if (typeof newData.forms[form].fields === "function") {
-                            newData.forms[form].fields = yield newData.forms[form].fields(req);
-                        }
-                        if (typeof newData.forms[form].backLink === "function") {
-                            newData.forms[form].backLink = yield newData.forms[form].backLink(req);
                         }
                         if (!newData.forms[form].fields || newData.forms[form].fields.length < 1) {
                             continue;
