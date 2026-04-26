@@ -20,14 +20,14 @@ This README reflects the current API in this repository and focuses on:
 npm i @webtypen/webframez-core
 ```
 
-## AGENTS.md fuer Codex und Copilot
+## Agent-Regeln fuer Codex und Copilot
 
-Das Paket enthaelt eine AGENTS.md mit empfohlenen Arbeitsregeln fuer AI-Coding-Agents in Webframez-Projekten.
+Das Paket enthaelt unter agents/webframez_rules.md empfohlene Arbeitsregeln fuer AI-Coding-Agents in Webframez-Projekten.
 
 Nach der Installation liegt die Datei im Paket unter:
 
 ```text
-node_modules/@webtypen/webframez-core/AGENTS.md
+node_modules/@webtypen/webframez-core/agents/webframez_rules.md
 ```
 
 Die Regeln beschreiben unter anderem:
@@ -35,7 +35,7 @@ Die Regeln beschreiben unter anderem:
 - bevorzugte Nutzung der vorhandenen Helper wie StringFunctions, NumericFunctions und DateFunctions
 - Verwendung der Webframez-Abstraktionen fuer Request, Response, Middleware, Storage, Datatables und Routes
 
-Wichtig: AGENTS.md-Dateien haben keine universell standardisierte Import-Funktion. Die praktikable Variante ist deshalb, die Paket-AGENTS.md in der AGENTS.md des eigenen Projekts explizit zu referenzieren und projektspezifische Regeln lokal zu ergaenzen.
+Wichtig: AGENTS.md-Dateien haben keine universell standardisierte Import-Funktion. Die praktikable Variante ist deshalb, die Regeldatei aus dem Paket in der AGENTS.md des eigenen Projekts explizit zu referenzieren und projektspezifische Regeln lokal zu ergaenzen.
 
 Beispiel fuer eine eigene AGENTS.md im Consumer-Projekt:
 
@@ -45,7 +45,7 @@ Beispiel fuer eine eigene AGENTS.md im Consumer-Projekt:
 Dieses Projekt verwendet @webtypen/webframez-core.
 
 Uebernimm fuer alle Webframez-bezogenen Implementierungen die Konventionen aus:
-./node_modules/@webtypen/webframez-core/AGENTS.md
+./node_modules/@webtypen/webframez-core/agents/webframez_rules.md
 
 Insbesondere gilt:
 - fuer ObjectId-Konvertierungen Model.objectId(...) oder die passende Model-Instanzmethode verwenden
@@ -57,7 +57,7 @@ Projektspezifische Ergaenzung:
 - Antworten im Backoffice sollen das Format { status, message, data } einhalten
 ```
 
-Wenn eine Regel aus der lokalen Projekt-AGENTS.md einer Regel aus der Paket-AGENTS.md widerspricht, sollte die lokale Projektregel Vorrang haben.
+Wenn eine Regel aus der lokalen Projekt-AGENTS.md einer Regel aus der Paketdatei widerspricht, sollte die lokale Projektregel Vorrang haben.
 
 ## Basic Web Setup
 
