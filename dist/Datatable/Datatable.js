@@ -273,7 +273,7 @@ class Datatable {
                                 stats[0] &&
                                 stats[0]["sum_" + req.body.sums[key].mapping] !== undefined &&
                                 stats[0]["sum_" + req.body.sums[key].mapping] !== null
-                                ? NumericFunctions_1.NumericFunctions.numberFormat(stats[0]["sum_" + req.body.sums[key].mapping]) +
+                                ? NumericFunctions_1.NumericFunctions.numberFormat(req.body.sums[key].divideBy > 0 ? stats[0]["sum_" + req.body.sums[key].mapping] / req.body.sums[key].divideBy : stats[0]["sum_" + req.body.sums[key].mapping]) +
                                     (req.body.sums[key].suffix ? req.body.sums[key].suffix : "")
                                 : undefined });
                     }

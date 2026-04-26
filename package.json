@@ -1,6 +1,6 @@
 {
     "name": "@webtypen/webframez-core",
-    "version": "0.3.34",
+    "version": "0.3.35",
     "description": "The core package of the typescript based webframez (web-framework) by webtypen.de",
     "homepage": "https://webtypen.de/",
     "license": "MIT",
@@ -17,6 +17,11 @@
         "type": "git",
         "url": "git+https://github.com/webtypen/webframez-core.git"
     },
+    "files": [
+        "dist",
+        "README.md",
+        "AGENTS.md"
+    ],
     "scripts": {
         "build": "tsc",
         "build:check": "tsc --noEmit",

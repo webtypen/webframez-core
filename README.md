@@ -20,6 +20,45 @@ This README reflects the current API in this repository and focuses on:
 npm i @webtypen/webframez-core
 ```
 
+## AGENTS.md fuer Codex und Copilot
+
+Das Paket enthaelt eine AGENTS.md mit empfohlenen Arbeitsregeln fuer AI-Coding-Agents in Webframez-Projekten.
+
+Nach der Installation liegt die Datei im Paket unter:
+
+```text
+node_modules/@webtypen/webframez-core/AGENTS.md
+```
+
+Die Regeln beschreiben unter anderem:
+- bevorzugte Nutzung von Model.objectId(...) statt eigener ObjectId-Resolver
+- bevorzugte Nutzung der vorhandenen Helper wie StringFunctions, NumericFunctions und DateFunctions
+- Verwendung der Webframez-Abstraktionen fuer Request, Response, Middleware, Storage, Datatables und Routes
+
+Wichtig: AGENTS.md-Dateien haben keine universell standardisierte Import-Funktion. Die praktikable Variante ist deshalb, die Paket-AGENTS.md in der AGENTS.md des eigenen Projekts explizit zu referenzieren und projektspezifische Regeln lokal zu ergaenzen.
+
+Beispiel fuer eine eigene AGENTS.md im Consumer-Projekt:
+
+```md
+# AGENTS.md
+
+Dieses Projekt verwendet @webtypen/webframez-core.
+
+Uebernimm fuer alle Webframez-bezogenen Implementierungen die Konventionen aus:
+./node_modules/@webtypen/webframez-core/AGENTS.md
+
+Insbesondere gilt:
+- fuer ObjectId-Konvertierungen Model.objectId(...) oder die passende Model-Instanzmethode verwenden
+- vorhandene Webframez-Helper und Facades bevorzugen statt neue Utilities oder Resolver anzulegen
+- fuer HTTP-, Routing-, Middleware-, Storage- und Datatable-Code die Webframez-APIs und Konventionen beibehalten
+
+Projektspezifische Ergaenzung:
+- dieses Projekt verwendet fuer Admin-Routen zusaetzlich die Middleware "admin-auth"
+- Antworten im Backoffice sollen das Format { status, message, data } einhalten
+```
+
+Wenn eine Regel aus der lokalen Projekt-AGENTS.md einer Regel aus der Paket-AGENTS.md widerspricht, sollte die lokale Projektregel Vorrang haben.
+
 ## Basic Web Setup
 
 ```ts
