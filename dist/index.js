@@ -27,6 +27,7 @@ __exportStar(require("./Controller/Controller"), exports);
 __exportStar(require("./Database/Model"), exports);
 __exportStar(require("./Database/DBConnection"), exports);
 __exportStar(require("./ConsoleApplication"), exports);
+__exportStar(require("./BuildApplication"), exports);
 __exportStar(require("./LambdaApplication"), exports);
 __exportStar(require("./WebApplication"), exports);
 __exportStar(require("./Router/Route"), exports);
