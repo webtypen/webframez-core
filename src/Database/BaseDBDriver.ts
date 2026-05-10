@@ -16,6 +16,10 @@ export class BaseDBDriver {
 
   async execute(client: any, data: any) {}
 
+  async backup(client: any, options: any) {
+    throw new Error("This database driver does not implement backup(...).");
+  }
+
   async onModelSave(model: Model, saveStatus: any | null | undefined) {
     return model;
   }

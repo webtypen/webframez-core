@@ -24,9 +24,20 @@ const QueueLogCommand_1 = require("./Commands/QueueLogCommand");
 const QueueWorkerAutorestartCommand_1 = require("./Commands/QueueWorkerAutorestartCommand");
 const info_1 = require("./info");
 const ErrorHandler_1 = require("./ErrorHandling/ErrorHandler");
+const BackupListCommand_1 = require("./Commands/BackupListCommand");
+const BackupRunCommand_1 = require("./Commands/BackupRunCommand");
+const BackupQueueCommand_1 = require("./Commands/BackupQueueCommand");
+const BackupCleanupCommand_1 = require("./Commands/BackupCleanupCommand");
+const BackupRunJob_1 = require("./Backup/Jobs/BackupRunJob");
+const ModulesLoader_1 = require("./Modules/ModulesLoader");
 class ConsoleApplication {
     constructor() {
+        this.modulesLoader = null;
         this.systemCommands = [
+            BackupListCommand_1.BackupListCommand,
+            BackupRunCommand_1.BackupRunCommand,
+            BackupQueueCommand_1.BackupQueueCommand,
+            BackupCleanupCommand_1.BackupCleanupCommand,
             QueueStartCommand_1.QueueStartCommand,
             QueueStatusCommand_1.QueueStatusCommand,
             QueueStopCommand_1.QueueStopCommand,
@@ -56,12 +67,18 @@ class ConsoleApplication {
         // if (options && options.signoz) {
         //     void SigNozTelemetry.init(options.signoz);
         // }
+        this.modulesLoader = new ModulesLoader_1.ModulesLoader();
+        this.modulesLoader.load(options && options.modules ? options.modules : [], {
+            kernel: options && options.kernel ? options.kernel : null,
+            options,
+        });
         if (options && options.datatables) {
             DatatableRegistry_1.DatatableRegistry.registerMany(options.datatables);
         }
         if (options.jobs && options.jobs.length > 0) {
             QueueJobsRegisty_1.QueueJobsRegisty.registerJob(options.jobs);
         }
+        QueueJobsRegisty_1.QueueJobsRegisty.registerJob(BackupRunJob_1.BackupRunJob);
         const args = this.parseArgs();
         const signature = args.arguments.shift();
         if (signature) {
@@ -113,6 +130,12 @@ class ConsoleApplication {
                 if (command.signature === signature) {
                     return command;
                 }
+            }
+        }
+        const moduleCommands = this.modulesLoader ? this.modulesLoader.getCommands() : [];
+        for (let command of moduleCommands) {
+            if (command.signature === signature) {
+                return command;
             }
         }
         return null;
@@ -190,6 +213,26 @@ class ConsoleApplication {
                 if (command.signature.length > maxSignatureLength) {
                     maxSignatureLength = command.signature.length;
                 }
+            }
+        }
+        const moduleCommands = this.modulesLoader ? this.modulesLoader.getCommands() : [];
+        for (let command of moduleCommands) {
+            if (!command || !command.signature || command.hidden)
+                continue;
+            let groupKey = " ";
+            const commandGroups = command.signature.split(":");
+            if (commandGroups && commandGroups.length > 0 && commandGroups[0] && commandGroups[0].trim() !== "") {
+                groupKey = commandGroups[0];
+            }
+            if (!groups[groupKey]) {
+                groups[groupKey] = [];
+            }
+            groups[groupKey].push({
+                signature: command.signature,
+                description: command.description || "",
+            });
+            if (command.signature.length > maxSignatureLength) {
+                maxSignatureLength = command.signature.length;
             }
         }
         const { writeln } = ConsoleOutputHelper_1.ConsoleOutputHelper;

@@ -17,6 +17,7 @@ const readline_1 = __importDefault(require("readline"));
 const ConsoleProgressBar_1 = require("./ConsoleProgressBar");
 const ConsoleOutputHelper_1 = require("./ConsoleOutputHelper");
 const ErrorHandler_1 = require("../ErrorHandling/ErrorHandler");
+const WebframezHooks_1 = require("../Hooks/WebframezHooks");
 class ConsoleCommand {
     constructor(args) {
         this.rl = null;
@@ -34,14 +35,43 @@ class ConsoleCommand {
     }
     handleSystem() {
         return __awaiter(this, void 0, void 0, function* () {
+            const commandSignature = String(this.constructor.signature || this.constructor.name || "command");
+            const operationId = WebframezHooks_1.WebframezHooks.createOperationId("command");
             this.rl = readline_1.default.createInterface({
                 input: process.stdin,
                 output: process.stdout,
             });
+            yield WebframezHooks_1.WebframezHooks.emit("console.command.start", {
+                operationId,
+                name: commandSignature,
+                attributes: {
+                    "webframez.command.signature": commandSignature,
+                    "webframez.command.class": this.constructor.name,
+                },
+            });
             try {
                 yield this.handle();
+                yield WebframezHooks_1.WebframezHooks.emit("console.command.end", {
+                    operationId,
+                    name: commandSignature,
+                    status: "ok",
+                    attributes: {
+                        "webframez.command.signature": commandSignature,
+                        "webframez.command.class": this.constructor.name,
+                    },
+                });
             }
             catch (e) {
+                yield WebframezHooks_1.WebframezHooks.emit("console.command.error", {
+                    operationId,
+                    name: commandSignature,
+                    status: "error",
+                    error: e,
+                    attributes: {
+                        "webframez.command.signature": commandSignature,
+                        "webframez.command.class": this.constructor.name,
+                    },
+                });
                 yield ErrorHandler_1.ErrorHandler.report(e, {
                     scope: "command",
                     source: "console.command.handleSystem",

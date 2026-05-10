@@ -7,5 +7,6 @@ export declare class BaseDBDriver {
     close(client: any): Promise<void>;
     handleQueryBuilder(client: any, queryBuilder: QueryBuilder): Promise<void>;
     execute(client: any, data: any): Promise<void>;
+    backup(client: any, options: any): Promise<void>;
     onModelSave(model: Model, saveStatus: any | null | undefined): Promise<Model>;
 }

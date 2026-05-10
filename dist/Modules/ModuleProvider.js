@@ -5,8 +5,9 @@ class ModuleProvider {
     constructor() {
         this.controller = {};
         this.middleware = {};
+        this.commands = [];
     }
-    boot() { }
+    boot(_context) { }
     routes() { }
     bootByRouter() {
         this.boot();

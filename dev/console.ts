@@ -10,6 +10,7 @@ dotenv.config();
 
 import database from "./config/database";
 import queue from "./config/queue";
+import backup from "./config/backup";
 import { TestJob } from "./jobs/TestJob";
 
 class KernelConsole extends BaseKernelConsole {
@@ -26,6 +27,7 @@ app.boot({
         application: {},
         database: database,
         queue: queue,
+        backup: backup,
     },
     jobs: QUEUE_JOBS,
     onEnd: async () => {

@@ -79,6 +79,7 @@ async function runConsole(projectRoot: string, cliArgs: string[]) {
             kernel: config.consoleKernel || config.kernelConsole || config.kernel,
             config: config.config,
             jobs: config.jobs,
+            modules: config.modules,
             datatables: config.datatables,
             errorHandler: config.errorHandler,
             onEnd: config.onEnd,

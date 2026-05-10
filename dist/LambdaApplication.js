@@ -6,11 +6,21 @@ const DatatableRegistry_1 = require("./Datatable/DatatableRegistry");
 const QueueJobsRegisty_1 = require("./Queue/QueueJobsRegisty");
 const Router_1 = require("./Router/Router");
 const ErrorHandler_1 = require("./ErrorHandling/ErrorHandler");
+const WebframezHooks_1 = require("./Hooks/WebframezHooks");
 class LambdaApplication {
     /**
      * Init the routes and handle the request
      */
     boot(event, context, options) {
+        const operationId = WebframezHooks_1.WebframezHooks.createOperationId("lambda");
+        void WebframezHooks_1.WebframezHooks.emit("lambda.invoke.start", {
+            operationId,
+            name: "aws-lambda",
+            attributes: {
+                "faas.trigger": "http",
+                "webframez.mode": "aws-lambda",
+            },
+        });
         if (options && options.config) {
             for (let key in options.config) {
                 Config_1.Config.register(key, options.config[key]);
@@ -37,7 +47,32 @@ class LambdaApplication {
         if (options.jobs && options.jobs.length > 0) {
             QueueJobsRegisty_1.QueueJobsRegisty.registerJob(options.jobs);
         }
-        return Router_1.Router.handleRequest(null, null, { event: event });
+        return Promise.resolve(Router_1.Router.handleRequest(null, null, { event: event }))
+            .then((result) => {
+            void WebframezHooks_1.WebframezHooks.emit("lambda.invoke.end", {
+                operationId,
+                name: "aws-lambda",
+                status: "ok",
+                attributes: {
+                    "faas.trigger": "http",
+                    "webframez.mode": "aws-lambda",
+                },
+            });
+            return result;
+        })
+            .catch((error) => {
+            void WebframezHooks_1.WebframezHooks.emit("lambda.invoke.error", {
+                operationId,
+                name: "aws-lambda",
+                status: "error",
+                error,
+                attributes: {
+                    "faas.trigger": "http",
+                    "webframez.mode": "aws-lambda",
+                },
+            });
+            throw error;
+        });
     }
 }
 exports.LambdaApplication = LambdaApplication;

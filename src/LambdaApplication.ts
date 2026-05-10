@@ -3,12 +3,23 @@ import { DatatableRegistry } from "./Datatable/DatatableRegistry";
 import { QueueJobsRegisty } from "./Queue/QueueJobsRegisty";
 import { Router } from "./Router/Router";
 import { ErrorHandler } from "./ErrorHandling/ErrorHandler";
+import { WebframezHooks } from "./Hooks/WebframezHooks";
 
 export class LambdaApplication {
     /**
      * Init the routes and handle the request
      */
     boot(event: any, context: any, options?: any) {
+        const operationId = WebframezHooks.createOperationId("lambda");
+        void WebframezHooks.emit("lambda.invoke.start", {
+            operationId,
+            name: "aws-lambda",
+            attributes: {
+                "faas.trigger": "http",
+                "webframez.mode": "aws-lambda",
+            },
+        });
+
         if (options && options.config) {
             for (let key in options.config) {
                 Config.register(key, options.config[key]);
@@ -39,6 +50,31 @@ export class LambdaApplication {
             QueueJobsRegisty.registerJob(options.jobs);
         }
 
-        return Router.handleRequest(null, null, { event: event });
+        return Promise.resolve(Router.handleRequest(null, null, { event: event }))
+            .then((result) => {
+                void WebframezHooks.emit("lambda.invoke.end", {
+                    operationId,
+                    name: "aws-lambda",
+                    status: "ok",
+                    attributes: {
+                        "faas.trigger": "http",
+                        "webframez.mode": "aws-lambda",
+                    },
+                });
+                return result;
+            })
+            .catch((error) => {
+                void WebframezHooks.emit("lambda.invoke.error", {
+                    operationId,
+                    name: "aws-lambda",
+                    status: "error",
+                    error,
+                    attributes: {
+                        "faas.trigger": "http",
+                        "webframez.mode": "aws-lambda",
+                    },
+                });
+                throw error;
+            });
     }
 }

@@ -453,6 +453,119 @@ export default {
 Additional built-in command:
 - `build`
 
+## Backups
+
+Backups are configured through `config.backup`, usually by importing `config/backup.ts` next to your database and queue configs. Core ships the local filesystem output driver and a generic adapter registry.
+
+```ts
+export default {
+  defaults: {
+    workDir: "storage/backups/.work",
+    outputDir: "storage/backups",
+    filename: "{key}_{date}_{time}",
+    zip: true,
+    cleanupWorkDir: true,
+    retention: {
+      keepLast: 10,
+      maxAgeDays: 30,
+      runAfterBackup: true
+    }
+  },
+  types: {
+    daily_full: {
+      is_active: true,
+      files: [
+        {
+          from: "storage",
+          to: "storage",
+          include: ["**/*"],
+          exclude: ["queue/**", "backups/**"]
+        }
+      ],
+      databases: [
+        {
+          connection: "default",
+          to: "database/default",
+          options: {}
+        }
+      ],
+      outputs: [
+        {
+          driver: "local",
+          path: "storage/backups/daily",
+          retention: {
+            keepLast: 14,
+            maxAgeDays: 60,
+            runAfterBackup: true
+          }
+        }
+      ],
+      automation: {
+        worker: "worker_1",
+        executions: [["daily", "02:00"]],
+        priority: 10
+      }
+    }
+  }
+};
+```
+
+Built-in backup commands:
+- `backup:list`
+- `backup:run <key> [--dry-run] [--channel=local]`
+- `backup:queue <key> [--worker=worker_1] [--priority=10]`
+- `backup:cleanup <key> [--channel=local] [--dry-run]`
+
+Remote outputs are optional packages and must be registered by the application before the backup config is used:
+
+```ts
+import { BackupOutputDrivers } from "@webtypen/webframez-core";
+import { GoogleDriveBackupOutputDriver } from "@webtypen/webframez-backups-googledrive";
+import { OneDriveBackupOutputDriver } from "@webtypen/webframez-backups-onedrive";
+import { SftpBackupOutputDriver } from "@webtypen/webframez-backups-sftp";
+import { FtpBackupOutputDriver } from "@webtypen/webframez-backups-ftp";
+
+BackupOutputDrivers.register("google_drive", GoogleDriveBackupOutputDriver);
+BackupOutputDrivers.register("one_drive", OneDriveBackupOutputDriver);
+BackupOutputDrivers.register("sftp", SftpBackupOutputDriver);
+BackupOutputDrivers.register("ftp", FtpBackupOutputDriver);
+
+export default {
+  types: {
+    daily_google_drive: {
+      is_active: true,
+      files: [{ from: "storage", to: "storage", exclude: ["backups/**", "queue/**"] }],
+      outputs: [
+        {
+          driver: "google_drive",
+          folderId: process.env.GOOGLE_DRIVE_BACKUP_FOLDER_ID,
+          auth: {
+            keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS
+          },
+          retention: {
+            keepLast: 30,
+            maxAgeDays: 90,
+            runAfterBackup: true
+          }
+        }
+      ],
+      automation: {
+        worker: "worker_1",
+        executions: [["daily", "03:00"], ["daily", "12:00"]]
+      }
+    }
+  }
+};
+```
+
+Available adapter packages:
+- `@webtypen/webframez-backups-googledrive`
+- `@webtypen/webframez-backups-onedrive`
+- `@webtypen/webframez-backups-sftp`
+- `@webtypen/webframez-backups-ftp`
+
+Database backups are delegated to the configured database driver via `backup(client, options)`. Implement that hook in your driver to write dump files into `options.targetDir`.
+
 ## Modules
 
 You can load module providers via `modules` in `WebApplication.boot(...)`.

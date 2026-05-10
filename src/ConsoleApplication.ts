@@ -12,9 +12,21 @@ import { QueueLogCommand } from "./Commands/QueueLogCommand";
 import { QueueWorkerAutorestartCommand } from "./Commands/QueueWorkerAutorestartCommand";
 import { WebframezInfo } from "./info";
 import { ErrorHandler } from "./ErrorHandling/ErrorHandler";
+import { BackupListCommand } from "./Commands/BackupListCommand";
+import { BackupRunCommand } from "./Commands/BackupRunCommand";
+import { BackupQueueCommand } from "./Commands/BackupQueueCommand";
+import { BackupCleanupCommand } from "./Commands/BackupCleanupCommand";
+import { BackupRunJob } from "./Backup/Jobs/BackupRunJob";
+import { ModulesLoader } from "./Modules/ModulesLoader";
 
 export class ConsoleApplication {
+    modulesLoader: ModulesLoader | null = null;
+
     systemCommands: any = [
+        BackupListCommand,
+        BackupRunCommand,
+        BackupQueueCommand,
+        BackupCleanupCommand,
         QueueStartCommand,
         QueueStatusCommand,
         QueueStopCommand,
@@ -46,6 +58,12 @@ export class ConsoleApplication {
         //     void SigNozTelemetry.init(options.signoz);
         // }
 
+        this.modulesLoader = new ModulesLoader();
+        this.modulesLoader.load(options && options.modules ? options.modules : [], {
+            kernel: options && options.kernel ? options.kernel : null,
+            options,
+        });
+
         if (options && options.datatables) {
             DatatableRegistry.registerMany(options.datatables);
         }
@@ -53,6 +71,7 @@ export class ConsoleApplication {
         if (options.jobs && options.jobs.length > 0) {
             QueueJobsRegisty.registerJob(options.jobs);
         }
+        QueueJobsRegisty.registerJob(BackupRunJob);
 
         const args = this.parseArgs();
         const signature = args.arguments.shift();
@@ -109,6 +128,14 @@ export class ConsoleApplication {
                 }
             }
         }
+
+        const moduleCommands = this.modulesLoader ? this.modulesLoader.getCommands() : [];
+        for (let command of moduleCommands) {
+            if (command.signature === signature) {
+                return command;
+            }
+        }
+
         return null;
     }
 
@@ -192,6 +219,29 @@ export class ConsoleApplication {
                 if (command.signature.length > maxSignatureLength) {
                     maxSignatureLength = command.signature.length;
                 }
+            }
+        }
+
+        const moduleCommands = this.modulesLoader ? this.modulesLoader.getCommands() : [];
+        for (let command of moduleCommands) {
+            if (!command || !command.signature || command.hidden) continue;
+            let groupKey = " ";
+            const commandGroups = command.signature.split(":");
+            if (commandGroups && commandGroups.length > 0 && commandGroups[0] && commandGroups[0].trim() !== "") {
+                groupKey = commandGroups[0];
+            }
+
+            if (!groups[groupKey]) {
+                groups[groupKey] = [];
+            }
+
+            groups[groupKey].push({
+                signature: command.signature,
+                description: command.description || "",
+            });
+
+            if (command.signature.length > maxSignatureLength) {
+                maxSignatureLength = command.signature.length;
             }
         }
 

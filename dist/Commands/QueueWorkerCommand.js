@@ -24,6 +24,8 @@ const Config_1 = require("../Config");
 const DBConnection_1 = require("../Database/DBConnection");
 const DateFunctions_1 = require("../Functions/DateFunctions");
 const ErrorHandler_1 = require("../ErrorHandling/ErrorHandler");
+const BackupManager_1 = require("../Backup/BackupManager");
+const WebframezHooks_1 = require("../Hooks/WebframezHooks");
 class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
     constructor() {
         super(...arguments);
@@ -34,6 +36,8 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
         this.currentJob = null;
         this.jobTypes = {};
         this.autorestart = false;
+        this.workerOperationId = null;
+        this.workerHadError = false;
         // Statistics
         this.jobsExecuted = 0;
         this.jobsSucceeded = 0;
@@ -66,11 +70,31 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
             if (!this.init()) {
                 return;
             }
+            this.workerOperationId = WebframezHooks_1.WebframezHooks.createOperationId("worker");
+            yield WebframezHooks_1.WebframezHooks.emit("queue.worker.start", {
+                operationId: this.workerOperationId,
+                name: workerKey,
+                attributes: {
+                    "webframez.queue.worker": workerKey,
+                },
+            });
             try {
                 this.log("Queue started");
                 yield this.run();
             }
             catch (e) {
+                this.workerHadError = true;
+                if (this.workerOperationId) {
+                    yield WebframezHooks_1.WebframezHooks.emit("queue.worker.error", {
+                        operationId: this.workerOperationId,
+                        name: workerKey,
+                        status: "error",
+                        error: e,
+                        attributes: {
+                            "webframez.queue.worker": workerKey,
+                        },
+                    });
+                }
                 yield ErrorHandler_1.ErrorHandler.report(e, {
                     scope: "command",
                     source: "queue.worker.run",
@@ -86,6 +110,16 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                 this.error(`Queue run failed: ${e instanceof Error ? e.message : String(e)}`);
             }
             finally {
+                if (!this.workerHadError && this.workerOperationId) {
+                    yield WebframezHooks_1.WebframezHooks.emit("queue.worker.end", {
+                        operationId: this.workerOperationId,
+                        name: workerKey,
+                        status: "ok",
+                        attributes: {
+                            "webframez.queue.worker": workerKey,
+                        },
+                    });
+                }
                 this.log("Queue stopped");
                 this.updateWorkerStatus({
                     status: "stopped",
@@ -205,15 +239,41 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
         }
         fs_1.default.writeFileSync(filePath, JSON.stringify(json), "utf-8");
     }
+    getWorkerAutomation() {
+        const out = [];
+        if (this.workerConfig && this.workerConfig.automation && Array.isArray(this.workerConfig.automation)) {
+            out.push(...this.workerConfig.automation);
+        }
+        if (Config_1.Config.get("backup")) {
+            try {
+                out.push(...new BackupManager_1.BackupManager().getAutomationEntries(this.workerKey || undefined));
+            }
+            catch (e) {
+                this.log(`Backup automation config failed: ${e instanceof Error ? e.message : String(e)}`);
+            }
+        }
+        return out;
+    }
+    getWorkerJobclasses() {
+        if (!this.workerConfig || !this.workerConfig.jobclasses || this.workerConfig.jobclasses.length < 1) {
+            return null;
+        }
+        const jobclasses = [...this.workerConfig.jobclasses];
+        if (Config_1.Config.get("backup") && !jobclasses.includes("BackupRunJob")) {
+            jobclasses.push("BackupRunJob");
+        }
+        return jobclasses;
+    }
     checkWorkerAutomation() {
-        if (!this.workerConfig || !this.workerConfig.automation || !Array.isArray(this.workerConfig.automation)) {
+        const workerAutomation = this.getWorkerAutomation();
+        if (!workerAutomation || workerAutomation.length < 1) {
             return null;
         }
         const out = [];
         const days = DateFunctions_1.DateFunctions.getDays();
         const now = (0, moment_timezone_1.default)().tz(this.workerConfig.timezone ? this.workerConfig.timezone : "Europe/Berlin");
         let automationIndex = -1;
-        for (let automation of this.workerConfig.automation) {
+        for (let automation of workerAutomation) {
             automationIndex++;
             if (!automation.jobclass || !this.jobTypes[automation.jobclass]) {
                 this.log(`Invalid job class '${automation.jobclass}' in worker automation.`);
@@ -254,7 +314,8 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                 }
                 const useType = days.includes(type) ? "day_in_week" : type;
                 const executionKey = type + "-" + (value !== undefined && value !== null ? value : "0");
-                const intervalKey = `${automation.jobclass}_${executionKey}${options && options.identifier ? "_" + options.identifier : ""}_${now.format("YYYY-MM-DD_HH:mm")}`;
+                const executionIdentifier = options && options.identifier ? options.identifier : automation.identifier ? automation.identifier : null;
+                const intervalKey = `${automation.jobclass}_${executionKey}${executionIdentifier ? "_" + executionIdentifier : ""}_${now.format("YYYY-MM-DD_HH:mm")}`;
                 switch (useType) {
                     case "every_hour":
                         if (parseInt(now.format("mm")) === parseInt(value && !isNaN(parseInt(value)) ? value : "0")) {
@@ -262,7 +323,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                                     key: intervalKey,
                                     type: type,
                                     value: parseInt(value),
-                                    identifier: options && options.identifier ? options.identifier : null,
+                                    identifier: executionIdentifier,
                                     payload: automation.payload || (options && options.payload)
                                         ? Object.assign(Object.assign({}, (automation.payload ? automation.payload : {})), (options.payload ? options.payload : {})) : null,
                                 } }));
@@ -278,7 +339,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                                     key: intervalKey,
                                     type: type,
                                     value: value,
-                                    identifier: options && options.identifier ? options.identifier : null,
+                                    identifier: executionIdentifier,
                                     payload: automation.payload || (options && options.payload)
                                         ? Object.assign(Object.assign({}, (automation.payload ? automation.payload : {})), (options.payload ? options.payload : {})) : null,
                                 } }));
@@ -290,7 +351,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                                     key: intervalKey,
                                     type: type,
                                     value: value,
-                                    identifier: options && options.identifier ? options.identifier : null,
+                                    identifier: executionIdentifier,
                                     payload: automation.payload || (options && options.payload)
                                         ? Object.assign(Object.assign({}, (automation.payload ? automation.payload : {})), (options.payload ? options.payload : {})) : null,
                                 } }));
@@ -303,7 +364,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                                     key: intervalKey,
                                     type: type,
                                     value: value,
-                                    identifier: options && options.identifier ? options.identifier : null,
+                                    identifier: executionIdentifier,
                                     payload: automation.payload || (options && options.payload)
                                         ? Object.assign(Object.assign({}, (automation.payload ? automation.payload : {})), (options.payload ? options.payload : {})) : null,
                                 } }));
@@ -316,7 +377,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
     }
     runAutomation() {
         return __awaiter(this, void 0, void 0, function* () {
-            if (!this.workerConfig || !this.workerConfig.automation || !Array.isArray(this.workerConfig.automation)) {
+            if (this.getWorkerAutomation().length < 1) {
                 return;
             }
             try {
@@ -416,14 +477,13 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                 const executionKey = (0, moment_timezone_1.default)()
                     .tz(this.workerConfig.timezone ? this.workerConfig.timezone : "Europe/Berlin")
                     .format("YYYYMMDDHHmmss") + StringFunctions_1.StringFunctions.random(24);
+                const workerJobclasses = this.getWorkerJobclasses();
                 const jobUpdate = yield connection.client
                     .db(null)
                     .collection("queue_jobs")
                     .findOneAndUpdate({
                     status: "pending",
-                    jobclass: this.workerConfig.jobclasses && this.workerConfig.jobclasses.length > 0
-                        ? { $in: this.workerConfig.jobclasses }
-                        : { $ne: null },
+                    jobclass: workerJobclasses && workerJobclasses.length > 0 ? { $in: workerJobclasses } : { $ne: null },
                     worker: { $in: [null, this.workerKey] },
                     $or: [
                         {
@@ -491,6 +551,16 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                 };
                 let jobInstance = null;
                 const jobType = this.jobTypes && this.jobTypes[job.jobclass] ? this.jobTypes[job.jobclass] : null;
+                const jobOperationId = WebframezHooks_1.WebframezHooks.createOperationId("job");
+                yield WebframezHooks_1.WebframezHooks.emit("queue.job.start", {
+                    operationId: jobOperationId,
+                    parentOperationId: this.workerOperationId,
+                    name: job.jobclass,
+                    attributes: {
+                        "webframez.queue.job": job.jobclass,
+                        "webframez.queue.worker": this.workerKey,
+                    },
+                });
                 try {
                     if (!jobType) {
                         throw new Error(`QueueError: Invalid job-type ${job.jobclass}`);
@@ -521,9 +591,31 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                         },
                     });
                     this.jobsSucceeded++;
+                    yield WebframezHooks_1.WebframezHooks.emit("queue.job.end", {
+                        operationId: jobOperationId,
+                        parentOperationId: this.workerOperationId,
+                        name: job.jobclass,
+                        status: "ok",
+                        attributes: {
+                            "webframez.queue.job": job.jobclass,
+                            "webframez.queue.worker": this.workerKey,
+                            "webframez.queue.job.status": job.status,
+                        },
+                    });
                     this.log(`Finished Job #${job.number} - ${job.jobclass} - ${(job.executions[0].duration_ms / 1000).toFixed(2)}s`);
                 }
                 catch (e) {
+                    yield WebframezHooks_1.WebframezHooks.emit("queue.job.error", {
+                        operationId: jobOperationId,
+                        parentOperationId: this.workerOperationId,
+                        name: job.jobclass,
+                        status: "error",
+                        error: e,
+                        attributes: {
+                            "webframez.queue.job": job.jobclass,
+                            "webframez.queue.worker": this.workerKey,
+                        },
+                    });
                     yield ErrorHandler_1.ErrorHandler.report(e, {
                         scope: "job",
                         source: "queue.worker.job.handle",

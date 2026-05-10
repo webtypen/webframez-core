@@ -2,6 +2,7 @@ import readline from "readline";
 import { ConsoleProgressBar } from "./ConsoleProgressBar";
 import { ConsoleOutputHelper, WriteOptions } from "./ConsoleOutputHelper";
 import { ErrorHandler } from "../ErrorHandling/ErrorHandler";
+import { WebframezHooks } from "../Hooks/WebframezHooks";
 
 export class ConsoleCommand {
     static signature: string;
@@ -23,14 +24,44 @@ export class ConsoleCommand {
     async handle() {}
 
     async handleSystem() {
+        const commandSignature = String((this.constructor as any).signature || this.constructor.name || "command");
+        const operationId = WebframezHooks.createOperationId("command");
         this.rl = readline.createInterface({
             input: process.stdin,
             output: process.stdout,
         });
 
+        await WebframezHooks.emit("console.command.start", {
+            operationId,
+            name: commandSignature,
+            attributes: {
+                "webframez.command.signature": commandSignature,
+                "webframez.command.class": this.constructor.name,
+            },
+        });
+
         try {
             await this.handle();
+            await WebframezHooks.emit("console.command.end", {
+                operationId,
+                name: commandSignature,
+                status: "ok",
+                attributes: {
+                    "webframez.command.signature": commandSignature,
+                    "webframez.command.class": this.constructor.name,
+                },
+            });
         } catch (e) {
+            await WebframezHooks.emit("console.command.error", {
+                operationId,
+                name: commandSignature,
+                status: "error",
+                error: e,
+                attributes: {
+                    "webframez.command.signature": commandSignature,
+                    "webframez.command.class": this.constructor.name,
+                },
+            });
             await ErrorHandler.report(e, {
                 scope: "command",
                 source: "console.command.handleSystem",

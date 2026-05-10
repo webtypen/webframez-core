@@ -26,6 +26,11 @@ class BaseDBDriver {
     execute(client, data) {
         return __awaiter(this, void 0, void 0, function* () { });
     }
+    backup(client, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            throw new Error("This database driver does not implement backup(...).");
+        });
+    }
     onModelSave(model, saveStatus) {
         return __awaiter(this, void 0, void 0, function* () {
             return model;

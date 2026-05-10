@@ -1,3 +1,5 @@
+import { KernelAiRegistrations } from "../Ai/AiTypes";
+import { KernelMcpRegistrations } from "../Mcp/McpTypes";
 export declare class ModuleProvider {
     static key: string;
     controller: {
@@ -6,7 +8,10 @@ export declare class ModuleProvider {
     middleware: {
         [key: string]: any;
     };
-    boot(): void;
+    commands: any[];
+    mcp?: KernelMcpRegistrations;
+    ai?: KernelAiRegistrations;
+    boot(_context?: any): void;
     routes(): void;
     bootByRouter(): void;
 }

@@ -6,6 +6,8 @@ import { QueueJobsRegisty } from "./Queue/QueueJobsRegisty";
 import { DatatableRegistry } from "./Datatable/DatatableRegistry";
 import { ModulesLoader } from "./Modules/ModulesLoader";
 import { ErrorHandler } from "./ErrorHandling/ErrorHandler";
+import { WebframezHooks } from "./Hooks/WebframezHooks";
+import { HttpKernelHandlerRegistry } from "./Http/HttpKernelHandlerRegistry";
 // import { SigNozTelemetry } from "./Telemetry/SigNozTelemetry";
 
 export class WebApplication {
@@ -16,6 +18,15 @@ export class WebApplication {
      * Init the routes and start the http-server
      */
     boot(options?: any) {
+        const bootOperationId = WebframezHooks.createOperationId("app");
+        void WebframezHooks.emit("app.boot.start", {
+            operationId: bootOperationId,
+            name: "web",
+            attributes: {
+                "webframez.mode": options && options.mode ? options.mode : "web",
+            },
+        });
+
         if (options && options.config) {
             for (let key in options.config) {
                 Config.register(key, options.config[key]);
@@ -35,7 +46,10 @@ export class WebApplication {
         // }
 
         this.modulesLoader = new ModulesLoader();
-        this.modulesLoader.load(options && options.modules ? options.modules : []);
+        this.modulesLoader.load(options && options.modules ? options.modules : [], {
+            kernel: options && options.kernel ? options.kernel : null,
+            options,
+        });
 
         if (options && options.kernel) {
             this.modulesLoader.loadKernel(options.kernel);
@@ -60,8 +74,54 @@ export class WebApplication {
         }
 
         const port = options && options.port ? options.port : 3000;
-        this.server = http.createServer((req: http.IncomingMessage, res: http.ServerResponse) => {
-            Router.handleRequest(req, res);
+        this.server = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
+            try {
+                const handled = await HttpKernelHandlerRegistry.handle({
+                    req,
+                    res,
+                    kernel: options && options.kernel ? options.kernel : null,
+                    modulesLoader: this.modulesLoader,
+                    basename: options && options.basename ? options.basename : null,
+                    options,
+                });
+
+                if (handled) {
+                    return;
+                }
+
+                await Router.handleRequest(req, res);
+            } catch (error) {
+                await ErrorHandler.report(error, {
+                    scope: "controller",
+                    source: "web.application.httpKernelHandler",
+                    controller: {
+                        method: req.method || "",
+                        url: req.url || "",
+                    },
+                });
+
+                if (!res.writableEnded) {
+                    res.statusCode = 500;
+                    res.end("Internal Server Error");
+                }
+            }
+        });
+
+        this.server.on("error", (error) => {
+            void WebframezHooks.emit("app.boot.error", {
+                operationId: bootOperationId,
+                name: "web",
+                status: "error",
+                error,
+                attributes: {
+                    "server.port": port,
+                    "webframez.mode": options && options.mode ? options.mode : "web",
+                },
+            });
+
+            if (this.server.listenerCount("error") <= 1) {
+                throw error;
+            }
         });
 
         // this.server.on("close", () => {
@@ -69,6 +129,16 @@ export class WebApplication {
         // });
 
         this.server.listen(port, () => {
+            void WebframezHooks.emit("app.boot.end", {
+                operationId: bootOperationId,
+                name: "web",
+                status: "ok",
+                attributes: {
+                    "server.port": port,
+                    "webframez.mode": options && options.mode ? options.mode : "web",
+                },
+            });
+
             const runtimeConsole = typeof globalThis !== "undefined" ? (globalThis as any).console : undefined;
             if (runtimeConsole && typeof runtimeConsole.log === "function") {
                 runtimeConsole.log(

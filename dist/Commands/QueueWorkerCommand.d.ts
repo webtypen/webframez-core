@@ -8,6 +8,8 @@ export declare class QueueWorkerCommand extends ConsoleCommand {
     currentJob: any;
     jobTypes: any;
     autorestart: boolean;
+    workerOperationId: string | null;
+    workerHadError: boolean;
     jobsExecuted: number;
     jobsSucceeded: number;
     jobsFailed: number;
@@ -23,6 +25,8 @@ export declare class QueueWorkerCommand extends ConsoleCommand {
     updateWorkerStatus(values: {
         [key: string]: boolean | string | number | null;
     }): void;
+    getWorkerAutomation(): any[];
+    getWorkerJobclasses(): any[] | null;
     checkWorkerAutomation(): any;
     runAutomation(): Promise<void>;
     getNextJobNumber(connection: any): Promise<number>;
