@@ -4,6 +4,7 @@ TypeScript-first backend framework core for Node.js.
 
 This README reflects the current API in this repository and focuses on:
 - Routing
+- ApiScopes and ApiFunctions
 - Datatables
 - DataBuilder
 - Console Commands
@@ -103,6 +104,7 @@ app.boot({
 - `modules`
 - `config`
 - `datatables`
+- `apiScopes` on the kernel or module providers
 - `jobs`
 - `mode`
 - `onBoot`
@@ -116,6 +118,7 @@ Route.get("/", "HomeController@index");
 Route.post("/login", "AuthController@login");
 Route.put("/users/:id", "UserController@update");
 Route.delete("/users/:id", "UserController@delete");
+Route.patch("/users/:id", "UserController@patch");
 ```
 
 You can also register inline handlers:
@@ -232,6 +235,105 @@ Also available:
 - `download(filepath, options?)`
 - `stream(req, filepath, filename, mimeType)`
 - `registerEvent("after", fn)`
+
+## ApiScopes and ApiFunctions
+
+ApiScopes group callable ApiFunctions and can automatically expose them as normal HTTP routes. MCP exposure is intentionally not implemented in core; install `@webtypen/webframez-ai` and use `APIFunctionsMCPServer` when ApiFunctions should be exposed as MCP tools.
+
+### Define ApiFunctions
+
+```ts
+import { ApiFunction, ApiFunctionRequest, ApiFunctionResponse } from "@webtypen/webframez-core";
+
+class CurrentUserFunction extends ApiFunction {
+  key = "current-user";
+  description = "Returns the current user.";
+  requestMethod = "GET";
+  params = {
+    includePermissions: { type: "boolean", default: false }
+  };
+
+  async handle(apiRequest: ApiFunctionRequest) {
+    return new ApiFunctionResponse({
+      user: apiRequest.context.user,
+      includePermissions: apiRequest.params.includePermissions
+    });
+  }
+}
+```
+
+`requestMethod` may be `"GET"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"` or `null`.
+Functions with `requestMethod = null` are not registered as normal HTTP routes, but they can still be used by higher-level integrations such as `APIFunctionsMCPServer` in `@webtypen/webframez-ai`.
+
+### Define ApiScopes
+
+```ts
+import { ApiScope, Request, Response } from "@webtypen/webframez-core";
+
+class BackofficeApiScope extends ApiScope {
+  key = "backoffice";
+  apiBasePath = "/api/backoffice";
+  functions = [CurrentUserFunction];
+
+  async middleware(req: Request, _res: Response, abort: (message?: any, status?: number) => never) {
+    if (!req.headers.authorization) {
+      return abort("Unauthorized", 401);
+    }
+
+    return {
+      user: { id: "..." }
+    };
+  }
+}
+```
+
+For every function with a non-null request method, core registers:
+
+```text
+apiBasePath + "/" + function.key
+```
+
+Example: `GET /api/backoffice/current-user`.
+
+The scope middleware runs before the function. Its return value is passed to the function as `apiRequest.context`. Calling `abort(message, status)` stops execution and returns an error response with that status.
+
+### Register ApiScopes
+
+Register scopes on the web kernel:
+
+```ts
+import { BaseKernelWeb } from "@webtypen/webframez-core";
+
+class Kernel extends BaseKernelWeb {
+  static apiScopes = [BackofficeApiScope];
+}
+```
+
+Modules can register scopes as instance properties:
+
+```ts
+import { ModuleProvider } from "@webtypen/webframez-core";
+
+class BackofficeModuleProvider extends ModuleProvider {
+  apiScopes = [BackofficeApiScope];
+}
+```
+
+### Params and Validation
+
+GET functions validate params from `req.query`; all other request methods validate params from `req.body`.
+
+Supported descriptor types include:
+- `string`
+- `number` / `float`
+- `integer` / `int`
+- `boolean` / `bool`
+- `ObjectId`
+- `option`
+- `array`
+- `object`
+
+Defaults are applied before required checks. Unknown types are passed through unchanged but still respect `required` and `default`.
 
 ## Datatables
 
