@@ -23,6 +23,7 @@ const ModulesLoader_1 = require("./Modules/ModulesLoader");
 const ErrorHandler_1 = require("./ErrorHandling/ErrorHandler");
 const WebframezHooks_1 = require("./Hooks/WebframezHooks");
 const HttpKernelHandlerRegistry_1 = require("./Http/HttpKernelHandlerRegistry");
+const ApiScopeRegistry_1 = require("./Api/ApiScopeRegistry");
 // import { SigNozTelemetry } from "./Telemetry/SigNozTelemetry";
 class WebApplication {
     constructor() {
@@ -72,6 +73,10 @@ class WebApplication {
             tempDir: options && options.tempDir ? options.tempDir : null,
         });
         this.modulesLoader.initRoutes();
+        ApiScopeRegistry_1.ApiScopeRegistry.register({
+            kernel: options && options.kernel ? options.kernel : null,
+            modulesLoader: this.modulesLoader,
+        });
         if (options && options.datatables) {
             DatatableRegistry_1.DatatableRegistry.registerMany(options.datatables);
         }

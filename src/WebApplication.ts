@@ -8,6 +8,7 @@ import { ModulesLoader } from "./Modules/ModulesLoader";
 import { ErrorHandler } from "./ErrorHandling/ErrorHandler";
 import { WebframezHooks } from "./Hooks/WebframezHooks";
 import { HttpKernelHandlerRegistry } from "./Http/HttpKernelHandlerRegistry";
+import { ApiScopeRegistry } from "./Api/ApiScopeRegistry";
 // import { SigNozTelemetry } from "./Telemetry/SigNozTelemetry";
 
 export class WebApplication {
@@ -64,6 +65,10 @@ export class WebApplication {
         });
 
         this.modulesLoader.initRoutes();
+        ApiScopeRegistry.register({
+            kernel: options && options.kernel ? options.kernel : null,
+            modulesLoader: this.modulesLoader,
+        });
 
         if (options && options.datatables) {
             DatatableRegistry.registerMany(options.datatables);

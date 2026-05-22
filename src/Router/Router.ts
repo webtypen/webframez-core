@@ -65,6 +65,13 @@ class RouterFacade {
     } = {};
 
     /**
+     * PATCH Route Store
+     */
+    routesPATCH: {
+        [key: string]: RouteObject[];
+    } = {};
+
+    /**
      * DELETE Route Store
      */
     routesDELETE: {
@@ -85,6 +92,7 @@ class RouterFacade {
         this.routesGET = {};
         this.routesPOST = {};
         this.routesPUT = {};
+        this.routesPATCH = {};
         this.routesDELETE = {};
 
         // Load routes
@@ -159,6 +167,11 @@ class RouterFacade {
                 this.routesPUT[path] = [];
             }
             this.routesPUT[path].push(routeConf);
+        } else if (type === "PATCH") {
+            if (!this.routesPATCH[path]) {
+                this.routesPATCH[path] = [];
+            }
+            this.routesPATCH[path].push(routeConf);
         } else if (type === "DELETE") {
             if (!this.routesDELETE[path]) {
                 this.routesDELETE[path] = [];
@@ -191,6 +204,8 @@ class RouterFacade {
             return this.dissolveRoute(this.routesPOST, cleanUrl, req);
         } else if (req.method === "PUT") {
             return this.dissolveRoute(this.routesPUT, cleanUrl, req);
+        } else if (req.method === "PATCH") {
+            return this.dissolveRoute(this.routesPATCH, cleanUrl, req);
         } else if (req.method === "DELETE") {
             return this.dissolveRoute(this.routesDELETE, cleanUrl, req);
         } else if (req.method === "OPTIONS") {
@@ -200,6 +215,8 @@ class RouterFacade {
                 return this.dissolveRoute(this.routesPOST, cleanUrl, req);
             } else if (req.headers["access-control-request-method"] === "PUT") {
                 return this.dissolveRoute(this.routesPUT, cleanUrl, req);
+            } else if (req.headers["access-control-request-method"] === "PATCH") {
+                return this.dissolveRoute(this.routesPATCH, cleanUrl, req);
             } else if (req.headers["access-control-request-method"] === "DELETE") {
                 return this.dissolveRoute(this.routesDELETE, cleanUrl, req);
             }

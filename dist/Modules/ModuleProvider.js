@@ -5,6 +5,7 @@ class ModuleProvider {
     constructor() {
         this.controller = {};
         this.middleware = {};
+        this.apiScopes = [];
         this.commands = [];
     }
     boot(_context) { }

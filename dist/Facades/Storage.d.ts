@@ -1,4 +1,5 @@
 /// <reference types="node" />
+/// <reference types="node" />
 import { BaseStorageDriver, StorageDeleteOptions, StorageMkdirOptions, StorageReadDirOptions } from "./StorageDrivers/BaseStorageDriver";
 declare class StorageDriverRegistyFacade {
     drivers: {

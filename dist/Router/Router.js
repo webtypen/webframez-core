@@ -48,6 +48,10 @@ class RouterFacade {
          */
         this.routesPUT = {};
         /**
+         * PATCH Route Store
+         */
+        this.routesPATCH = {};
+        /**
          * DELETE Route Store
          */
         this.routesDELETE = {};
@@ -66,6 +70,7 @@ class RouterFacade {
         this.routesGET = {};
         this.routesPOST = {};
         this.routesPUT = {};
+        this.routesPATCH = {};
         this.routesDELETE = {};
         // Load routes
         if (options.routesFunction) {
@@ -136,6 +141,12 @@ class RouterFacade {
             }
             this.routesPUT[path].push(routeConf);
         }
+        else if (type === "PATCH") {
+            if (!this.routesPATCH[path]) {
+                this.routesPATCH[path] = [];
+            }
+            this.routesPATCH[path].push(routeConf);
+        }
         else if (type === "DELETE") {
             if (!this.routesDELETE[path]) {
                 this.routesDELETE[path] = [];
@@ -167,6 +178,9 @@ class RouterFacade {
         else if (req.method === "PUT") {
             return this.dissolveRoute(this.routesPUT, cleanUrl, req);
         }
+        else if (req.method === "PATCH") {
+            return this.dissolveRoute(this.routesPATCH, cleanUrl, req);
+        }
         else if (req.method === "DELETE") {
             return this.dissolveRoute(this.routesDELETE, cleanUrl, req);
         }
@@ -179,6 +193,9 @@ class RouterFacade {
             }
             else if (req.headers["access-control-request-method"] === "PUT") {
                 return this.dissolveRoute(this.routesPUT, cleanUrl, req);
+            }
+            else if (req.headers["access-control-request-method"] === "PATCH") {
+                return this.dissolveRoute(this.routesPATCH, cleanUrl, req);
             }
             else if (req.headers["access-control-request-method"] === "DELETE") {
                 return this.dissolveRoute(this.routesDELETE, cleanUrl, req);

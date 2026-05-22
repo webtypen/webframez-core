@@ -80,6 +80,16 @@ class RouteFacade {
         this.registerWithGroupContext("PUT", path, component, options);
     }
     /**
+     * Register a PATCH-Method
+     *
+     * @param path
+     * @param component
+     * @param options
+     */
+    patch(path, component, options) {
+        this.registerWithGroupContext("PATCH", path, component, options);
+    }
+    /**
      * Register a DELETE-Method
      *
      * @param path

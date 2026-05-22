@@ -38,6 +38,14 @@ export declare class RouteFacade {
      */
     put(path: string, component: any, options?: RouteRegistrationOptions): void;
     /**
+     * Register a PATCH-Method
+     *
+     * @param path
+     * @param component
+     * @param options
+     */
+    patch(path: string, component: any, options?: RouteRegistrationOptions): void;
+    /**
      * Register a DELETE-Method
      *
      * @param path

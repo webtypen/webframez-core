@@ -1,5 +1,5 @@
 export type KernelMcpWebServerRegistration = {
-    path: string;
+    path?: string;
     server: any;
     middleware?: string[];
     allowedOrigins?: string[];

@@ -1,4 +1,5 @@
 import { KernelAiRegistrations } from "../Ai/AiTypes";
+import { ApiScopeClass } from "../Api/ApiTypes";
 import { KernelMcpRegistrations } from "../Mcp/McpTypes";
 export declare class ModuleProvider {
     static key: string;
@@ -8,6 +9,7 @@ export declare class ModuleProvider {
     middleware: {
         [key: string]: any;
     };
+    apiScopes: ApiScopeClass[];
     commands: any[];
     mcp?: KernelMcpRegistrations;
     ai?: KernelAiRegistrations;

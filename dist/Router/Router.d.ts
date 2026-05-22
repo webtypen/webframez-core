@@ -54,6 +54,12 @@ declare class RouterFacade {
         [key: string]: RouteObject[];
     };
     /**
+     * PATCH Route Store
+     */
+    routesPATCH: {
+        [key: string]: RouteObject[];
+    };
+    /**
      * DELETE Route Store
      */
     routesDELETE: {

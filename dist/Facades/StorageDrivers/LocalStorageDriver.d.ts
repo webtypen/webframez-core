@@ -1,4 +1,5 @@
 /// <reference types="node" />
+/// <reference types="node" />
 import { BaseStorageDriver, StorageDeleteOptions, StorageMkdirOptions, StorageReadDirOptions } from "./BaseStorageDriver";
 import { Request } from "../../Router/Request";
 export declare class LocalStorageDriver implements BaseStorageDriver {

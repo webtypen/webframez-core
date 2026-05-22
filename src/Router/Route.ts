@@ -108,6 +108,17 @@ export class RouteFacade {
     }
 
     /**
+     * Register a PATCH-Method
+     *
+     * @param path
+     * @param component
+     * @param options
+     */
+    patch(path: string, component: any, options?: RouteRegistrationOptions) {
+        this.registerWithGroupContext("PATCH", path, component, options);
+    }
+
+    /**
      * Register a DELETE-Method
      *
      * @param path

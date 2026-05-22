@@ -7,10 +7,12 @@ import { Route } from "../src/Router/Route";
 import { Request } from "../src/Router/Request";
 import { Response } from "../src/Router/Response";
 import { MODULES } from "./modules";
+import { DevApiScope } from "./ApiScopes/DevApiScope";
 
 class Kernel extends BaseKernelWeb {
     static controller: { [key: string]: any } = {};
     static middleware: { [key: string]: any } = {};
+    static apiScopes = [DevApiScope];
 }
 
 const app = new WebApplication();
