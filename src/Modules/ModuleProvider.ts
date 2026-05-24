@@ -1,5 +1,5 @@
 import { KernelAiRegistrations } from "../Ai/AiTypes";
-import { ApiScopeClass } from "../Api/ApiTypes";
+import { ApiScopeRegistrationClass } from "../Api/ApiTypes";
 import { KernelMcpRegistrations } from "../Mcp/McpTypes";
 
 export class ModuleProvider {
@@ -7,7 +7,7 @@ export class ModuleProvider {
 
     controller: { [key: string]: any } = {};
     middleware: { [key: string]: any } = {};
-    apiScopes: ApiScopeClass[] = [];
+    apiScopes: ApiScopeRegistrationClass[] = [];
     commands: any[] = [];
     mcp?: KernelMcpRegistrations;
     ai?: KernelAiRegistrations;

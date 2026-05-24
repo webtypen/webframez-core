@@ -1,4 +1,4 @@
-import { ApiScopeClass } from "./ApiTypes";
+import { ApiScopeRegistrationEntry } from "./ApiFunctionUtils";
 type ApiScopeRuntimeContext = {
     kernel?: any;
     modulesLoader?: any;
@@ -6,7 +6,7 @@ type ApiScopeRuntimeContext = {
 declare class ApiScopeRegistryFacade {
     private context;
     configure(context?: ApiScopeRuntimeContext): this;
-    collect(context?: ApiScopeRuntimeContext): ApiScopeClass[];
+    collect(context?: ApiScopeRuntimeContext): ApiScopeRegistrationEntry[];
     register(context?: ApiScopeRuntimeContext): this;
     private registerHttpRoutes;
     private registerRouteMethod;

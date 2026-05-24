@@ -297,6 +297,57 @@ Example: `GET /api/backoffice/current-user`.
 
 The scope middleware runs before the function. Its return value is passed to the function as `apiRequest.context`. Calling `abort(message, status)` stops execution and returns an error response with that status.
 
+### Group ApiScopes
+
+Use `ApiScopesGroup` to share middleware across multiple scopes:
+
+```ts
+import { ApiScope, ApiScopesGroup, Request, Response } from "@webtypen/webframez-core";
+
+class BackofficeApiScope extends ApiScope {
+  key = "backoffice";
+  apiBasePath = "/api/backoffice";
+  functions = [CurrentUserFunction];
+
+  async middleware(_req: Request, _res: Response, _abort: (message?: any, status?: number) => never) {
+    return {
+      scope: "backoffice"
+    };
+  }
+
+  async groupMiddleware(_req: Request, _res: Response, _abort: (message?: any, status?: number) => never) {
+    return {
+      reachedThroughGroup: true
+    };
+  }
+}
+
+class BackofficeApiScopesGroup extends ApiScopesGroup {
+  key = "backoffice-group";
+  apiScopes = [BackofficeApiScope];
+
+  async middleware(req: Request, _res: Response, abort: (message?: any, status?: number) => never) {
+    if (!req.headers.authorization) {
+      return abort("Unauthorized", 401);
+    }
+
+    return {
+      user: { id: "..." }
+    };
+  }
+}
+```
+
+When a scope is reached through a group, middleware runs in this order:
+
+```text
+ApiScopesGroup.middleware()
+ApiScope.middleware()
+ApiScope.groupMiddleware()
+```
+
+The context objects are merged in that order, so later scope-specific values can override group values. `groupMiddleware()` only runs when the scope was registered through an `ApiScopesGroup`.
+
 ### Register ApiScopes
 
 Register scopes on the web kernel:
@@ -305,7 +356,7 @@ Register scopes on the web kernel:
 import { BaseKernelWeb } from "@webtypen/webframez-core";
 
 class Kernel extends BaseKernelWeb {
-  static apiScopes = [BackofficeApiScope];
+  static apiScopes = [BackofficeApiScope, BackofficeApiScopesGroup];
 }
 ```
 
@@ -315,7 +366,7 @@ Modules can register scopes as instance properties:
 import { ModuleProvider } from "@webtypen/webframez-core";
 
 class BackofficeModuleProvider extends ModuleProvider {
-  apiScopes = [BackofficeApiScope];
+  apiScopes = [BackofficeApiScope, BackofficeApiScopesGroup];
 }
 ```
 

@@ -59,6 +59,7 @@ __exportStar(require("./Hooks/WebframezHooks"), exports);
 __exportStar(require("./Api/ApiTypes"), exports);
 __exportStar(require("./Api/ApiFunction"), exports);
 __exportStar(require("./Api/ApiScope"), exports);
+__exportStar(require("./Api/ApiScopesGroup"), exports);
 __exportStar(require("./Api/ApiFunctionUtils"), exports);
 __exportStar(require("./Api/ApiScopeRegistry"), exports);
 __exportStar(require("./Ai/AiTypes"), exports);

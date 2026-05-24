@@ -43,6 +43,7 @@ export * from "./Hooks/WebframezHooks";
 export * from "./Api/ApiTypes";
 export * from "./Api/ApiFunction";
 export * from "./Api/ApiScope";
+export * from "./Api/ApiScopesGroup";
 export * from "./Api/ApiFunctionUtils";
 export * from "./Api/ApiScopeRegistry";
 export * from "./Ai/AiTypes";

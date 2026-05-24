@@ -1,7 +1,7 @@
 import { Controller } from "./Controller/Controller";
 import { KernelAiRegistrations } from "./Ai/AiTypes";
 import { KernelMcpRegistrations } from "./Mcp/McpTypes";
-import { ApiScopeClass } from "./Api/ApiTypes";
+import { ApiScopeRegistrationClass } from "./Api/ApiTypes";
 export declare class BaseKernelWeb {
     static controller: {
         [key: string]: Controller;
@@ -9,7 +9,7 @@ export declare class BaseKernelWeb {
     static middleware: {
         [key: string]: any;
     };
-    static apiScopes: ApiScopeClass[];
+    static apiScopes: ApiScopeRegistrationClass[];
     static mcp?: KernelMcpRegistrations;
     static ai?: KernelAiRegistrations;
 }

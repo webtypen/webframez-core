@@ -9,4 +9,7 @@ export declare class ApiScope {
     middleware(_req: Request, _res: Response, _abort: ApiScopeMiddlewareAbort): Promise<{
         [key: string]: any;
     }>;
+    groupMiddleware(_req: Request, _res: Response, _abort: ApiScopeMiddlewareAbort): Promise<{
+        [key: string]: any;
+    }>;
 }

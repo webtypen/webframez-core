@@ -12,4 +12,8 @@ export class ApiScope {
     async middleware(_req: Request, _res: Response, _abort: ApiScopeMiddlewareAbort): Promise<{ [key: string]: any }> {
         return {};
     }
+
+    async groupMiddleware(_req: Request, _res: Response, _abort: ApiScopeMiddlewareAbort): Promise<{ [key: string]: any }> {
+        return {};
+    }
 }

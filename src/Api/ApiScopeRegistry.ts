@@ -1,14 +1,16 @@
 import { Route } from "../Router/Route";
 import { Request } from "../Router/Request";
 import { Response } from "../Router/Response";
-import { ApiFunctionClass, ApiFunctionRequestMethod, ApiScopeClass } from "./ApiTypes";
+import { ApiFunctionClass, ApiFunctionRequestMethod, ApiScopeRegistrationClass } from "./ApiTypes";
 import {
+    ApiScopeRegistrationEntry,
+    collectApiScopeRegistrations,
     getApiErrorMessage,
     getApiFunctionClasses,
     instantiateApiFunction,
     instantiateApiScope,
     joinApiPath,
-    runApiScopeMiddleware,
+    runApiScopeRegistrationMiddleware,
     toApiFunctionHttpResult,
     validateApiFunctionParams,
 } from "./ApiFunctionUtils";
@@ -46,13 +48,13 @@ class ApiScopeRegistryFacade {
         return this;
     }
 
-    collect(context?: ApiScopeRuntimeContext): ApiScopeClass[] {
+    collect(context?: ApiScopeRuntimeContext): ApiScopeRegistrationEntry[] {
         const runtimeContext = {
             ...(this.context || {}),
             ...(context || {}),
         };
 
-        const scopes: ApiScopeClass[] = [];
+        const scopes: ApiScopeRegistrationClass[] = [];
         const kernelScopes = runtimeContext.kernel && Array.isArray(runtimeContext.kernel.apiScopes) ? runtimeContext.kernel.apiScopes : [];
         scopes.push(...kernelScopes);
 
@@ -65,7 +67,7 @@ class ApiScopeRegistryFacade {
             scopes.push(...moduleScopes);
         }
 
-        return scopes.filter((scopeClass) => typeof scopeClass === "function");
+        return collectApiScopeRegistrations(scopes);
     }
 
     register(context?: ApiScopeRuntimeContext) {
@@ -73,15 +75,15 @@ class ApiScopeRegistryFacade {
         const scopes = this.collect(context);
         this.assertUniqueApiPaths(scopes);
 
-        for (const ScopeClass of scopes) {
-            this.registerHttpRoutes(ScopeClass);
+        for (const registration of scopes) {
+            this.registerHttpRoutes(registration);
         }
 
         return this;
     }
 
-    private registerHttpRoutes(ScopeClass: ApiScopeClass) {
-        const scope = instantiateApiScope(ScopeClass);
+    private registerHttpRoutes(registration: ApiScopeRegistrationEntry) {
+        const scope = instantiateApiScope(registration.scopeClass);
         if (!scope.apiBasePath) {
             return;
         }
@@ -94,7 +96,7 @@ class ApiScopeRegistryFacade {
 
             const path = joinApiPath(scope.apiBasePath, func.key);
             const handler = async (req: Request, res: Response) => {
-                return await this.handleHttpFunction(ScopeClass, FunctionClass, req, res);
+                return await this.handleHttpFunction(registration, FunctionClass, req, res);
             };
 
             this.registerRouteMethod(func.requestMethod, path, handler);
@@ -116,16 +118,15 @@ class ApiScopeRegistryFacade {
     }
 
     private async handleHttpFunction(
-        ScopeClass: ApiScopeClass,
+        registration: ApiScopeRegistrationEntry,
         FunctionClass: ApiFunctionClass,
         req: Request,
         res: Response
     ) {
-        const scope = instantiateApiScope(ScopeClass);
         const func = instantiateApiFunction(FunctionClass);
 
         try {
-            const context = await runApiScopeMiddleware(scope, req, res);
+            const context = await runApiScopeRegistrationMiddleware(registration, req, res);
             const paramsSource = (func.requestMethod || req.method).toUpperCase() === "GET" ? req.query : req.body;
             const params = validateApiFunctionParams(func.params || {}, paramsSource || {});
             const result = await func.handle({ context, params, request: req, response: res });
@@ -139,10 +140,10 @@ class ApiScopeRegistryFacade {
         }
     }
 
-    private assertUniqueApiPaths(scopes: ApiScopeClass[]) {
+    private assertUniqueApiPaths(scopes: ApiScopeRegistrationEntry[]) {
         const seen: { [key: string]: boolean } = {};
-        for (const ScopeClass of scopes) {
-            const scope = instantiateApiScope(ScopeClass);
+        for (const registration of scopes) {
+            const scope = instantiateApiScope(registration.scopeClass);
             if (!scope.apiBasePath) {
                 continue;
             }

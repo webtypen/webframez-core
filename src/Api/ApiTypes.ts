@@ -27,6 +27,8 @@ export type ApiFunctionParamsDefinition = {
 
 export type ApiFunctionClass = new (...args: any[]) => any;
 export type ApiScopeClass = new (...args: any[]) => any;
+export type ApiScopesGroupClass = new (...args: any[]) => any;
+export type ApiScopeRegistrationClass = ApiScopeClass | ApiScopesGroupClass;
 
 export type ApiScopeMiddlewareAbort = (message?: any, status?: number) => never;
 

@@ -1,4 +1,4 @@
-import { ApiFunction, ApiFunctionResponse, ApiScope, Request, Response } from "../../src";
+import { ApiFunction, ApiFunctionResponse, ApiScope, ApiScopesGroup, Request, Response } from "../../src";
 import { ApiFunctionRequest } from "../../src/Api/ApiTypes";
 
 class DevGetFunction extends ApiFunction {
@@ -80,6 +80,51 @@ export class DevApiScope extends ApiScope {
         return {
             scope: this.key,
             fromMiddleware: true,
+        };
+    }
+}
+
+class DevGroupedGetFunction extends ApiFunction {
+    key = "dev-grouped-get";
+    description = "Returns grouped middleware context.";
+    requestMethod = "GET" as const;
+    params = {};
+
+    async handle(apiRequest: ApiFunctionRequest) {
+        return {
+            context: apiRequest.context,
+        };
+    }
+}
+
+class DevGroupedApiScope extends ApiScope {
+    key = "dev-grouped-api-scope";
+    apiBasePath = "/api/dev-grouped";
+    functions = [DevGroupedGetFunction];
+
+    async middleware(_req: Request, _res: Response, _abort: (message?: any, status?: number) => never) {
+        return {
+            source: "scope",
+            fromScopeMiddleware: true,
+        };
+    }
+
+    async groupMiddleware(_req: Request, _res: Response, _abort: (message?: any, status?: number) => never) {
+        return {
+            source: "scope-group",
+            fromScopeGroupMiddleware: true,
+        };
+    }
+}
+
+export class DevApiScopesGroup extends ApiScopesGroup {
+    key = "dev-api-scopes-group";
+    apiScopes = [DevGroupedApiScope];
+
+    async middleware(_req: Request, _res: Response, _abort: (message?: any, status?: number) => never) {
+        return {
+            source: "group",
+            fromGroupMiddleware: true,
         };
     }
 }

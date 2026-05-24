@@ -46,19 +46,19 @@ class ApiScopeRegistryFacade {
                     : [];
             scopes.push(...moduleScopes);
         }
-        return scopes.filter((scopeClass) => typeof scopeClass === "function");
+        return (0, ApiFunctionUtils_1.collectApiScopeRegistrations)(scopes);
     }
     register(context) {
         this.configure(context);
         const scopes = this.collect(context);
         this.assertUniqueApiPaths(scopes);
-        for (const ScopeClass of scopes) {
-            this.registerHttpRoutes(ScopeClass);
+        for (const registration of scopes) {
+            this.registerHttpRoutes(registration);
         }
         return this;
     }
-    registerHttpRoutes(ScopeClass) {
-        const scope = (0, ApiFunctionUtils_1.instantiateApiScope)(ScopeClass);
+    registerHttpRoutes(registration) {
+        const scope = (0, ApiFunctionUtils_1.instantiateApiScope)(registration.scopeClass);
         if (!scope.apiBasePath) {
             return;
         }
@@ -69,7 +69,7 @@ class ApiScopeRegistryFacade {
             }
             const path = (0, ApiFunctionUtils_1.joinApiPath)(scope.apiBasePath, func.key);
             const handler = (req, res) => __awaiter(this, void 0, void 0, function* () {
-                return yield this.handleHttpFunction(ScopeClass, FunctionClass, req, res);
+                return yield this.handleHttpFunction(registration, FunctionClass, req, res);
             });
             this.registerRouteMethod(func.requestMethod, path, handler);
         }
@@ -85,12 +85,11 @@ class ApiScopeRegistryFacade {
         }
         routeMethod.bind(Route_1.Route)(path, handler);
     }
-    handleHttpFunction(ScopeClass, FunctionClass, req, res) {
+    handleHttpFunction(registration, FunctionClass, req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            const scope = (0, ApiFunctionUtils_1.instantiateApiScope)(ScopeClass);
             const func = (0, ApiFunctionUtils_1.instantiateApiFunction)(FunctionClass);
             try {
-                const context = yield (0, ApiFunctionUtils_1.runApiScopeMiddleware)(scope, req, res);
+                const context = yield (0, ApiFunctionUtils_1.runApiScopeRegistrationMiddleware)(registration, req, res);
                 const paramsSource = (func.requestMethod || req.method).toUpperCase() === "GET" ? req.query : req.body;
                 const params = (0, ApiFunctionUtils_1.validateApiFunctionParams)(func.params || {}, paramsSource || {});
                 const result = yield func.handle({ context, params, request: req, response: res });
@@ -107,8 +106,8 @@ class ApiScopeRegistryFacade {
     }
     assertUniqueApiPaths(scopes) {
         const seen = {};
-        for (const ScopeClass of scopes) {
-            const scope = (0, ApiFunctionUtils_1.instantiateApiScope)(ScopeClass);
+        for (const registration of scopes) {
+            const scope = (0, ApiFunctionUtils_1.instantiateApiScope)(registration.scopeClass);
             if (!scope.apiBasePath) {
                 continue;
             }

@@ -4,7 +4,12 @@ import { Request } from "../Router/Request";
 import { Response } from "../Router/Response";
 import { ApiFunction } from "./ApiFunction";
 import { ApiScope } from "./ApiScope";
-import { ApiFunctionClass, ApiFunctionParamDefinition, ApiFunctionParamsDefinition, ApiScopeClass } from "./ApiTypes";
+import { ApiScopesGroup } from "./ApiScopesGroup";
+import { ApiFunctionClass, ApiFunctionParamDefinition, ApiFunctionParamsDefinition, ApiScopeClass, ApiScopeRegistrationClass, ApiScopesGroupClass } from "./ApiTypes";
+export type ApiScopeRegistrationEntry = {
+    scopeClass: ApiScopeClass;
+    groupClass?: ApiScopesGroupClass;
+};
 export declare class ApiFunctionRuntimeError extends Error {
     statusCode: number;
     constructor(message: string, statusCode?: number);
@@ -15,8 +20,21 @@ export declare function getApiErrorMessage(error: any): any;
 export declare function isPlainApiObject(value: any): boolean;
 export declare function normalizeApiFunctionProvider(provider: any): ApiFunctionClass[];
 export declare function getApiFunctionClasses(scope: ApiScope): ApiFunctionClass[];
+export declare function normalizeApiScopesGroupProvider(provider: any): ApiScopeClass[];
+export declare function isApiScopesGroupInstance(value: any): value is ApiScopesGroup;
+export declare function instantiateApiScopesGroup(GroupClass: ApiScopesGroupClass): ApiScopesGroup;
+export declare function collectApiScopeRegistrations(registrations: ApiScopeRegistrationClass[]): ApiScopeRegistrationEntry[];
 export declare function runApiScopeMiddleware(scope: ApiScope, req: Request, res: Response): Promise<{
     [key: string]: any;
+}>;
+export declare function runApiScopesGroupMiddleware(group: ApiScopesGroup, req: Request, res: Response): Promise<{
+    [key: string]: any;
+}>;
+export declare function runApiScopeGroupMiddleware(scope: ApiScope, req: Request, res: Response): Promise<{
+    [key: string]: any;
+}>;
+export declare function runApiScopeRegistrationMiddleware(registration: ApiScopeRegistrationEntry, req: Request, res: Response): Promise<{
+    [x: string]: any;
 }>;
 export declare function validateApiFunctionParams(definitions: ApiFunctionParamsDefinition, source: {
     [key: string]: any;

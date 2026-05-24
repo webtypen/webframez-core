@@ -4,12 +4,20 @@ import { Request } from "../Router/Request";
 import { Response } from "../Router/Response";
 import { ApiFunction, ApiFunctionResponse } from "./ApiFunction";
 import { ApiScope } from "./ApiScope";
+import { ApiScopesGroup } from "./ApiScopesGroup";
 import {
     ApiFunctionClass,
     ApiFunctionParamDefinition,
     ApiFunctionParamsDefinition,
     ApiScopeClass,
+    ApiScopeRegistrationClass,
+    ApiScopesGroupClass,
 } from "./ApiTypes";
+
+export type ApiScopeRegistrationEntry = {
+    scopeClass: ApiScopeClass;
+    groupClass?: ApiScopesGroupClass;
+};
 
 export class ApiFunctionRuntimeError extends Error {
     statusCode: number;
@@ -74,13 +82,98 @@ export function getApiFunctionClasses(scope: ApiScope) {
     return functions;
 }
 
-export async function runApiScopeMiddleware(scope: ApiScope, req: Request, res: Response) {
+function createApiScopeMiddlewareAbort() {
     const abort = (message?: any, status = 403): never => {
         throw new ApiFunctionRuntimeError(getApiErrorMessage(message || "Request aborted"), status);
     };
 
+    return abort;
+}
+
+export function normalizeApiScopesGroupProvider(provider: any): ApiScopeClass[] {
+    if (typeof provider === "function") {
+        const resolved = provider();
+        if (resolved && typeof resolved.then === "function") {
+            throw new Error("Async ApiScopesGroup.apiScopes providers are not supported during web boot");
+        }
+        return Array.isArray(resolved) ? resolved : [];
+    }
+
+    return Array.isArray(provider) ? provider : [];
+}
+
+export function isApiScopesGroupInstance(value: any): value is ApiScopesGroup {
+    return value instanceof ApiScopesGroup;
+}
+
+export function instantiateApiScopesGroup(GroupClass: ApiScopesGroupClass) {
+    return new GroupClass() as ApiScopesGroup;
+}
+
+export function collectApiScopeRegistrations(registrations: ApiScopeRegistrationClass[]): ApiScopeRegistrationEntry[] {
+    const entries: ApiScopeRegistrationEntry[] = [];
+
+    for (const RegistrationClass of registrations || []) {
+        if (typeof RegistrationClass !== "function") {
+            continue;
+        }
+
+        const registration = new RegistrationClass();
+        if (isApiScopesGroupInstance(registration)) {
+            for (const ScopeClass of normalizeApiScopesGroupProvider(registration.apiScopes)) {
+                if (typeof ScopeClass === "function") {
+                    entries.push({
+                        scopeClass: ScopeClass,
+                        groupClass: RegistrationClass as ApiScopesGroupClass,
+                    });
+                }
+            }
+            continue;
+        }
+
+        entries.push({
+            scopeClass: RegistrationClass as ApiScopeClass,
+        });
+    }
+
+    return entries;
+}
+
+export async function runApiScopeMiddleware(scope: ApiScope, req: Request, res: Response) {
+    const abort = createApiScopeMiddlewareAbort();
     const result = await scope.middleware(req, res, abort);
     return isPlainApiObject(result) ? result : {};
+}
+
+export async function runApiScopesGroupMiddleware(group: ApiScopesGroup, req: Request, res: Response) {
+    const abort = createApiScopeMiddlewareAbort();
+    const result = await group.middleware(req, res, abort);
+    return isPlainApiObject(result) ? result : {};
+}
+
+export async function runApiScopeGroupMiddleware(scope: ApiScope, req: Request, res: Response) {
+    const abort = createApiScopeMiddlewareAbort();
+    const result = await scope.groupMiddleware(req, res, abort);
+    return isPlainApiObject(result) ? result : {};
+}
+
+export async function runApiScopeRegistrationMiddleware(
+    registration: ApiScopeRegistrationEntry,
+    req: Request,
+    res: Response
+) {
+    const groupContext = registration.groupClass
+        ? await runApiScopesGroupMiddleware(instantiateApiScopesGroup(registration.groupClass), req, res)
+        : {};
+    const scope = instantiateApiScope(registration.scopeClass);
+    const scopeContext = await runApiScopeMiddleware(scope, req, res);
+    const groupScopeContext = registration.groupClass ? await runApiScopeGroupMiddleware(scope, req, res) : {};
+
+    return {
+        ...groupContext,
+        ...scopeContext,
+        ...groupScopeContext,
+    };
 }
 
 export function validateApiFunctionParams(definitions: ApiFunctionParamsDefinition, source: { [key: string]: any }) {

@@ -9,23 +9,16 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ApiScope = void 0;
-class ApiScope {
+exports.ApiScopesGroup = void 0;
+class ApiScopesGroup {
     constructor() {
-        this.key = "unique_scope_key";
-        this.apiBasePath = "/api";
-        this.mcpEndpoint = null;
-        this.functions = [];
+        this.key = "unique_api_scopes_group_key";
+        this.apiScopes = [];
     }
     middleware(_req, _res, _abort) {
         return __awaiter(this, void 0, void 0, function* () {
             return {};
         });
     }
-    groupMiddleware(_req, _res, _abort) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return {};
-        });
-    }
 }
-exports.ApiScope = ApiScope;
+exports.ApiScopesGroup = ApiScopesGroup;

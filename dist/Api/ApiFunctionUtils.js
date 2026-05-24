@@ -9,9 +9,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.instantiateApiFunction = exports.instantiateApiScope = exports.assertUniqueApiFunctionKeys = exports.createApiFrameworkRequest = exports.toApiFunctionPayload = exports.toApiFunctionHttpResult = exports.apiFunctionParamToJsonSchema = exports.apiFunctionParamsToJsonSchema = exports.coerceApiFunctionParam = exports.validateApiFunctionParams = exports.runApiScopeMiddleware = exports.getApiFunctionClasses = exports.normalizeApiFunctionProvider = exports.isPlainApiObject = exports.getApiErrorMessage = exports.joinApiPath = exports.normalizeApiPath = exports.ApiFunctionRuntimeError = void 0;
+exports.instantiateApiFunction = exports.instantiateApiScope = exports.assertUniqueApiFunctionKeys = exports.createApiFrameworkRequest = exports.toApiFunctionPayload = exports.toApiFunctionHttpResult = exports.apiFunctionParamToJsonSchema = exports.apiFunctionParamsToJsonSchema = exports.coerceApiFunctionParam = exports.validateApiFunctionParams = exports.runApiScopeRegistrationMiddleware = exports.runApiScopeGroupMiddleware = exports.runApiScopesGroupMiddleware = exports.runApiScopeMiddleware = exports.collectApiScopeRegistrations = exports.instantiateApiScopesGroup = exports.isApiScopesGroupInstance = exports.normalizeApiScopesGroupProvider = exports.getApiFunctionClasses = exports.normalizeApiFunctionProvider = exports.isPlainApiObject = exports.getApiErrorMessage = exports.joinApiPath = exports.normalizeApiPath = exports.ApiFunctionRuntimeError = void 0;
 const Request_1 = require("../Router/Request");
 const ApiFunction_1 = require("./ApiFunction");
+const ApiScopesGroup_1 = require("./ApiScopesGroup");
 class ApiFunctionRuntimeError extends Error {
     constructor(message, statusCode = 500) {
         super(message);
@@ -68,16 +69,92 @@ function getApiFunctionClasses(scope) {
     return functions;
 }
 exports.getApiFunctionClasses = getApiFunctionClasses;
+function createApiScopeMiddlewareAbort() {
+    const abort = (message, status = 403) => {
+        throw new ApiFunctionRuntimeError(getApiErrorMessage(message || "Request aborted"), status);
+    };
+    return abort;
+}
+function normalizeApiScopesGroupProvider(provider) {
+    if (typeof provider === "function") {
+        const resolved = provider();
+        if (resolved && typeof resolved.then === "function") {
+            throw new Error("Async ApiScopesGroup.apiScopes providers are not supported during web boot");
+        }
+        return Array.isArray(resolved) ? resolved : [];
+    }
+    return Array.isArray(provider) ? provider : [];
+}
+exports.normalizeApiScopesGroupProvider = normalizeApiScopesGroupProvider;
+function isApiScopesGroupInstance(value) {
+    return value instanceof ApiScopesGroup_1.ApiScopesGroup;
+}
+exports.isApiScopesGroupInstance = isApiScopesGroupInstance;
+function instantiateApiScopesGroup(GroupClass) {
+    return new GroupClass();
+}
+exports.instantiateApiScopesGroup = instantiateApiScopesGroup;
+function collectApiScopeRegistrations(registrations) {
+    const entries = [];
+    for (const RegistrationClass of registrations || []) {
+        if (typeof RegistrationClass !== "function") {
+            continue;
+        }
+        const registration = new RegistrationClass();
+        if (isApiScopesGroupInstance(registration)) {
+            for (const ScopeClass of normalizeApiScopesGroupProvider(registration.apiScopes)) {
+                if (typeof ScopeClass === "function") {
+                    entries.push({
+                        scopeClass: ScopeClass,
+                        groupClass: RegistrationClass,
+                    });
+                }
+            }
+            continue;
+        }
+        entries.push({
+            scopeClass: RegistrationClass,
+        });
+    }
+    return entries;
+}
+exports.collectApiScopeRegistrations = collectApiScopeRegistrations;
 function runApiScopeMiddleware(scope, req, res) {
     return __awaiter(this, void 0, void 0, function* () {
-        const abort = (message, status = 403) => {
-            throw new ApiFunctionRuntimeError(getApiErrorMessage(message || "Request aborted"), status);
-        };
+        const abort = createApiScopeMiddlewareAbort();
         const result = yield scope.middleware(req, res, abort);
         return isPlainApiObject(result) ? result : {};
     });
 }
 exports.runApiScopeMiddleware = runApiScopeMiddleware;
+function runApiScopesGroupMiddleware(group, req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const abort = createApiScopeMiddlewareAbort();
+        const result = yield group.middleware(req, res, abort);
+        return isPlainApiObject(result) ? result : {};
+    });
+}
+exports.runApiScopesGroupMiddleware = runApiScopesGroupMiddleware;
+function runApiScopeGroupMiddleware(scope, req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const abort = createApiScopeMiddlewareAbort();
+        const result = yield scope.groupMiddleware(req, res, abort);
+        return isPlainApiObject(result) ? result : {};
+    });
+}
+exports.runApiScopeGroupMiddleware = runApiScopeGroupMiddleware;
+function runApiScopeRegistrationMiddleware(registration, req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const groupContext = registration.groupClass
+            ? yield runApiScopesGroupMiddleware(instantiateApiScopesGroup(registration.groupClass), req, res)
+            : {};
+        const scope = instantiateApiScope(registration.scopeClass);
+        const scopeContext = yield runApiScopeMiddleware(scope, req, res);
+        const groupScopeContext = registration.groupClass ? yield runApiScopeGroupMiddleware(scope, req, res) : {};
+        return Object.assign(Object.assign(Object.assign({}, groupContext), scopeContext), groupScopeContext);
+    });
+}
+exports.runApiScopeRegistrationMiddleware = runApiScopeRegistrationMiddleware;
 function validateApiFunctionParams(definitions, source) {
     const params = {};
     const input = isPlainApiObject(source) ? source : {};
