@@ -312,6 +312,11 @@ class Datatable {
             return data;
         });
     }
+    stats(req) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return [];
+        });
+    }
     getTotalData(req) {
         return __awaiter(this, void 0, void 0, function* () {
             const aggregation = [];

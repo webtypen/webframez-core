@@ -36,6 +36,13 @@ export class DatatableController extends Controller {
         }
 
         const table = new tableClass();
+        if (req.body.type === "stats" || req.body.mode === "stats") {
+            return res.send({
+                status: "success",
+                data: await table.stats(req),
+            });
+        }
+
         if (req.body.apiFunction && typeof req.body.apiFunction === "string" && req.body.apiFunction.trim() !== "") {
             const func = table.selectableFunctions?.[req.body.apiFunction];
             if (!func || !func.handle) {

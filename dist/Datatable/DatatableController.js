@@ -43,6 +43,12 @@ class DatatableController extends Controller_1.Controller {
                 });
             }
             const table = new tableClass();
+            if (req.body.type === "stats" || req.body.mode === "stats") {
+                return res.send({
+                    status: "success",
+                    data: yield table.stats(req),
+                });
+            }
             if (req.body.apiFunction && typeof req.body.apiFunction === "string" && req.body.apiFunction.trim() !== "") {
                 const func = (_a = table.selectableFunctions) === null || _a === void 0 ? void 0 : _a[req.body.apiFunction];
                 if (!func || !func.handle) {

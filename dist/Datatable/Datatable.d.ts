@@ -57,6 +57,11 @@ export declare class Datatable {
         entries: any;
         sums: any;
     }>;
+    stats(req: Request): Promise<Array<{
+        label: string;
+        type: string;
+        value: any;
+    }>>;
     getTotalData(req: Request): Promise<any>;
     getFilter(req: Request): Promise<any>;
     getColumns(req: Request): Promise<any>;

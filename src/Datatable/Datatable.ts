@@ -335,6 +335,10 @@ export class Datatable {
         return data;
     }
 
+    async stats(req: Request): Promise<Array<{ label: string; type: string; value: any }>> {
+        return [];
+    }
+
     async getTotalData(req: Request) {
         const aggregation: any = [];
         const aggregationDef = await this.getAggregation(req);
