@@ -54,6 +54,8 @@ export declare class BuildApplication {
     private readonly buildId;
     constructor(projectRoot: string, config: WebframezAppConfig, options: BuildApplicationOptions);
     run(): Promise<void>;
+    private logBuildStep;
+    private runStep;
     private createContext;
     private callHook;
     private runTypescriptBuild;

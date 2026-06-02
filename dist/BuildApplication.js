@@ -20,6 +20,9 @@ const node_child_process_1 = require("node:child_process");
 function timestamp() {
     return new Date().toISOString().replace(/[-:TZ.]/g, "");
 }
+function logTimestamp() {
+    return new Date().toISOString();
+}
 function normalizePackageWebframezPlugins(value) {
     if (!value) {
         return [];
@@ -52,22 +55,42 @@ class BuildApplication {
         return __awaiter(this, void 0, void 0, function* () {
             const context = this.createContext();
             const plugins = this.loadPlugins();
+            const startedAt = Date.now();
+            this.logBuildStep("start", `outDir=${this.outDir}`);
             yield promises_1.default.rm(this.stagingDir, { recursive: true, force: true });
             yield promises_1.default.mkdir(this.stagingDir, { recursive: true });
             try {
                 yield this.callHook(plugins, "beforeBuild", context);
-                yield this.runTypescriptBuild(context);
+                yield this.runStep("typescript", () => this.runTypescriptBuild(context));
                 yield this.callHook(plugins, "afterTypescriptBuild", context);
-                yield this.copyRuntimeFiles();
+                yield this.runStep("runtime files", () => this.copyRuntimeFiles());
                 yield this.callHook(plugins, "afterRuntimeFilesCopied", context);
                 yield this.callHook(plugins, "buildAssets", context);
-                yield this.validateCoreBuild();
+                yield this.runStep("core validation", () => this.validateCoreBuild());
                 yield this.callHook(plugins, "validateBuild", context);
-                yield this.promoteBuild();
-                console.log(`[webframez] Build ready: ${node_path_1.default.relative(this.projectRoot, this.outDir) || this.outDir}`);
+                yield this.runStep("promote", () => this.promoteBuild());
+                console.log(`[webframez] Build ready: ${node_path_1.default.relative(this.projectRoot, this.outDir) || this.outDir} (${Math.round((Date.now() - startedAt) / 1000)}s)`);
             }
             catch (error) {
                 yield promises_1.default.rm(this.stagingDir, { recursive: true, force: true });
+                throw error;
+            }
+        });
+    }
+    logBuildStep(label, details = "") {
+        console.log(`[webframez] [${logTimestamp()}] ${label}${details ? `: ${details}` : ""}`);
+    }
+    runStep(label, callback) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const startedAt = Date.now();
+            this.logBuildStep(`${label}:start`);
+            try {
+                const result = yield callback();
+                this.logBuildStep(`${label}:done`, `${Math.round((Date.now() - startedAt) / 1000)}s`);
+                return result;
+            }
+            catch (error) {
+                this.logBuildStep(`${label}:failed`, `${Math.round((Date.now() - startedAt) / 1000)}s`);
                 throw error;
             }
         });
@@ -236,7 +259,13 @@ class BuildApplication {
                 env: Object.assign(Object.assign({}, process.env), envAdditions),
             });
             child.on("error", reject);
-            child.on("close", (code) => resolve(code || 0));
+            child.on("close", (code, signal) => {
+                if (signal) {
+                    reject(new Error(`${binaryName} exited with signal ${signal}`));
+                    return;
+                }
+                resolve(code !== null && code !== void 0 ? code : 0);
+            });
         });
     }
     resolveBinary(name) {

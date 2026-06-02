@@ -59,6 +59,10 @@ function timestamp() {
     return new Date().toISOString().replace(/[-:TZ.]/g, "");
 }
 
+function logTimestamp() {
+    return new Date().toISOString();
+}
+
 function normalizePackageWebframezPlugins(value: any): string[] {
     if (!value) {
         return [];
@@ -103,24 +107,48 @@ export class BuildApplication {
     async run() {
         const context = this.createContext();
         const plugins = this.loadPlugins();
+        const startedAt = Date.now();
 
+        this.logBuildStep("start", `outDir=${this.outDir}`);
         await fsp.rm(this.stagingDir, { recursive: true, force: true });
         await fsp.mkdir(this.stagingDir, { recursive: true });
 
         try {
             await this.callHook(plugins, "beforeBuild", context);
-            await this.runTypescriptBuild(context);
+            await this.runStep("typescript", () => this.runTypescriptBuild(context));
             await this.callHook(plugins, "afterTypescriptBuild", context);
-            await this.copyRuntimeFiles();
+            await this.runStep("runtime files", () => this.copyRuntimeFiles());
             await this.callHook(plugins, "afterRuntimeFilesCopied", context);
             await this.callHook(plugins, "buildAssets", context);
-            await this.validateCoreBuild();
+            await this.runStep("core validation", () => this.validateCoreBuild());
             await this.callHook(plugins, "validateBuild", context);
-            await this.promoteBuild();
+            await this.runStep("promote", () => this.promoteBuild());
 
-            console.log(`[webframez] Build ready: ${path.relative(this.projectRoot, this.outDir) || this.outDir}`);
+            console.log(
+                `[webframez] Build ready: ${path.relative(this.projectRoot, this.outDir) || this.outDir} (${Math.round(
+                    (Date.now() - startedAt) / 1000,
+                )}s)`,
+            );
         } catch (error) {
             await fsp.rm(this.stagingDir, { recursive: true, force: true });
+            throw error;
+        }
+    }
+
+    private logBuildStep(label: string, details = "") {
+        console.log(`[webframez] [${logTimestamp()}] ${label}${details ? `: ${details}` : ""}`);
+    }
+
+    private async runStep<T>(label: string, callback: () => Promise<T> | T): Promise<T> {
+        const startedAt = Date.now();
+        this.logBuildStep(`${label}:start`);
+
+        try {
+            const result = await callback();
+            this.logBuildStep(`${label}:done`, `${Math.round((Date.now() - startedAt) / 1000)}s`);
+            return result;
+        } catch (error) {
+            this.logBuildStep(`${label}:failed`, `${Math.round((Date.now() - startedAt) / 1000)}s`);
             throw error;
         }
     }
@@ -312,7 +340,14 @@ export class BuildApplication {
             });
 
             child.on("error", reject);
-            child.on("close", (code) => resolve(code || 0));
+            child.on("close", (code, signal) => {
+                if (signal) {
+                    reject(new Error(`${binaryName} exited with signal ${signal}`));
+                    return;
+                }
+
+                resolve(code ?? 0);
+            });
         });
     }
 
