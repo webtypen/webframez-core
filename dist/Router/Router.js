@@ -20,6 +20,18 @@ const querystring_1 = __importDefault(require("querystring"));
 const url_1 = __importDefault(require("url"));
 const ErrorHandler_1 = require("../ErrorHandling/ErrorHandler");
 const WebframezHooks_1 = require("../Hooks/WebframezHooks");
+function requestTelemetryAttributes(request) {
+    if (!request || !request.url) {
+        return {};
+    }
+    const target = request.url;
+    const path = target.indexOf("?") >= 0 ? target.substring(0, target.indexOf("?")) : target;
+    return {
+        "url.path": path,
+        "http.target": target,
+        "webframez.request.path": path,
+    };
+}
 class RouterFacade {
     constructor() {
         /**
@@ -467,11 +479,9 @@ class RouterFacade {
                     name: `${fallbackRequest.method || "HTTP"} unmatched`,
                     status: "error",
                     error: e,
-                    attributes: {
-                        "http.request.method": fallbackRequest.method || null,
-                        "http.response.status_code": statusCode,
-                        "webframez.mode": this.mode,
-                    },
+                    request: fallbackRequest,
+                    response,
+                    attributes: Object.assign(Object.assign({ "http.request.method": fallbackRequest.method || null, "http.response.status_code": statusCode }, requestTelemetryAttributes(fallbackRequest)), { "webframez.mode": this.mode }),
                 });
                 return errorResult;
             }
@@ -486,11 +496,9 @@ class RouterFacade {
                     operationId: httpOperationId,
                     name: `${request.method} unmatched`,
                     status: "ok",
-                    attributes: {
-                        "http.request.method": request.method,
-                        "http.response.status_code": 404,
-                        "webframez.mode": this.mode,
-                    },
+                    request,
+                    response,
+                    attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": 404 }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
                 });
                 return notFoundResult;
             }
@@ -500,13 +508,9 @@ class RouterFacade {
                     operationId: httpOperationId,
                     name: `${request.method} ${route.path}`,
                     status: "ok",
-                    attributes: {
-                        "http.request.method": request.method,
-                        "http.response.status_code": 404,
-                        "url.template": route.path,
-                        "webframez.route": route.path,
-                        "webframez.mode": this.mode,
-                    },
+                    request,
+                    response,
+                    attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": 404, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
                 });
                 return missingRouteResult;
             }
@@ -518,13 +522,9 @@ class RouterFacade {
                         operationId: httpOperationId,
                         name: `${request.method} ${route.path}`,
                         status: "ok",
-                        attributes: {
-                            "http.request.method": request.method,
-                            "http.response.status_code": response.statusCode || 200,
-                            "url.template": route.path,
-                            "webframez.route": route.path,
-                            "webframez.mode": this.mode,
-                        },
+                        request,
+                        response,
+                        attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": response.statusCode || 200, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
                     });
                     return optionsResult;
                 }
@@ -565,13 +565,9 @@ class RouterFacade {
                             operationId: httpOperationId,
                             name: `${request.method} ${route.path}`,
                             status: "ok",
-                            attributes: {
-                                "http.request.method": request.method,
-                                "http.response.status_code": 404,
-                                "url.template": route.path,
-                                "webframez.route": route.path,
-                                "webframez.mode": this.mode,
-                            },
+                            request,
+                            response,
+                            attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": 404, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
                         });
                         return unknownMethodResult;
                     }
@@ -597,13 +593,9 @@ class RouterFacade {
                     operationId: httpOperationId,
                     name: `${request.method} ${route.path}`,
                     status: "ok",
-                    attributes: {
-                        "http.request.method": request.method,
-                        "http.response.status_code": response.statusCode || 200,
-                        "url.template": route.path,
-                        "webframez.route": route.path,
-                        "webframez.mode": this.mode,
-                    },
+                    request,
+                    response,
+                    attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": response.statusCode || 200, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
                 });
                 return returnResult;
             }
@@ -615,13 +607,9 @@ class RouterFacade {
                         name: `${request.method} ${route.path}`,
                         status: "error",
                         error: e.reason || e,
-                        attributes: {
-                            "http.request.method": request.method,
-                            "http.response.status_code": 500,
-                            "url.template": route.path,
-                            "webframez.route": route.path,
-                            "webframez.mode": this.mode,
-                        },
+                        request,
+                        response,
+                        attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": 500, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
                     });
                     return middlewareErrorResult;
                 }
@@ -659,13 +647,9 @@ class RouterFacade {
                     name: `${request.method} ${route.path}`,
                     status: "error",
                     error: e,
-                    attributes: {
-                        "http.request.method": request.method,
-                        "http.response.status_code": 500,
-                        "url.template": route.path,
-                        "webframez.route": route.path,
-                        "webframez.mode": this.mode,
-                    },
+                    request,
+                    response,
+                    attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": 500, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
                 });
                 return errorResult;
             }

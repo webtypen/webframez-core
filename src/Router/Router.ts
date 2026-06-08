@@ -26,6 +26,21 @@ type RouteDomainMatchResult = {
     wildcard: string | null;
 };
 
+function requestTelemetryAttributes(request?: Request | null) {
+    if (!request || !request.url) {
+        return {};
+    }
+
+    const target = request.url;
+    const path = target.indexOf("?") >= 0 ? target.substring(0, target.indexOf("?")) : target;
+
+    return {
+        "url.path": path,
+        "http.target": target,
+        "webframez.request.path": path,
+    };
+}
+
 class RouterFacade {
     /**
      * Basename
@@ -528,9 +543,12 @@ class RouterFacade {
                 name: `${fallbackRequest.method || "HTTP"} unmatched`,
                 status: "error",
                 error: e,
+                request: fallbackRequest,
+                response,
                 attributes: {
                     "http.request.method": fallbackRequest.method || null,
                     "http.response.status_code": statusCode,
+                    ...requestTelemetryAttributes(fallbackRequest),
                     "webframez.mode": this.mode,
                 },
             });
@@ -549,9 +567,12 @@ class RouterFacade {
                 operationId: httpOperationId,
                 name: `${request.method} unmatched`,
                 status: "ok",
+                request,
+                response,
                 attributes: {
                     "http.request.method": request.method,
                     "http.response.status_code": 404,
+                    ...requestTelemetryAttributes(request),
                     "webframez.mode": this.mode,
                 },
             });
@@ -564,11 +585,14 @@ class RouterFacade {
                 operationId: httpOperationId,
                 name: `${request.method} ${route.path}`,
                 status: "ok",
+                request,
+                response,
                 attributes: {
                     "http.request.method": request.method,
                     "http.response.status_code": 404,
                     "url.template": route.path,
                     "webframez.route": route.path,
+                    ...requestTelemetryAttributes(request),
                     "webframez.mode": this.mode,
                 },
             });
@@ -584,11 +608,14 @@ class RouterFacade {
                     operationId: httpOperationId,
                     name: `${request.method} ${route.path}`,
                     status: "ok",
+                    request,
+                    response,
                     attributes: {
                         "http.request.method": request.method,
                         "http.response.status_code": response.statusCode || 200,
                         "url.template": route.path,
                         "webframez.route": route.path,
+                        ...requestTelemetryAttributes(request),
                         "webframez.mode": this.mode,
                     },
                 });
@@ -635,11 +662,14 @@ class RouterFacade {
                         operationId: httpOperationId,
                         name: `${request.method} ${route.path}`,
                         status: "ok",
+                        request,
+                        response,
                         attributes: {
                             "http.request.method": request.method,
                             "http.response.status_code": 404,
                             "url.template": route.path,
                             "webframez.route": route.path,
+                            ...requestTelemetryAttributes(request),
                             "webframez.mode": this.mode,
                         },
                     });
@@ -667,11 +697,14 @@ class RouterFacade {
                 operationId: httpOperationId,
                 name: `${request.method} ${route.path}`,
                 status: "ok",
+                request,
+                response,
                 attributes: {
                     "http.request.method": request.method,
                     "http.response.status_code": response.statusCode || 200,
                     "url.template": route.path,
                     "webframez.route": route.path,
+                    ...requestTelemetryAttributes(request),
                     "webframez.mode": this.mode,
                 },
             });
@@ -684,11 +717,14 @@ class RouterFacade {
                     name: `${request.method} ${route.path}`,
                     status: "error",
                     error: e.reason || e,
+                    request,
+                    response,
                     attributes: {
                         "http.request.method": request.method,
                         "http.response.status_code": 500,
                         "url.template": route.path,
                         "webframez.route": route.path,
+                        ...requestTelemetryAttributes(request),
                         "webframez.mode": this.mode,
                     },
                 });
@@ -729,11 +765,14 @@ class RouterFacade {
                 name: `${request.method} ${route.path}`,
                 status: "error",
                 error: e,
+                request,
+                response,
                 attributes: {
                     "http.request.method": request.method,
                     "http.response.status_code": 500,
                     "url.template": route.path,
                     "webframez.route": route.path,
+                    ...requestTelemetryAttributes(request),
                     "webframez.mode": this.mode,
                 },
             });

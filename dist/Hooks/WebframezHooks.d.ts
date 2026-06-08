@@ -15,6 +15,8 @@ export type WebframezOperationContext = {
     timestamp: Date;
     attributes?: WebframezHookAttributes;
     error?: unknown;
+    request?: unknown;
+    response?: unknown;
 };
 export type WebframezLifecycleEvent<TEventName extends WebframezHookEventName = WebframezHookEventName> = {
     type: TEventName;
