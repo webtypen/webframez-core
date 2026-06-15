@@ -255,15 +255,9 @@ function coerceApiFunctionParam(key, value, definition) {
             return value;
         }
         if (typeof value === "string") {
-            try {
-                const parsed = JSON.parse(value);
-                if (isPlainApiObject(parsed)) {
-                    return parsed;
-                }
-            }
-            catch (_error) { }
+            return value;
         }
-        throw new ApiFunctionRuntimeError(`Parameter "${key}" must be a file reference object`, 400);
+        throw new ApiFunctionRuntimeError(`Parameter "${key}" must be a file reference string or object`, 400);
     }
     return value;
 }
@@ -309,23 +303,31 @@ function apiFunctionParamToJsonSchema(definition) {
         return { type: "object" };
     if (type === "file") {
         return {
-            type: "object",
-            additionalProperties: true,
-            properties: {
-                download_url: { type: "string" },
-                file_id: { type: "string" },
-                mime_type: { type: "string" },
-                file_name: { type: "string" },
-                url: { type: "string" },
-                download_link: { type: "string" },
-                file_url: { type: "string" },
-                content_base64: { type: "string" },
-                data_url: { type: "string" },
-                id: { type: "string" },
-                filename: { type: "string" },
-                name: { type: "string" },
-                mime: { type: "string" },
-            },
+            anyOf: [
+                {
+                    type: "object",
+                    additionalProperties: true,
+                    properties: {
+                        download_url: { type: "string" },
+                        file_id: { type: "string" },
+                        mime_type: { type: "string" },
+                        file_name: { type: "string" },
+                        url: { type: "string" },
+                        download_link: { type: "string" },
+                        file_url: { type: "string" },
+                        content_base64: { type: "string" },
+                        data_url: { type: "string" },
+                        id: { type: "string" },
+                        filename: { type: "string" },
+                        name: { type: "string" },
+                        mime: { type: "string" },
+                    },
+                },
+                {
+                    type: "string",
+                    description: "Connector runtime file reference string. Local paths must be rewritten by the ChatGPT connector before reaching the server.",
+                },
+            ],
             "x-webframez-type": "file",
         };
     }
