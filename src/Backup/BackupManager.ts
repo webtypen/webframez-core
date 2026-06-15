@@ -258,7 +258,7 @@ export class BackupManager {
     private async backupDatabase(
         source: BackupDatabaseSourceConfig,
         contentDir: string,
-        context: { backupKey: string; backupId: string },
+        context: { backupKey: string; backupId: string; log?: (message: string, payload?: any) => void },
     ) {
         const to = normalizeBackupPath(source.to || `database/${source.connection || "default"}`);
         const targetDir = path.join(contentDir, to);
@@ -278,6 +278,7 @@ export class BackupManager {
             options: source.options || {},
             backupKey: context.backupKey,
             backupId: context.backupId,
+            log: context.log,
         });
 
         return {
@@ -389,7 +390,13 @@ export class BackupManager {
 
             for (const source of normalizeArray(backupType.databases)) {
                 this.log(options, `Backing up database '${source.connection || "default"}'`);
-                result.databases.push(await this.backupDatabase(source, contentDir, { backupKey: key, backupId: id }));
+                result.databases.push(
+                    await this.backupDatabase(source, contentDir, {
+                        backupKey: key,
+                        backupId: id,
+                        log: (message: string, payload?: any) => this.log(options, message, payload),
+                    }),
+                );
                 this.log(options, `Database '${source.connection || "default"}' backup finished`);
             }
 

@@ -209,6 +209,7 @@ class BackupManager {
                 options: source.options || {},
                 backupKey: context.backupKey,
                 backupId: context.backupId,
+                log: context.log,
             });
             return {
                 connection: source.connection,
@@ -304,7 +305,11 @@ class BackupManager {
                 this.log(options, "File copy finished");
                 for (const source of normalizeArray(backupType.databases)) {
                     this.log(options, `Backing up database '${source.connection || "default"}'`);
-                    result.databases.push(yield this.backupDatabase(source, contentDir, { backupKey: key, backupId: id }));
+                    result.databases.push(yield this.backupDatabase(source, contentDir, {
+                        backupKey: key,
+                        backupId: id,
+                        log: (message, payload) => this.log(options, message, payload),
+                    }));
                     this.log(options, `Database '${source.connection || "default"}' backup finished`);
                 }
                 result.artifact = this.buildArtifact(key, backupType, workRunDir, contentDir, now, id, options);
