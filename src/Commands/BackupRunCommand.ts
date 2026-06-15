@@ -12,6 +12,15 @@ function parseChannels(value: string | boolean | null) {
         .filter((entry) => entry !== "");
 }
 
+function parsePositiveNumber(value: string | boolean | null) {
+    if (!value || typeof value !== "string") {
+        return undefined;
+    }
+
+    const parsed = parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 export class BackupRunCommand extends ConsoleCommand {
     static signature = "backup:run";
     static description = "Runs a configured backup type";
@@ -27,6 +36,7 @@ export class BackupRunCommand extends ConsoleCommand {
             dryRun: this.getOption("dry-run") === true,
             channels: parseChannels(this.getOption("channel")),
             silent: this.getOption("silent") === true,
+            logInterval: parsePositiveNumber(this.getOption("log-interval")),
             log: (message: string) => this.writeln(`  [color=grey]${message}[/color]`),
         });
 

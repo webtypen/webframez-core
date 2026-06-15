@@ -3,6 +3,7 @@ export type BackupOutputDriverContext = {
     backupKey: string;
     backupId: string;
     retention?: BackupRetentionConfig;
+    log?: (message: string, payload?: any) => void;
 };
 export interface BaseBackupOutputDriver {
     write(artifact: BackupArtifact, output: BackupOutputConfig, context: BackupOutputDriverContext): Promise<BackupOutputResult>;

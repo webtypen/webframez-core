@@ -103,6 +103,7 @@ export type BackupRunOptions = {
     dryRun?: boolean;
     channels?: string[];
     silent?: boolean;
+    logInterval?: number;
     log?: (message: string, payload?: any) => void;
 };
 export type BackupCleanupOptions = {

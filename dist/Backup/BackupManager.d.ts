@@ -12,6 +12,7 @@ type ResolvedBackupTypeConfig = BackupTypeConfig & {
 };
 export declare class BackupManager {
     private log;
+    private logInterval;
     getConfig(): BackupConfig;
     listTypes(): {
         key: string;

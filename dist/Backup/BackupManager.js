@@ -46,6 +46,9 @@ class BackupManager {
         }
         options.log(message, payload);
     }
+    logInterval(options) {
+        return (options === null || options === void 0 ? void 0 : options.logInterval) && options.logInterval > 0 ? options.logInterval : 1000;
+    }
     getConfig() {
         const config = Config_1.Config.get("backup");
         if (!config || typeof config !== "object") {
@@ -122,7 +125,7 @@ class BackupManager {
             return channels.includes(key) || channels.includes(output.driver);
         });
     }
-    collectFilesFromSource(source) {
+    collectFilesFromSource(source, options) {
         const sourcePath = (0, BackupPathUtils_1.resolveProjectPath)(source.from);
         if (!fs_1.default.existsSync(sourcePath)) {
             if (source.optional) {
@@ -134,17 +137,28 @@ class BackupManager {
         const files = [];
         const sourceBase = sourceStats.isDirectory() ? sourcePath : path_1.default.dirname(sourcePath);
         const toBase = (0, BackupPathUtils_1.normalizeBackupPath)(source.to !== undefined ? source.to : sourceStats.isDirectory() ? path_1.default.basename(source.from) : "");
+        const interval = this.logInterval(options);
+        let visited = 0;
+        let included = 0;
         const addFile = (filepath) => {
+            visited += 1;
             const relative = (0, BackupPathUtils_1.normalizeBackupPath)(path_1.default.relative(sourceBase, filepath));
             if (!(0, GlobMatcher_1.matchesBackupGlobs)(relative, source.include, source.exclude)) {
+                if (visited % interval === 0) {
+                    this.log(options, `Scanned ${visited} file(s), included ${included}`);
+                }
                 return;
             }
+            included += 1;
             files.push({
                 source: filepath,
                 relative: relative,
                 target: (0, BackupPathUtils_1.normalizeBackupPath)(path_1.default.join(toBase, relative)),
                 size: fs_1.default.statSync(filepath).size,
             });
+            if (visited % interval === 0) {
+                this.log(options, `Scanned ${visited} file(s), included ${included}`);
+            }
         };
         const walk = (dir) => {
             for (const entry of fs_1.default.readdirSync(dir)) {
@@ -166,11 +180,17 @@ class BackupManager {
         }
         return files;
     }
-    copyFiles(files, contentDir) {
-        for (const file of files) {
+    copyFiles(files, contentDir, options) {
+        const interval = this.logInterval(options);
+        for (let index = 0; index < files.length; index += 1) {
+            const file = files[index];
             const targetPath = path_1.default.join(contentDir, file.target);
             fs_1.default.mkdirSync(path_1.default.dirname(targetPath), { recursive: true });
             fs_1.default.copyFileSync(file.source, targetPath);
+            const count = index + 1;
+            if (count % interval === 0 || count === files.length) {
+                this.log(options, `Copied ${count}/${files.length} file(s)`);
+            }
         }
     }
     backupDatabase(source, contentDir, context) {
@@ -253,7 +273,7 @@ class BackupManager {
                 databases: [],
             };
             this.log(options, "Collecting file sources");
-            const fileEntries = normalizeArray(backupType.files).flatMap((source) => this.collectFilesFromSource(source));
+            const fileEntries = normalizeArray(backupType.files).flatMap((source) => this.collectFilesFromSource(source, options));
             const fileSize = fileEntries.reduce((sum, entry) => sum + entry.size, 0);
             this.log(options, `Collected ${fileEntries.length} file(s)`, { size: fileSize });
             result.files = fileEntries.map((entry) => ({
@@ -280,7 +300,7 @@ class BackupManager {
             fs_1.default.mkdirSync(contentDir, { recursive: true });
             try {
                 this.log(options, `Copying ${fileEntries.length} file(s) into backup work directory`);
-                this.copyFiles(fileEntries, contentDir);
+                this.copyFiles(fileEntries, contentDir, options);
                 this.log(options, "File copy finished");
                 for (const source of normalizeArray(backupType.databases)) {
                     this.log(options, `Backing up database '${source.connection || "default"}'`);
@@ -301,6 +321,7 @@ class BackupManager {
                         backupKey: key,
                         backupId: id,
                         retention: retention,
+                        log: (message, payload) => this.log(options, message, payload),
                     });
                     result.outputs.push(outputResult);
                     this.log(options, `Output '${output.driver}' finished with status '${outputResult.status}'`, {
@@ -309,7 +330,12 @@ class BackupManager {
                     });
                     if (outputResult.status === "success" && (retention === null || retention === void 0 ? void 0 : retention.runAfterBackup)) {
                         this.log(options, `Running cleanup for '${output.driver}' output`);
-                        result.cleanup.push(yield driver.cleanup(output, { backupKey: key, backupId: id, retention: retention }, { dryRun: false }));
+                        result.cleanup.push(yield driver.cleanup(output, {
+                            backupKey: key,
+                            backupId: id,
+                            retention: retention,
+                            log: (message, payload) => this.log(options, message, payload),
+                        }, { dryRun: false }));
                         this.log(options, `Cleanup for '${output.driver}' output finished`, {
                             deleted: ((_b = result.cleanup[result.cleanup.length - 1]) === null || _b === void 0 ? void 0 : _b.deleted.length) || 0,
                         });
@@ -354,6 +380,7 @@ class BackupManager {
                     backupKey: key,
                     backupId: (0, BackupPathUtils_1.backupTimestampId)(),
                     retention: retention,
+                    log: () => null,
                 }, options));
             }
             return results;

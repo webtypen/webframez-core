@@ -71,6 +71,10 @@ export class BackupManager {
         options.log(message, payload);
     }
 
+    private logInterval(options: BackupRunOptions | undefined) {
+        return options?.logInterval && options.logInterval > 0 ? options.logInterval : 1000;
+    }
+
     getConfig(): BackupConfig {
         const config = Config.get("backup");
         if (!config || typeof config !== "object") {
@@ -175,7 +179,7 @@ export class BackupManager {
         });
     }
 
-    private collectFilesFromSource(source: BackupFileSourceConfig) {
+    private collectFilesFromSource(source: BackupFileSourceConfig, options?: BackupRunOptions) {
         const sourcePath = resolveProjectPath(source.from);
         if (!fs.existsSync(sourcePath)) {
             if (source.optional) {
@@ -190,19 +194,30 @@ export class BackupManager {
         const toBase = normalizeBackupPath(
             source.to !== undefined ? source.to : sourceStats.isDirectory() ? path.basename(source.from) : "",
         );
+        const interval = this.logInterval(options);
+        let visited = 0;
+        let included = 0;
 
         const addFile = (filepath: string) => {
+            visited += 1;
             const relative = normalizeBackupPath(path.relative(sourceBase, filepath));
             if (!matchesBackupGlobs(relative, source.include, source.exclude)) {
+                if (visited % interval === 0) {
+                    this.log(options, `Scanned ${visited} file(s), included ${included}`);
+                }
                 return;
             }
 
+            included += 1;
             files.push({
                 source: filepath,
                 relative: relative,
                 target: normalizeBackupPath(path.join(toBase, relative)),
                 size: fs.statSync(filepath).size,
             });
+            if (visited % interval === 0) {
+                this.log(options, `Scanned ${visited} file(s), included ${included}`);
+            }
         };
 
         const walk = (dir: string) => {
@@ -226,11 +241,17 @@ export class BackupManager {
         return files;
     }
 
-    private copyFiles(files: Array<{ source: string; target: string; size: number }>, contentDir: string) {
-        for (const file of files) {
+    private copyFiles(files: Array<{ source: string; target: string; size: number }>, contentDir: string, options?: BackupRunOptions) {
+        const interval = this.logInterval(options);
+        for (let index = 0; index < files.length; index += 1) {
+            const file = files[index];
             const targetPath = path.join(contentDir, file.target);
             fs.mkdirSync(path.dirname(targetPath), { recursive: true });
             fs.copyFileSync(file.source, targetPath);
+            const count = index + 1;
+            if (count % interval === 0 || count === files.length) {
+                this.log(options, `Copied ${count}/${files.length} file(s)`);
+            }
         }
     }
 
@@ -333,7 +354,7 @@ export class BackupManager {
         };
 
         this.log(options, "Collecting file sources");
-        const fileEntries = normalizeArray(backupType.files).flatMap((source) => this.collectFilesFromSource(source));
+        const fileEntries = normalizeArray(backupType.files).flatMap((source) => this.collectFilesFromSource(source, options));
         const fileSize = fileEntries.reduce((sum, entry) => sum + entry.size, 0);
         this.log(options, `Collected ${fileEntries.length} file(s)`, { size: fileSize });
         result.files = fileEntries.map((entry) => ({
@@ -363,7 +384,7 @@ export class BackupManager {
 
         try {
             this.log(options, `Copying ${fileEntries.length} file(s) into backup work directory`);
-            this.copyFiles(fileEntries, contentDir);
+            this.copyFiles(fileEntries, contentDir, options);
             this.log(options, "File copy finished");
 
             for (const source of normalizeArray(backupType.databases)) {
@@ -387,6 +408,7 @@ export class BackupManager {
                     backupKey: key,
                     backupId: id,
                     retention: retention,
+                    log: (message: string, payload?: any) => this.log(options, message, payload),
                 });
                 result.outputs.push(outputResult);
                 this.log(options, `Output '${output.driver}' finished with status '${outputResult.status}'`, {
@@ -397,7 +419,16 @@ export class BackupManager {
                 if (outputResult.status === "success" && retention?.runAfterBackup) {
                     this.log(options, `Running cleanup for '${output.driver}' output`);
                     result.cleanup.push(
-                        await driver.cleanup(output, { backupKey: key, backupId: id, retention: retention }, { dryRun: false }),
+                        await driver.cleanup(
+                            output,
+                            {
+                                backupKey: key,
+                                backupId: id,
+                                retention: retention,
+                                log: (message: string, payload?: any) => this.log(options, message, payload),
+                            },
+                            { dryRun: false },
+                        ),
                     );
                     this.log(options, `Cleanup for '${output.driver}' output finished`, {
                         deleted: result.cleanup[result.cleanup.length - 1]?.deleted.length || 0,
@@ -445,6 +476,7 @@ export class BackupManager {
                     backupKey: key,
                     backupId: backupTimestampId(),
                     retention: retention,
+                    log: () => null,
                 }, options),
             );
         }

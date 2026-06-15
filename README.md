@@ -667,11 +667,11 @@ export default {
 
 Built-in backup commands:
 - `backup:list`
-- `backup:run <key> [--dry-run] [--channel=local] [--silent]`
+- `backup:run <key> [--dry-run] [--channel=local] [--silent] [--log-interval=1000]`
 - `backup:queue <key> [--worker=worker_1] [--priority=10]`
 - `backup:cleanup <key> [--channel=local] [--dry-run]`
 
-ZIP artifacts use the system `zip` binary by default when available and fall back to the built-in Node.js ZIP writer. Set `zipDriver: "system"` to require system zip, `zipDriver: "node"` to force the built-in writer, or `zipDriver: "auto"` for fallback behavior. `zipCompressionLevel` accepts `0` through `9`.
+ZIP artifacts use the system `zip` binary by default when available and fall back to the built-in Node.js ZIP writer. Set `zipDriver: "system"` to require system zip, `zipDriver: "node"` to force the built-in writer, or `zipDriver: "auto"` for fallback behavior. `zipCompressionLevel` accepts `0` through `9`. Backup runs log file-scan and copy progress every 1000 files by default; change this with `--log-interval=250` or suppress progress with `--silent`.
 
 Remote outputs are optional packages and must be registered by the application before the backup config is used:
 
