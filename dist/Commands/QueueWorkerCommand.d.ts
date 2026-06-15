@@ -10,6 +10,7 @@ export declare class QueueWorkerCommand extends ConsoleCommand {
     autorestart: boolean;
     workerOperationId: string | null;
     workerHadError: boolean;
+    lastAutomationCheckAt: any;
     jobsExecuted: number;
     jobsSucceeded: number;
     jobsFailed: number;
@@ -30,7 +31,11 @@ export declare class QueueWorkerCommand extends ConsoleCommand {
     }): void;
     getWorkerAutomation(): any[];
     getWorkerJobclasses(): any[] | null;
-    checkWorkerAutomation(): any;
+    private getWorkerTimezone;
+    private getAutomationExecutionPayload;
+    private createAutomationEntry;
+    private pushIfDue;
+    checkWorkerAutomation(since?: any, until?: any): any;
     runAutomation(): Promise<void>;
     getNextJobNumber(connection: any): Promise<number>;
     checkStop(): boolean;

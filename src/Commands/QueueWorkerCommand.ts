@@ -26,6 +26,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
     autorestart = false;
     workerOperationId: string | null = null;
     workerHadError = false;
+    lastAutomationCheckAt: any = null;
 
     // Statistics
     jobsExecuted = 0;
@@ -340,7 +341,50 @@ export class QueueWorkerCommand extends ConsoleCommand {
         return jobclasses;
     }
 
-    checkWorkerAutomation() {
+    private getWorkerTimezone() {
+        return this.workerConfig.timezone ? this.workerConfig.timezone : "Europe/Berlin";
+    }
+
+    private getAutomationExecutionPayload(automation: any, options: any) {
+        return automation.payload || (options && options.payload)
+            ? {
+                  ...(automation.payload ? automation.payload : {}),
+                  ...(options && options.payload ? options.payload : {}),
+              }
+            : null;
+    }
+
+    private createAutomationEntry(
+        automation: any,
+        type: any,
+        value: any,
+        options: any,
+        executionIdentifier: string | null,
+        executionKey: string,
+        dueAt: any
+    ) {
+        return {
+            ...automation,
+            _execution: {
+                key: `${automation.jobclass}_${executionKey}${executionIdentifier ? "_" + executionIdentifier : ""}_${dueAt.format(
+                    "YYYY-MM-DD_HH:mm"
+                )}`,
+                type: type,
+                value: value,
+                identifier: executionIdentifier,
+                scheduled_at: dueAt.toDate(),
+                payload: this.getAutomationExecutionPayload(automation, options),
+            },
+        };
+    }
+
+    private pushIfDue(out: any[], entryFactory: (dueAt: any) => any, dueAt: any, since: any, until: any) {
+        if (dueAt.isAfter(since) && !dueAt.isAfter(until)) {
+            out.push(entryFactory(dueAt));
+        }
+    }
+
+    checkWorkerAutomation(since?: any, until?: any) {
         const workerAutomation = this.getWorkerAutomation();
         if (!workerAutomation || workerAutomation.length < 1) {
             return null;
@@ -348,7 +392,9 @@ export class QueueWorkerCommand extends ConsoleCommand {
 
         const out: any = [];
         const days = DateFunctions.getDays();
-        const now = moment().tz(this.workerConfig.timezone ? this.workerConfig.timezone : "Europe/Berlin");
+        const timezone = this.getWorkerTimezone();
+        const now = until ? until.clone().tz(timezone) : moment().tz(timezone);
+        const checkedSince = since ? since.clone().tz(timezone) : now.clone().startOf("minute").subtract(1, "millisecond");
         let automationIndex = -1;
         for (let automation of workerAutomation) {
             automationIndex++;
@@ -400,101 +446,61 @@ export class QueueWorkerCommand extends ConsoleCommand {
                 const executionKey = type + "-" + (value !== undefined && value !== null ? value : "0");
                 const executionIdentifier =
                     options && options.identifier ? options.identifier : automation.identifier ? automation.identifier : null;
-                const intervalKey = `${automation.jobclass}_${executionKey}${
-                    executionIdentifier ? "_" + executionIdentifier : ""
-                }_${now.format("YYYY-MM-DD_HH:mm")}`;
+                const entryFactory = (dueAt: any, executionValue: any = value) =>
+                    this.createAutomationEntry(automation, type, executionValue, options, executionIdentifier, executionKey, dueAt);
                 switch (useType) {
-                    case "every_hour":
-                        if (parseInt(now.format("mm")) === parseInt(value && !isNaN(parseInt(value)) ? value : "0")) {
-                            out.push({
-                                ...automation,
-                                _execution: {
-                                    key: intervalKey,
-                                    type: type,
-                                    value: parseInt(value),
-                                    identifier: executionIdentifier,
-                                    payload:
-                                        automation.payload || (options && options.payload)
-                                            ? {
-                                                  ...(automation.payload ? automation.payload : {}),
-                                                  ...(options.payload ? options.payload : {}),
-                                              }
-                                            : null,
-                                },
-                            });
+                    case "every_hour": {
+                        const minute = parseInt(value && !isNaN(parseInt(value)) ? value : "0");
+                        let dueAt = checkedSince.clone().startOf("hour").minute(minute).second(0).millisecond(0);
+                        if (!dueAt.isAfter(checkedSince)) {
+                            dueAt.add(1, "hour");
                         }
-                        break;
-                    case "every_x_mins":
-                        const intervalMinutes = parseInt(value);
-                        const diffMins = now.diff(
-                            moment()
-                                .tz(this.workerConfig.timezone ? this.workerConfig.timezone : "Europe/Berlin")
-                                .startOf("day"),
-                            "minutes"
-                        );
 
-                        if (diffMins % intervalMinutes === 0) {
-                            out.push({
-                                ...automation,
-                                _execution: {
-                                    key: intervalKey,
-                                    type: type,
-                                    value: value,
-                                    identifier: executionIdentifier,
-                                    payload:
-                                        automation.payload || (options && options.payload)
-                                            ? {
-                                                  ...(automation.payload ? automation.payload : {}),
-                                                  ...(options.payload ? options.payload : {}),
-                                              }
-                                            : null,
-                                },
-                            });
+                        while (!dueAt.isAfter(now)) {
+                            this.pushIfDue(out, (entryDueAt: any) => entryFactory(entryDueAt, minute), dueAt, checkedSince, now);
+                            dueAt = dueAt.clone().add(1, "hour");
                         }
                         break;
-                    case "daily":
-                        if (now.format("HH:mm") === value) {
-                            out.push({
-                                ...automation,
-                                _execution: {
-                                    key: intervalKey,
-                                    type: type,
-                                    value: value,
-                                    identifier: executionIdentifier,
-                                    payload:
-                                        automation.payload || (options && options.payload)
-                                            ? {
-                                                  ...(automation.payload ? automation.payload : {}),
-                                                  ...(options.payload ? options.payload : {}),
-                                              }
-                                            : null,
-                                },
-                            });
+                    }
+                    case "every_x_mins": {
+                        const intervalMinutes = parseInt(value);
+                        let dueAt = checkedSince.clone().startOf("minute").second(0).millisecond(0);
+                        if (!dueAt.isAfter(checkedSince)) {
+                            dueAt.add(1, "minute");
+                        }
+
+                        while (!dueAt.isAfter(now)) {
+                            const diffMins = dueAt.diff(dueAt.clone().startOf("day"), "minutes");
+                            if (diffMins % intervalMinutes === 0) {
+                                this.pushIfDue(out, entryFactory, dueAt, checkedSince, now);
+                            }
+                            dueAt = dueAt.clone().add(1, "minute");
                         }
                         break;
-                    case "day_in_week":
-                        if (
-                            (now.format("dddd").toLowerCase() === type || now.format("dddd").toLowerCase() + "s" === type) &&
-                            now.format("HH:mm") === value
-                        ) {
-                            out.push({
-                                ...automation,
-                                _execution: {
-                                    key: intervalKey,
-                                    type: type,
-                                    value: value,
-                                    identifier: executionIdentifier,
-                                    payload:
-                                        automation.payload || (options && options.payload)
-                                            ? {
-                                                  ...(automation.payload ? automation.payload : {}),
-                                                  ...(options.payload ? options.payload : {}),
-                                              }
-                                            : null,
-                                },
-                            });
+                    }
+                    case "daily": {
+                        let day = checkedSince.clone().startOf("day");
+                        const endDay = now.clone().startOf("day");
+                        while (!day.isAfter(endDay)) {
+                            const dueAt = moment.tz(`${day.format("YYYY-MM-DD")} ${value}`, "YYYY-MM-DD HH:mm", timezone);
+                            this.pushIfDue(out, entryFactory, dueAt, checkedSince, now);
+                            day = day.clone().add(1, "day");
                         }
                         break;
+                    }
+                    case "day_in_week": {
+                        const isoWeekday = days.indexOf(type) + 1;
+                        let day = checkedSince.clone().startOf("day");
+                        const endDay = now.clone().startOf("day");
+                        while (!day.isAfter(endDay)) {
+                            if (day.isoWeekday() === isoWeekday) {
+                                const dueAt = moment.tz(`${day.format("YYYY-MM-DD")} ${value}`, "YYYY-MM-DD HH:mm", timezone);
+                                this.pushIfDue(out, entryFactory, dueAt, checkedSince, now);
+                            }
+                            day = day.clone().add(1, "day");
+                        }
+                        break;
+                    }
                 }
             }
         }
@@ -515,7 +521,12 @@ export class QueueWorkerCommand extends ConsoleCommand {
                     break;
                 }
 
-                const checkAutomation = this.checkWorkerAutomation();
+                const now = moment().tz(this.getWorkerTimezone());
+                const checkedSince = this.lastAutomationCheckAt
+                    ? this.lastAutomationCheckAt.clone()
+                    : now.clone().startOf("minute").subtract(1, "millisecond");
+                this.lastAutomationCheckAt = now.clone();
+                const checkAutomation = this.checkWorkerAutomation(checkedSince, now);
                 if (!checkAutomation || checkAutomation.length < 1) {
                     await this.wait(5000);
                     continue;
