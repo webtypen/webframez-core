@@ -4,11 +4,14 @@ type ResolvedBackupTypeConfig = BackupTypeConfig & {
     outputDir: string;
     filename: string;
     zip: boolean;
+    zipDriver: "auto" | "system" | "node";
+    zipCompressionLevel?: number;
     cleanupWorkDir: boolean;
     retention?: BackupRetentionConfig;
     outputs: BackupOutputConfig[];
 };
 export declare class BackupManager {
+    private log;
     getConfig(): BackupConfig;
     listTypes(): {
         key: string;

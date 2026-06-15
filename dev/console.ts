@@ -31,9 +31,12 @@ app.boot({
     },
     jobs: QUEUE_JOBS,
     onEnd: async () => {
-        const connection = await DBConnection.getConnection();
-        if (connection && connection.client) {
-            connection.driver.close(connection.client);
+        const connections = Object.values(DBConnection.connections || {});
+        for (const connection of connections) {
+            if (connection && connection.client && connection.driver && typeof connection.driver.close === "function") {
+                await connection.driver.close(connection.client);
+            }
         }
+        DBConnection.connections = {};
     },
 });

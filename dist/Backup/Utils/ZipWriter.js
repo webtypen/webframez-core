@@ -3,10 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createZipFile = void 0;
+exports.createZipFileFromDirectory = exports.createZipFile = void 0;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const zlib_1 = __importDefault(require("zlib"));
+const child_process_1 = require("child_process");
 const BackupPathUtils_1 = require("./BackupPathUtils");
 const crcTable = (() => {
     const table = [];
@@ -118,3 +119,51 @@ function createZipFile(zipPath, files) {
     return zipPath;
 }
 exports.createZipFile = createZipFile;
+function collectZipFiles(sourceDir) {
+    const files = [];
+    const walk = (dir) => {
+        for (const entry of fs_1.default.readdirSync(dir)) {
+            const filepath = path_1.default.join(dir, entry);
+            const stats = fs_1.default.statSync(filepath);
+            if (stats.isDirectory()) {
+                walk(filepath);
+            }
+            else if (stats.isFile()) {
+                files.push({
+                    source: filepath,
+                    name: (0, BackupPathUtils_1.normalizeBackupPath)(path_1.default.relative(sourceDir, filepath)),
+                });
+            }
+        }
+    };
+    walk(sourceDir);
+    return files;
+}
+function compressionArg(level) {
+    if (level === undefined || level === null || Number.isNaN(level)) {
+        return "-6";
+    }
+    const normalized = Math.max(0, Math.min(9, Math.round(level)));
+    return `-${normalized}`;
+}
+function createZipFileFromDirectory(zipPath, sourceDir, options) {
+    var _a;
+    fs_1.default.mkdirSync(path_1.default.dirname(zipPath), { recursive: true });
+    if ((options === null || options === void 0 ? void 0 : options.driver) !== "node") {
+        const args = ["-q", compressionArg(options === null || options === void 0 ? void 0 : options.compressionLevel), "-r", zipPath, "."];
+        const result = (0, child_process_1.spawnSync)("zip", args, {
+            cwd: sourceDir,
+            encoding: "utf-8",
+        });
+        if (result.status === 0 && fs_1.default.existsSync(zipPath)) {
+            return { path: zipPath, driver: "system" };
+        }
+        if ((options === null || options === void 0 ? void 0 : options.driver) === "system") {
+            const detail = result.stderr || result.stdout || ((_a = result.error) === null || _a === void 0 ? void 0 : _a.message) || "unknown error";
+            throw new Error(`System zip failed: ${detail}`);
+        }
+    }
+    createZipFile(zipPath, collectZipFiles(sourceDir));
+    return { path: zipPath, driver: "node" };
+}
+exports.createZipFileFromDirectory = createZipFileFromDirectory;

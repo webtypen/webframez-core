@@ -617,6 +617,8 @@ export default {
     outputDir: "storage/backups",
     filename: "{key}_{date}_{time}",
     zip: true,
+    zipDriver: "auto",
+    zipCompressionLevel: 6,
     cleanupWorkDir: true,
     retention: {
       keepLast: 10,
@@ -665,9 +667,11 @@ export default {
 
 Built-in backup commands:
 - `backup:list`
-- `backup:run <key> [--dry-run] [--channel=local]`
+- `backup:run <key> [--dry-run] [--channel=local] [--silent]`
 - `backup:queue <key> [--worker=worker_1] [--priority=10]`
 - `backup:cleanup <key> [--channel=local] [--dry-run]`
+
+ZIP artifacts use the system `zip` binary by default when available and fall back to the built-in Node.js ZIP writer. Set `zipDriver: "system"` to require system zip, `zipDriver: "node"` to force the built-in writer, or `zipDriver: "auto"` for fallback behavior. `zipCompressionLevel` accepts `0` through `9`.
 
 Remote outputs are optional packages and must be registered by the application before the backup config is used:
 

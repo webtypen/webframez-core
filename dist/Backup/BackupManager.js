@@ -40,6 +40,12 @@ function normalizeArray(value) {
     return value && Array.isArray(value) ? value : [];
 }
 class BackupManager {
+    log(options, message, payload) {
+        if ((options === null || options === void 0 ? void 0 : options.silent) || !(options === null || options === void 0 ? void 0 : options.log)) {
+            return;
+        }
+        options.log(message, payload);
+    }
     getConfig() {
         const config = Config_1.Config.get("backup");
         if (!config || typeof config !== "object") {
@@ -62,7 +68,7 @@ class BackupManager {
         }
         const defaults = config.defaults || {};
         const outputDir = backupType.outputDir || defaults.outputDir || "storage/backups";
-        return Object.assign(Object.assign(Object.assign({}, defaults), backupType), { workDir: backupType.workDir || defaults.workDir || "storage/backups/.work", outputDir: outputDir, filename: backupType.filename || defaults.filename || "{key}_{date}_{time}", zip: backupType.zip !== undefined ? backupType.zip : defaults.zip !== undefined ? defaults.zip : true, cleanupWorkDir: backupType.cleanupWorkDir !== undefined
+        return Object.assign(Object.assign(Object.assign({}, defaults), backupType), { workDir: backupType.workDir || defaults.workDir || "storage/backups/.work", outputDir: outputDir, filename: backupType.filename || defaults.filename || "{key}_{date}_{time}", zip: backupType.zip !== undefined ? backupType.zip : defaults.zip !== undefined ? defaults.zip : true, zipDriver: backupType.zipDriver || defaults.zipDriver || "auto", zipCompressionLevel: backupType.zipCompressionLevel !== undefined ? backupType.zipCompressionLevel : defaults.zipCompressionLevel, cleanupWorkDir: backupType.cleanupWorkDir !== undefined
                 ? backupType.cleanupWorkDir
                 : defaults.cleanupWorkDir !== undefined
                     ? defaults.cleanupWorkDir
@@ -191,28 +197,21 @@ class BackupManager {
             };
         });
     }
-    buildArtifact(key, backupType, workRunDir, contentDir, date, id) {
+    buildArtifact(key, backupType, workRunDir, contentDir, date, id, options) {
         const filename = (0, BackupPathUtils_1.formatBackupFilename)(backupType.filename, { key, date, id });
         if (backupType.zip) {
             const zipPath = path_1.default.join(workRunDir, `${filename}.zip`);
-            const files = [];
-            const walk = (dir) => {
-                for (const entry of fs_1.default.readdirSync(dir)) {
-                    const filepath = path_1.default.join(dir, entry);
-                    const stats = fs_1.default.statSync(filepath);
-                    if (stats.isDirectory()) {
-                        walk(filepath);
-                    }
-                    else if (stats.isFile()) {
-                        files.push({
-                            source: filepath,
-                            name: (0, BackupPathUtils_1.normalizeBackupPath)(path_1.default.relative(contentDir, filepath)),
-                        });
-                    }
-                }
-            };
-            walk(contentDir);
-            (0, ZipWriter_1.createZipFile)(zipPath, files);
+            this.log(options, `Creating ZIP artifact '${path_1.default.basename(zipPath)}'`, {
+                driver: backupType.zipDriver,
+                compressionLevel: backupType.zipCompressionLevel,
+            });
+            const zipResult = (0, ZipWriter_1.createZipFileFromDirectory)(zipPath, contentDir, {
+                driver: backupType.zipDriver,
+                compressionLevel: backupType.zipCompressionLevel,
+            });
+            this.log(options, `ZIP artifact created using ${zipResult.driver} zip`, {
+                path: zipPath,
+            });
             return {
                 path: zipPath,
                 filename: path_1.default.basename(zipPath),
@@ -228,10 +227,11 @@ class BackupManager {
         };
     }
     run(key, options) {
-        var _a, _b;
+        var _a, _b, _c;
         return __awaiter(this, void 0, void 0, function* () {
             const backupType = this.resolveType(key);
             this.ensureActive(key, backupType);
+            this.log(options, `Starting backup '${key}'`);
             const now = new Date();
             const id = (0, BackupPathUtils_1.backupTimestampId)(now);
             const workRoot = (0, BackupPathUtils_1.resolveProjectPath)(backupType.workDir);
@@ -252,13 +252,17 @@ class BackupManager {
                 files: [],
                 databases: [],
             };
+            this.log(options, "Collecting file sources");
             const fileEntries = normalizeArray(backupType.files).flatMap((source) => this.collectFilesFromSource(source));
+            const fileSize = fileEntries.reduce((sum, entry) => sum + entry.size, 0);
+            this.log(options, `Collected ${fileEntries.length} file(s)`, { size: fileSize });
             result.files = fileEntries.map((entry) => ({
                 from: entry.source,
                 to: entry.target,
                 size: entry.size,
             }));
             if (options === null || options === void 0 ? void 0 : options.dryRun) {
+                this.log(options, "Dry run enabled; skipping artifact and output writes");
                 result.outputs = outputs.map((output) => ({
                     driver: output.driver,
                     status: "skipped",
@@ -275,28 +279,44 @@ class BackupManager {
             fs_1.default.rmSync(workRunDir, { recursive: true, force: true });
             fs_1.default.mkdirSync(contentDir, { recursive: true });
             try {
+                this.log(options, `Copying ${fileEntries.length} file(s) into backup work directory`);
                 this.copyFiles(fileEntries, contentDir);
+                this.log(options, "File copy finished");
                 for (const source of normalizeArray(backupType.databases)) {
+                    this.log(options, `Backing up database '${source.connection || "default"}'`);
                     result.databases.push(yield this.backupDatabase(source, contentDir, { backupKey: key, backupId: id }));
+                    this.log(options, `Database '${source.connection || "default"}' backup finished`);
                 }
-                result.artifact = this.buildArtifact(key, backupType, workRunDir, contentDir, now, id);
+                result.artifact = this.buildArtifact(key, backupType, workRunDir, contentDir, now, id, options);
                 const manifestPath = path_1.default.join(workRunDir, `${result.artifact.filename}.run-manifest.json`);
                 result.manifestPath = manifestPath;
                 for (const output of outputs) {
                     const retention = mergeRetention((_a = this.getConfig().defaults) === null || _a === void 0 ? void 0 : _a.retention, backupType.retention, output.retention);
                     const driver = BackupOutputDrivers_1.BackupOutputDrivers.get(output.driver);
+                    this.log(options, `Writing artifact to '${output.driver}' output`, {
+                        path: output.path,
+                        folderPath: output.folderPath,
+                    });
                     const outputResult = yield driver.write(result.artifact, output, {
                         backupKey: key,
                         backupId: id,
                         retention: retention,
                     });
                     result.outputs.push(outputResult);
+                    this.log(options, `Output '${output.driver}' finished with status '${outputResult.status}'`, {
+                        path: outputResult.path,
+                        error: outputResult.error,
+                    });
                     if (outputResult.status === "success" && (retention === null || retention === void 0 ? void 0 : retention.runAfterBackup)) {
+                        this.log(options, `Running cleanup for '${output.driver}' output`);
                         result.cleanup.push(yield driver.cleanup(output, { backupKey: key, backupId: id, retention: retention }, { dryRun: false }));
+                        this.log(options, `Cleanup for '${output.driver}' output finished`, {
+                            deleted: ((_b = result.cleanup[result.cleanup.length - 1]) === null || _b === void 0 ? void 0 : _b.deleted.length) || 0,
+                        });
                     }
                 }
                 result.endedAt = new Date().toISOString();
-                const outputManifestPath = (_b = result.outputs.find((output) => output.payload && output.payload.manifestPath)) === null || _b === void 0 ? void 0 : _b.payload.manifestPath;
+                const outputManifestPath = (_c = result.outputs.find((output) => output.payload && output.payload.manifestPath)) === null || _c === void 0 ? void 0 : _c.payload.manifestPath;
                 if (outputManifestPath) {
                     result.manifestPath = outputManifestPath;
                 }
@@ -307,10 +327,12 @@ class BackupManager {
                         fs_1.default.writeFileSync(output.payload.manifestPath, manifestJson, "utf-8");
                     }
                 }
+                this.log(options, `Backup '${key}' finished`);
                 return result;
             }
             finally {
                 if (backupType.cleanupWorkDir) {
+                    this.log(options, "Cleaning backup work directory");
                     fs_1.default.rmSync(workRunDir, { recursive: true, force: true });
                 }
             }

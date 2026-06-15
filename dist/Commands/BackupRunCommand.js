@@ -32,7 +32,12 @@ class BackupRunCommand extends ConsoleCommand_1.ConsoleCommand {
             const result = yield new BackupManager_1.BackupManager().run(key, {
                 dryRun: this.getOption("dry-run") === true,
                 channels: parseChannels(this.getOption("channel")),
+                silent: this.getOption("silent") === true,
+                log: (message) => this.writeln(`  [color=grey]${message}[/color]`),
             });
+            if (this.getOption("silent") === true) {
+                return;
+            }
             if (result.dryRun) {
                 this.info(`Dry run for backup '${key}' finished.`);
             }

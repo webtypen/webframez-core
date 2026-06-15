@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import zlib from "zlib";
+import { spawnSync } from "child_process";
 import { normalizeBackupPath } from "./BackupPathUtils";
 
 type ZipEntry = {
@@ -133,4 +134,61 @@ export function createZipFile(zipPath: string, files: Array<{ source: string; na
 
     fs.writeFileSync(zipPath, Buffer.concat(chunks));
     return zipPath;
+}
+
+function collectZipFiles(sourceDir: string) {
+    const files: Array<{ source: string; name: string }> = [];
+    const walk = (dir: string) => {
+        for (const entry of fs.readdirSync(dir)) {
+            const filepath = path.join(dir, entry);
+            const stats = fs.statSync(filepath);
+            if (stats.isDirectory()) {
+                walk(filepath);
+            } else if (stats.isFile()) {
+                files.push({
+                    source: filepath,
+                    name: normalizeBackupPath(path.relative(sourceDir, filepath)),
+                });
+            }
+        }
+    };
+    walk(sourceDir);
+    return files;
+}
+
+function compressionArg(level?: number) {
+    if (level === undefined || level === null || Number.isNaN(level)) {
+        return "-6";
+    }
+
+    const normalized = Math.max(0, Math.min(9, Math.round(level)));
+    return `-${normalized}`;
+}
+
+export function createZipFileFromDirectory(
+    zipPath: string,
+    sourceDir: string,
+    options?: { driver?: "auto" | "system" | "node"; compressionLevel?: number },
+) {
+    fs.mkdirSync(path.dirname(zipPath), { recursive: true });
+
+    if (options?.driver !== "node") {
+        const args = ["-q", compressionArg(options?.compressionLevel), "-r", zipPath, "."];
+        const result = spawnSync("zip", args, {
+            cwd: sourceDir,
+            encoding: "utf-8",
+        });
+
+        if (result.status === 0 && fs.existsSync(zipPath)) {
+            return { path: zipPath, driver: "system" as const };
+        }
+
+        if (options?.driver === "system") {
+            const detail = result.stderr || result.stdout || result.error?.message || "unknown error";
+            throw new Error(`System zip failed: ${detail}`);
+        }
+    }
+
+    createZipFile(zipPath, collectZipFiles(sourceDir));
+    return { path: zipPath, driver: "node" as const };
 }

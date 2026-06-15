@@ -11,6 +11,7 @@ export class BackupRunJob extends BaseQueueJob {
         this.log(`Starting backup '${backupKey}'`);
         const result = await new BackupManager().run(backupKey, {
             channels: job.payload.channels,
+            log: (message: string, payload?: any) => this.log(message, payload),
         });
         this.log(`Backup '${backupKey}' finished`, {
             id: result.id,

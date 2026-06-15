@@ -37,6 +37,8 @@ export type BackupDefaultsConfig = {
     outputDir?: string;
     filename?: string;
     zip?: boolean;
+    zipDriver?: "auto" | "system" | "node";
+    zipCompressionLevel?: number;
     cleanupWorkDir?: boolean;
     retention?: BackupRetentionConfig;
 };
@@ -103,6 +105,8 @@ export type BackupRunResult = {
 export type BackupRunOptions = {
     dryRun?: boolean;
     channels?: string[];
+    silent?: boolean;
+    log?: (message: string, payload?: any) => void;
 };
 
 export type BackupCleanupOptions = {
