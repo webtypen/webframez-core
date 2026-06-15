@@ -1,10 +1,18 @@
 import path from "path";
+import { storageDir } from "../../Functions/FileFunctions";
 
 export function normalizeBackupPath(value: string) {
     return value.replace(/\\/g, "/").replace(/^\/+/, "");
 }
 
 export function resolveProjectPath(value: string, projectRoot: string = process.cwd()) {
+    const normalized = normalizeBackupPath(value);
+    if (process.env.STORAGE_DIR && process.env.STORAGE_DIR.trim() !== "" && normalized === "storage") {
+        return storageDir();
+    }
+    if (process.env.STORAGE_DIR && process.env.STORAGE_DIR.trim() !== "" && normalized.startsWith("storage/")) {
+        return storageDir(normalized.substring("storage/".length));
+    }
     return path.isAbsolute(value) ? value : path.resolve(projectRoot, value);
 }
 

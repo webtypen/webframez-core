@@ -5,11 +5,19 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.backupTimestampId = exports.formatBackupFilename = exports.resolveProjectPath = exports.normalizeBackupPath = void 0;
 const path_1 = __importDefault(require("path"));
+const FileFunctions_1 = require("../../Functions/FileFunctions");
 function normalizeBackupPath(value) {
     return value.replace(/\\/g, "/").replace(/^\/+/, "");
 }
 exports.normalizeBackupPath = normalizeBackupPath;
 function resolveProjectPath(value, projectRoot = process.cwd()) {
+    const normalized = normalizeBackupPath(value);
+    if (process.env.STORAGE_DIR && process.env.STORAGE_DIR.trim() !== "" && normalized === "storage") {
+        return (0, FileFunctions_1.storageDir)();
+    }
+    if (process.env.STORAGE_DIR && process.env.STORAGE_DIR.trim() !== "" && normalized.startsWith("storage/")) {
+        return (0, FileFunctions_1.storageDir)(normalized.substring("storage/".length));
+    }
     return path_1.default.isAbsolute(value) ? value : path_1.default.resolve(projectRoot, value);
 }
 exports.resolveProjectPath = resolveProjectPath;
