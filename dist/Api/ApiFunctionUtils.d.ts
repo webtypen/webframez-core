@@ -54,77 +54,48 @@ export declare function apiFunctionParamToJsonSchema(definition: ApiFunctionPara
     type: string;
     pattern?: undefined;
     items?: undefined;
-    anyOf?: undefined;
+    additionalProperties?: undefined;
+    required?: undefined;
+    properties?: undefined;
     "x-webframez-type"?: undefined;
     enum?: undefined;
 } | {
     type: string;
     pattern: string;
     items?: undefined;
-    anyOf?: undefined;
+    additionalProperties?: undefined;
+    required?: undefined;
+    properties?: undefined;
     "x-webframez-type"?: undefined;
     enum?: undefined;
 } | {
     type: string;
     items: {};
     pattern?: undefined;
-    anyOf?: undefined;
+    additionalProperties?: undefined;
+    required?: undefined;
+    properties?: undefined;
     "x-webframez-type"?: undefined;
     enum?: undefined;
 } | {
-    anyOf: ({
-        type: string;
-        additionalProperties: boolean;
-        properties: {
-            download_url: {
-                type: string;
-            };
-            file_id: {
-                type: string;
-            };
-            mime_type: {
-                type: string;
-            };
-            file_name: {
-                type: string;
-            };
-            url: {
-                type: string;
-            };
-            download_link: {
-                type: string;
-            };
-            file_url: {
-                type: string;
-            };
-            content_base64: {
-                type: string;
-            };
-            data_url: {
-                type: string;
-            };
-            id: {
-                type: string;
-            };
-            filename: {
-                type: string;
-            };
-            name: {
-                type: string;
-            };
-            mime: {
-                type: string;
-            };
+    type: string;
+    additionalProperties: boolean;
+    required: string[];
+    properties: {
+        download_url: {
+            type: string;
         };
-        description?: undefined;
-    } | {
-        type: string;
-        description: string;
-        additionalProperties?: undefined;
-        properties?: undefined;
-    })[];
+        file_id: {
+            type: string;
+        };
+        mime_type: {
+            type: string;
+        };
+        file_name: {
+            type: string;
+        };
+    };
     "x-webframez-type": string;
-    type?: undefined;
     pattern?: undefined;
     items?: undefined;
     enum?: undefined;
@@ -133,7 +104,9 @@ export declare function apiFunctionParamToJsonSchema(definition: ApiFunctionPara
     type?: undefined;
     pattern?: undefined;
     items?: undefined;
-    anyOf?: undefined;
+    additionalProperties?: undefined;
+    required?: undefined;
+    properties?: undefined;
     "x-webframez-type"?: undefined;
 };
 export declare function toApiFunctionHttpResult(res: Response, result: any): Response;

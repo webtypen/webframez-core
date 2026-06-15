@@ -293,11 +293,7 @@ export function coerceApiFunctionParam(key: string, value: any, definition: ApiF
             return value;
         }
 
-        if (typeof value === "string") {
-            return value;
-        }
-
-        throw new ApiFunctionRuntimeError(`Parameter "${key}" must be a file reference string or object`, 400);
+        throw new ApiFunctionRuntimeError(`Parameter "${key}" must be an OpenAI file reference object`, 400);
     }
 
     return value;
@@ -339,31 +335,15 @@ export function apiFunctionParamToJsonSchema(definition: ApiFunctionParamDefinit
     if (type === "object") return { type: "object" };
     if (type === "file") {
         return {
-            anyOf: [
-                {
-                    type: "object",
-                    additionalProperties: true,
-                    properties: {
-                        download_url: { type: "string" },
-                        file_id: { type: "string" },
-                        mime_type: { type: "string" },
-                        file_name: { type: "string" },
-                        url: { type: "string" },
-                        download_link: { type: "string" },
-                        file_url: { type: "string" },
-                        content_base64: { type: "string" },
-                        data_url: { type: "string" },
-                        id: { type: "string" },
-                        filename: { type: "string" },
-                        name: { type: "string" },
-                        mime: { type: "string" },
-                    },
-                },
-                {
-                    type: "string",
-                    description: "Connector runtime file reference string. Local paths must be rewritten by the ChatGPT connector before reaching the server.",
-                },
-            ],
+            type: "object",
+            additionalProperties: true,
+            required: ["download_url", "file_id"],
+            properties: {
+                download_url: { type: "string" },
+                file_id: { type: "string" },
+                mime_type: { type: "string" },
+                file_name: { type: "string" },
+            },
             "x-webframez-type": "file",
         };
     }
