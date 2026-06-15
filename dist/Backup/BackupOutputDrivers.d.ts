@@ -5,6 +5,7 @@ declare class BackupOutputDriversFacade {
     };
     constructor();
     register(name: string, driver: any): this;
+    private registerCommands;
     get(name: string): BaseBackupOutputDriver;
     keys(): string[];
 }

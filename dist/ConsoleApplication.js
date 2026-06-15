@@ -29,6 +29,7 @@ const BackupRunCommand_1 = require("./Commands/BackupRunCommand");
 const BackupQueueCommand_1 = require("./Commands/BackupQueueCommand");
 const BackupCleanupCommand_1 = require("./Commands/BackupCleanupCommand");
 const BackupRunJob_1 = require("./Backup/Jobs/BackupRunJob");
+const SystemCommands_1 = require("./Commands/SystemCommands");
 const ModulesLoader_1 = require("./Modules/ModulesLoader");
 class ConsoleApplication {
     constructor() {
@@ -46,6 +47,7 @@ class ConsoleApplication {
             QueueWorkerAutorestartCommand_1.QueueWorkerAutorestartCommand,
             BuildFinishCommand_1.BuildFinishCommand,
         ];
+        SystemCommands_1.SystemCommands.register(this.systemCommands);
     }
     /**
      * Init the routes and start the http-server
@@ -120,7 +122,7 @@ class ConsoleApplication {
     getCommand(signature, options) {
         if (!signature || signature.trim() === "")
             return null;
-        for (let command of this.systemCommands) {
+        for (let command of SystemCommands_1.SystemCommands.getCommands()) {
             if (command.signature === signature) {
                 return command;
             }
@@ -174,7 +176,7 @@ class ConsoleApplication {
         let maxSignatureLength = 15;
         const groups = {};
         // Load system commands
-        for (let command of this.systemCommands) {
+        for (let command of SystemCommands_1.SystemCommands.getCommands()) {
             if (!command || !command.signature || command.hidden)
                 continue;
             let groupKey = " ";

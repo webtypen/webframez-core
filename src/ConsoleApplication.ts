@@ -17,6 +17,7 @@ import { BackupRunCommand } from "./Commands/BackupRunCommand";
 import { BackupQueueCommand } from "./Commands/BackupQueueCommand";
 import { BackupCleanupCommand } from "./Commands/BackupCleanupCommand";
 import { BackupRunJob } from "./Backup/Jobs/BackupRunJob";
+import { SystemCommands } from "./Commands/SystemCommands";
 import { ModulesLoader } from "./Modules/ModulesLoader";
 
 export class ConsoleApplication {
@@ -35,6 +36,10 @@ export class ConsoleApplication {
         QueueWorkerAutorestartCommand,
         BuildFinishCommand,
     ];
+
+    constructor() {
+        SystemCommands.register(this.systemCommands);
+    }
 
     /**
      * Init the routes and start the http-server
@@ -115,7 +120,7 @@ export class ConsoleApplication {
     getCommand(signature: string, options?: any) {
         if (!signature || signature.trim() === "") return null;
 
-        for (let command of this.systemCommands) {
+        for (let command of SystemCommands.getCommands()) {
             if (command.signature === signature) {
                 return command;
             }
@@ -175,7 +180,7 @@ export class ConsoleApplication {
         const groups: { [key: string]: { signature: string; description: string }[] } = {};
 
         // Load system commands
-        for (let command of this.systemCommands) {
+        for (let command of SystemCommands.getCommands()) {
             if (!command || !command.signature || command.hidden) continue;
             let groupKey = " ";
             const commandGroups = command.signature.split(":");

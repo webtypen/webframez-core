@@ -53,6 +53,7 @@ __exportStar(require("./Backup/Jobs/BackupRunJob"), exports);
 __exportStar(require("./Backup/OutputDrivers/BaseBackupOutputDriver"), exports);
 __exportStar(require("./Backup/OutputDrivers/LocalBackupOutputDriver"), exports);
 __exportStar(require("./Commands/ConsoleOutputHelper"), exports);
+__exportStar(require("./Commands/SystemCommands"), exports);
 __exportStar(require("./Modules/ModuleProvider"), exports);
 __exportStar(require("./ErrorHandling/ErrorHandler"), exports);
 __exportStar(require("./Hooks/WebframezHooks"), exports);

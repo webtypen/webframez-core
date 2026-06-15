@@ -37,6 +37,7 @@ export * from "./Backup/Jobs/BackupRunJob";
 export * from "./Backup/OutputDrivers/BaseBackupOutputDriver";
 export * from "./Backup/OutputDrivers/LocalBackupOutputDriver";
 export * from "./Commands/ConsoleOutputHelper";
+export * from "./Commands/SystemCommands";
 export * from "./Modules/ModuleProvider";
 export * from "./ErrorHandling/ErrorHandler";
 export * from "./Hooks/WebframezHooks";

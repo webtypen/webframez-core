@@ -2,6 +2,7 @@ import { ModulesLoader } from "./Modules/ModulesLoader";
 export declare class ConsoleApplication {
     modulesLoader: ModulesLoader | null;
     systemCommands: any;
+    constructor();
     /**
      * Init the routes and start the http-server
      */
