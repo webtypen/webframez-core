@@ -325,6 +325,7 @@ function apiFunctionParamToJsonSchema(definition) {
             ],
             "x-webframez-type": "file",
             "x-openai-file-parameter": true,
+            "x-openai-file-arg-rewrite": true,
         };
     }
     if (type === "option" && Array.isArray(definition.options) && definition.options.length > 0) {

@@ -57,6 +57,7 @@ export declare function apiFunctionParamToJsonSchema(definition: ApiFunctionPara
     anyOf?: undefined;
     "x-webframez-type"?: undefined;
     "x-openai-file-parameter"?: undefined;
+    "x-openai-file-arg-rewrite"?: undefined;
     enum?: undefined;
 } | {
     type: string;
@@ -65,6 +66,7 @@ export declare function apiFunctionParamToJsonSchema(definition: ApiFunctionPara
     anyOf?: undefined;
     "x-webframez-type"?: undefined;
     "x-openai-file-parameter"?: undefined;
+    "x-openai-file-arg-rewrite"?: undefined;
     enum?: undefined;
 } | {
     type: string;
@@ -73,6 +75,7 @@ export declare function apiFunctionParamToJsonSchema(definition: ApiFunctionPara
     anyOf?: undefined;
     "x-webframez-type"?: undefined;
     "x-openai-file-parameter"?: undefined;
+    "x-openai-file-arg-rewrite"?: undefined;
     enum?: undefined;
 } | {
     anyOf: ({
@@ -122,6 +125,7 @@ export declare function apiFunctionParamToJsonSchema(definition: ApiFunctionPara
     })[];
     "x-webframez-type": string;
     "x-openai-file-parameter": boolean;
+    "x-openai-file-arg-rewrite": boolean;
     type?: undefined;
     pattern?: undefined;
     items?: undefined;
@@ -134,6 +138,7 @@ export declare function apiFunctionParamToJsonSchema(definition: ApiFunctionPara
     anyOf?: undefined;
     "x-webframez-type"?: undefined;
     "x-openai-file-parameter"?: undefined;
+    "x-openai-file-arg-rewrite"?: undefined;
 };
 export declare function toApiFunctionHttpResult(res: Response, result: any): Response;
 export declare function toApiFunctionPayload(result: any): any;

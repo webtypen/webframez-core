@@ -360,6 +360,7 @@ export function apiFunctionParamToJsonSchema(definition: ApiFunctionParamDefinit
             ],
             "x-webframez-type": "file",
             "x-openai-file-parameter": true,
+            "x-openai-file-arg-rewrite": true,
         };
     }
 
