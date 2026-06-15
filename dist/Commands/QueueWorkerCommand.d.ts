@@ -15,6 +15,9 @@ export declare class QueueWorkerCommand extends ConsoleCommand {
     jobsFailed: number;
     lastJob: any;
     log(message: string): void;
+    private formatAutomationCommand;
+    private formatAutomationExecution;
+    private logRegisteredAutomation;
     handle(): Promise<void>;
     init(): boolean;
     canStart(): boolean;

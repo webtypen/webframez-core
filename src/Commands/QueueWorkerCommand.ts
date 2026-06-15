@@ -41,6 +41,59 @@ export class QueueWorkerCommand extends ConsoleCommand {
         );
     }
 
+    private formatAutomationCommand(automation: any) {
+        if (automation.jobclass === "BackupRunJob" && automation.payload && automation.payload.backupKey) {
+            return `backup:run ${automation.payload.backupKey}`;
+        }
+
+        return automation.jobclass || "unknown";
+    }
+
+    private formatAutomationExecution(execution: any) {
+        if (!Array.isArray(execution)) {
+            return "invalid execution";
+        }
+
+        const [type, value, options] = execution;
+        const suffix = options && options.identifier ? ` (${options.identifier})` : "";
+
+        if (type === "daily") {
+            return `daily at ${value}${suffix}`;
+        }
+
+        if (type === "every_hour") {
+            return `every hour at minute ${value !== undefined && value !== null ? value : 0}${suffix}`;
+        }
+
+        if (type === "every_x_mins") {
+            return `every ${value} minute(s)${suffix}`;
+        }
+
+        if (value !== undefined && value !== null) {
+            return `${type} at ${value}${suffix}`;
+        }
+
+        return `${type}${suffix}`;
+    }
+
+    private logRegisteredAutomation() {
+        const automations = this.getWorkerAutomation();
+        if (!automations || automations.length < 1) {
+            this.log("Registered automations: none");
+            return;
+        }
+
+        this.log("Registered automations:");
+        for (const automation of automations) {
+            const command = this.formatAutomationCommand(automation);
+            const executions =
+                automation.executions && Array.isArray(automation.executions) && automation.executions.length > 0
+                    ? automation.executions.map((execution: any) => this.formatAutomationExecution(execution)).join(", ")
+                    : "no executions";
+            this.log(`- ${command}: ${executions}`);
+        }
+    }
+
     async handle() {
         const workerKey = this.getOption("worker");
         if (!workerKey || typeof workerKey !== "string" || workerKey.trim() === "") {
@@ -76,6 +129,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
 
         try {
             this.log("Queue started");
+            this.logRegisteredAutomation();
             await this.run();
         } catch (e) {
             this.workerHadError = true;

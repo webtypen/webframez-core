@@ -49,6 +49,47 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
             .tz(this.workerConfig.timezone ? this.workerConfig.timezone : "Europe/Berlin")
             .format("YY-MM-DD HH:mm:ss")}] ${message}`);
     }
+    formatAutomationCommand(automation) {
+        if (automation.jobclass === "BackupRunJob" && automation.payload && automation.payload.backupKey) {
+            return `backup:run ${automation.payload.backupKey}`;
+        }
+        return automation.jobclass || "unknown";
+    }
+    formatAutomationExecution(execution) {
+        if (!Array.isArray(execution)) {
+            return "invalid execution";
+        }
+        const [type, value, options] = execution;
+        const suffix = options && options.identifier ? ` (${options.identifier})` : "";
+        if (type === "daily") {
+            return `daily at ${value}${suffix}`;
+        }
+        if (type === "every_hour") {
+            return `every hour at minute ${value !== undefined && value !== null ? value : 0}${suffix}`;
+        }
+        if (type === "every_x_mins") {
+            return `every ${value} minute(s)${suffix}`;
+        }
+        if (value !== undefined && value !== null) {
+            return `${type} at ${value}${suffix}`;
+        }
+        return `${type}${suffix}`;
+    }
+    logRegisteredAutomation() {
+        const automations = this.getWorkerAutomation();
+        if (!automations || automations.length < 1) {
+            this.log("Registered automations: none");
+            return;
+        }
+        this.log("Registered automations:");
+        for (const automation of automations) {
+            const command = this.formatAutomationCommand(automation);
+            const executions = automation.executions && Array.isArray(automation.executions) && automation.executions.length > 0
+                ? automation.executions.map((execution) => this.formatAutomationExecution(execution)).join(", ")
+                : "no executions";
+            this.log(`- ${command}: ${executions}`);
+        }
+    }
     handle() {
         return __awaiter(this, void 0, void 0, function* () {
             const workerKey = this.getOption("worker");
@@ -80,6 +121,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
             });
             try {
                 this.log("Queue started");
+                this.logRegisteredAutomation();
                 yield this.run();
             }
             catch (e) {
