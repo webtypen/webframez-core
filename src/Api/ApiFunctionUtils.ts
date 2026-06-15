@@ -288,6 +288,14 @@ export function coerceApiFunctionParam(key: string, value: any, definition: ApiF
         throw new ApiFunctionRuntimeError(`Parameter "${key}" must be an object`, 400);
     }
 
+    if (type === "file") {
+        if (typeof value === "string" || isPlainApiObject(value)) {
+            return value;
+        }
+
+        throw new ApiFunctionRuntimeError(`Parameter "${key}" must be a file path/string or a file reference object`, 400);
+    }
+
     return value;
 }
 
@@ -325,6 +333,35 @@ export function apiFunctionParamToJsonSchema(definition: ApiFunctionParamDefinit
     if (type === "objectid") return { type: "string", pattern: "^[a-fA-F0-9]{24}$" };
     if (type === "array") return { type: "array", items: {} };
     if (type === "object") return { type: "object" };
+    if (type === "file") {
+        return {
+            anyOf: [
+                {
+                    type: "string",
+                    description: "Local ChatGPT runtime file path, downloadable URL, Data-URL, or Base64 content.",
+                },
+                {
+                    type: "object",
+                    additionalProperties: true,
+                    properties: {
+                        url: { type: "string" },
+                        download_url: { type: "string" },
+                        download_link: { type: "string" },
+                        file_url: { type: "string" },
+                        content_base64: { type: "string" },
+                        data_url: { type: "string" },
+                        id: { type: "string" },
+                        filename: { type: "string" },
+                        name: { type: "string" },
+                        mime: { type: "string" },
+                        mime_type: { type: "string" },
+                    },
+                },
+            ],
+            "x-webframez-type": "file",
+            "x-openai-file-parameter": true,
+        };
+    }
 
     if (type === "option" && Array.isArray(definition.options) && definition.options.length > 0) {
         return { enum: definition.options.map((option) => option.value) };

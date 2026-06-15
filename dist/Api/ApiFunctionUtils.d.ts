@@ -54,22 +54,86 @@ export declare function apiFunctionParamToJsonSchema(definition: ApiFunctionPara
     type: string;
     pattern?: undefined;
     items?: undefined;
+    anyOf?: undefined;
+    "x-webframez-type"?: undefined;
+    "x-openai-file-parameter"?: undefined;
     enum?: undefined;
 } | {
     type: string;
     pattern: string;
     items?: undefined;
+    anyOf?: undefined;
+    "x-webframez-type"?: undefined;
+    "x-openai-file-parameter"?: undefined;
     enum?: undefined;
 } | {
     type: string;
     items: {};
     pattern?: undefined;
+    anyOf?: undefined;
+    "x-webframez-type"?: undefined;
+    "x-openai-file-parameter"?: undefined;
+    enum?: undefined;
+} | {
+    anyOf: ({
+        type: string;
+        description: string;
+        additionalProperties?: undefined;
+        properties?: undefined;
+    } | {
+        type: string;
+        additionalProperties: boolean;
+        properties: {
+            url: {
+                type: string;
+            };
+            download_url: {
+                type: string;
+            };
+            download_link: {
+                type: string;
+            };
+            file_url: {
+                type: string;
+            };
+            content_base64: {
+                type: string;
+            };
+            data_url: {
+                type: string;
+            };
+            id: {
+                type: string;
+            };
+            filename: {
+                type: string;
+            };
+            name: {
+                type: string;
+            };
+            mime: {
+                type: string;
+            };
+            mime_type: {
+                type: string;
+            };
+        };
+        description?: undefined;
+    })[];
+    "x-webframez-type": string;
+    "x-openai-file-parameter": boolean;
+    type?: undefined;
+    pattern?: undefined;
+    items?: undefined;
     enum?: undefined;
 } | {
     enum: any[];
     type?: undefined;
     pattern?: undefined;
     items?: undefined;
+    anyOf?: undefined;
+    "x-webframez-type"?: undefined;
+    "x-openai-file-parameter"?: undefined;
 };
 export declare function toApiFunctionHttpResult(res: Response, result: any): Response;
 export declare function toApiFunctionPayload(result: any): any;
