@@ -289,11 +289,20 @@ export function coerceApiFunctionParam(key: string, value: any, definition: ApiF
     }
 
     if (type === "file") {
-        if (typeof value === "string" || isPlainApiObject(value)) {
+        if (isPlainApiObject(value)) {
             return value;
         }
 
-        throw new ApiFunctionRuntimeError(`Parameter "${key}" must be a file path/string or a file reference object`, 400);
+        if (typeof value === "string") {
+            try {
+                const parsed = JSON.parse(value);
+                if (isPlainApiObject(parsed)) {
+                    return parsed;
+                }
+            } catch (_error) {}
+        }
+
+        throw new ApiFunctionRuntimeError(`Parameter "${key}" must be a file reference object`, 400);
     }
 
     return value;
@@ -335,32 +344,24 @@ export function apiFunctionParamToJsonSchema(definition: ApiFunctionParamDefinit
     if (type === "object") return { type: "object" };
     if (type === "file") {
         return {
-            anyOf: [
-                {
-                    type: "string",
-                    description: "Local ChatGPT runtime file path, downloadable URL, Data-URL, or Base64 content.",
-                },
-                {
-                    type: "object",
-                    additionalProperties: true,
-                    properties: {
-                        url: { type: "string" },
-                        download_url: { type: "string" },
-                        download_link: { type: "string" },
-                        file_url: { type: "string" },
-                        content_base64: { type: "string" },
-                        data_url: { type: "string" },
-                        id: { type: "string" },
-                        filename: { type: "string" },
-                        name: { type: "string" },
-                        mime: { type: "string" },
-                        mime_type: { type: "string" },
-                    },
-                },
-            ],
+            type: "object",
+            additionalProperties: true,
+            properties: {
+                download_url: { type: "string" },
+                file_id: { type: "string" },
+                mime_type: { type: "string" },
+                file_name: { type: "string" },
+                url: { type: "string" },
+                download_link: { type: "string" },
+                file_url: { type: "string" },
+                content_base64: { type: "string" },
+                data_url: { type: "string" },
+                id: { type: "string" },
+                filename: { type: "string" },
+                name: { type: "string" },
+                mime: { type: "string" },
+            },
             "x-webframez-type": "file",
-            "x-openai-file-parameter": true,
-            "x-openai-file-arg-rewrite": true,
         };
     }
 
