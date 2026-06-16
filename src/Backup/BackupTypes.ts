@@ -39,6 +39,14 @@ export type BackupAutomationConfig = {
     data?: any;
 };
 
+export type BackupStatusLogConfig =
+    | string
+    | false
+    | {
+          enabled?: boolean;
+          path: string;
+      };
+
 export type BackupDefaultsConfig = {
     workDir?: string;
     outputDir?: string;
@@ -57,6 +65,7 @@ export type BackupTypeConfig = BackupDefaultsConfig & {
     databases?: BackupDatabaseSourceConfig[];
     outputs?: BackupOutputConfig[];
     automation?: BackupAutomationConfig;
+    statusLog?: BackupStatusLogConfig;
 };
 
 export type BackupConfig = {

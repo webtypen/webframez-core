@@ -448,6 +448,83 @@ class BackupManager {
             type: "directory",
         };
     }
+    statusLogPath(backupType) {
+        const config = backupType.statusLog;
+        if (!config) {
+            return null;
+        }
+        if (typeof config === "string") {
+            return (0, BackupPathUtils_1.resolveProjectPath)(config);
+        }
+        if (config.enabled === false) {
+            return null;
+        }
+        return (0, BackupPathUtils_1.resolveProjectPath)(config.path);
+    }
+    runStatus(result, error) {
+        if (error) {
+            return "failed";
+        }
+        if (result.outputs.find((output) => output.status === "failed")) {
+            return "failed";
+        }
+        if (result.outputs.length > 0 && result.outputs.every((output) => output.status === "skipped")) {
+            return "skipped";
+        }
+        return "success";
+    }
+    statusLogOutputs(result) {
+        return result.outputs.map((output) => ({
+            driver: output.driver,
+            status: output.status,
+            path: output.path,
+            payload: output.payload,
+            error: output.error,
+        }));
+    }
+    writeStatusLog(backupType, result, options, error) {
+        if (result.dryRun) {
+            return;
+        }
+        const filepath = this.statusLogPath(backupType);
+        if (!filepath) {
+            return;
+        }
+        try {
+            const previous = fs_1.default.existsSync(filepath) ? safeReadJson(filepath) || {} : {};
+            const status = this.runStatus(result, error);
+            const runAt = result.endedAt || new Date().toISOString();
+            const outputs = this.statusLogOutputs(result);
+            const lastRun = {
+                run_at: runAt,
+                run_status: status,
+                run_outputs: outputs,
+            };
+            if (error) {
+                lastRun.run_error = error instanceof Error ? error.message : String(error);
+            }
+            const statusLog = {
+                last_run_at: runAt,
+                last_run_status: status,
+                last_run_outputs: outputs,
+                last_success_run: previous.last_success_run || null,
+            };
+            if (error) {
+                statusLog.last_run_error = lastRun.run_error;
+            }
+            if (status === "success") {
+                statusLog.last_success_run = lastRun;
+            }
+            fs_1.default.mkdirSync(path_1.default.dirname(filepath), { recursive: true });
+            fs_1.default.writeFileSync(filepath, JSON.stringify(statusLog, null, 4), "utf-8");
+        }
+        catch (e) {
+            this.log(options, "Failed to write backup status log", {
+                path: filepath,
+                error: e instanceof Error ? e.message : String(e),
+            });
+        }
+    }
     run(key, options) {
         var _a, _b, _c;
         return __awaiter(this, void 0, void 0, function* () {
@@ -477,113 +554,121 @@ class BackupManager {
                 files: [],
                 databases: [],
             };
-            this.log(options, "Collecting file sources");
-            const fileEntries = normalizeArray(backupType.files).flatMap((source) => this.collectFilesFromSource(source, options));
-            const fileSize = fileEntries.reduce((sum, entry) => sum + entry.size, 0);
-            this.log(options, `Collected ${fileEntries.length} file(s)`, { size: fileSize });
-            const incremental = yield this.buildBackupManifest(key, id, now, artifactFilename, backupType, fileEntries, options);
-            result.kind = incremental.manifest.kind;
-            result.chainId = incremental.manifest.chainId;
-            result.parentBackupId = incremental.manifest.parentBackupId;
-            result.backupManifest = incremental.manifest;
-            result.files = incremental.filesToCopy.map((entry) => ({
-                from: entry.source,
-                to: entry.target,
-                size: entry.size,
-            }));
-            if (this.incrementalEnabled(backupType)) {
-                this.log(options, `Prepared ${incremental.manifest.kind} backup`, {
-                    upserted: incremental.manifest.files.upserted.length,
-                    deleted: incremental.manifest.files.deleted.length,
-                    parentBackupId: incremental.manifest.parentBackupId,
-                });
-            }
-            if (options === null || options === void 0 ? void 0 : options.dryRun) {
-                this.log(options, "Dry run enabled; skipping artifact and output writes");
-                result.outputs = outputs.map((output) => ({
-                    driver: output.driver,
-                    status: "skipped",
-                    path: output.path,
-                    payload: { dryRun: true },
-                }));
-                result.databases = normalizeArray(backupType.databases).map((source) => ({
-                    connection: source.connection,
-                    to: (0, BackupPathUtils_1.normalizeBackupPath)(source.to || `database/${source.connection || "default"}`),
-                }));
-                result.endedAt = new Date().toISOString();
-                return result;
-            }
-            fs_1.default.rmSync(workRunDir, { recursive: true, force: true });
-            fs_1.default.mkdirSync(contentDir, { recursive: true });
             try {
-                this.log(options, `Copying ${incremental.filesToCopy.length} file(s) into backup work directory`);
-                this.copyFiles(incremental.filesToCopy, contentDir, options);
-                this.writeContentManifest(contentDir, incremental.manifest);
-                this.log(options, "File copy finished");
-                for (const source of normalizeArray(backupType.databases)) {
-                    this.log(options, `Backing up database '${source.connection || "default"}'`);
-                    result.databases.push(yield this.backupDatabase(source, contentDir, {
-                        backupKey: key,
-                        backupId: id,
-                        log: (message, payload) => this.log(options, message, payload),
-                    }));
-                    this.log(options, `Database '${source.connection || "default"}' backup finished`);
+                this.log(options, "Collecting file sources");
+                const fileEntries = normalizeArray(backupType.files).flatMap((source) => this.collectFilesFromSource(source, options));
+                const fileSize = fileEntries.reduce((sum, entry) => sum + entry.size, 0);
+                this.log(options, `Collected ${fileEntries.length} file(s)`, { size: fileSize });
+                const incremental = yield this.buildBackupManifest(key, id, now, artifactFilename, backupType, fileEntries, options);
+                result.kind = incremental.manifest.kind;
+                result.chainId = incremental.manifest.chainId;
+                result.parentBackupId = incremental.manifest.parentBackupId;
+                result.backupManifest = incremental.manifest;
+                result.files = incremental.filesToCopy.map((entry) => ({
+                    from: entry.source,
+                    to: entry.target,
+                    size: entry.size,
+                }));
+                if (this.incrementalEnabled(backupType)) {
+                    this.log(options, `Prepared ${incremental.manifest.kind} backup`, {
+                        upserted: incremental.manifest.files.upserted.length,
+                        deleted: incremental.manifest.files.deleted.length,
+                        parentBackupId: incremental.manifest.parentBackupId,
+                    });
                 }
-                result.artifact = this.buildArtifact(key, backupType, workRunDir, contentDir, now, id, options);
-                result.artifact.manifest = incremental.manifest;
-                const manifestPath = path_1.default.join(workRunDir, `${result.artifact.filename}.run-manifest.json`);
-                result.manifestPath = manifestPath;
-                for (const output of outputs) {
-                    const retention = mergeRetention((_a = this.getConfig().defaults) === null || _a === void 0 ? void 0 : _a.retention, backupType.retention, output.retention);
-                    const driver = BackupOutputDrivers_1.BackupOutputDrivers.get(output.driver);
-                    this.log(options, `Writing artifact to '${output.driver}' output`, {
+                if (options === null || options === void 0 ? void 0 : options.dryRun) {
+                    this.log(options, "Dry run enabled; skipping artifact and output writes");
+                    result.outputs = outputs.map((output) => ({
+                        driver: output.driver,
+                        status: "skipped",
                         path: output.path,
-                        folderPath: output.folderPath,
-                    });
-                    const outputResult = yield driver.write(result.artifact, output, {
-                        backupKey: key,
-                        backupId: id,
-                        retention: retention,
-                        log: (message, payload) => this.log(options, message, payload),
-                    });
-                    result.outputs.push(outputResult);
-                    this.log(options, `Output '${output.driver}' finished with status '${outputResult.status}'`, {
-                        path: outputResult.path,
-                        error: outputResult.error,
-                    });
-                    if (outputResult.status === "success" && (retention === null || retention === void 0 ? void 0 : retention.runAfterBackup)) {
-                        this.log(options, `Running cleanup for '${output.driver}' output`);
-                        result.cleanup.push(yield driver.cleanup(output, {
+                        payload: { dryRun: true },
+                    }));
+                    result.databases = normalizeArray(backupType.databases).map((source) => ({
+                        connection: source.connection,
+                        to: (0, BackupPathUtils_1.normalizeBackupPath)(source.to || `database/${source.connection || "default"}`),
+                    }));
+                    result.endedAt = new Date().toISOString();
+                    return result;
+                }
+                fs_1.default.rmSync(workRunDir, { recursive: true, force: true });
+                fs_1.default.mkdirSync(contentDir, { recursive: true });
+                try {
+                    this.log(options, `Copying ${incremental.filesToCopy.length} file(s) into backup work directory`);
+                    this.copyFiles(incremental.filesToCopy, contentDir, options);
+                    this.writeContentManifest(contentDir, incremental.manifest);
+                    this.log(options, "File copy finished");
+                    for (const source of normalizeArray(backupType.databases)) {
+                        this.log(options, `Backing up database '${source.connection || "default"}'`);
+                        result.databases.push(yield this.backupDatabase(source, contentDir, {
+                            backupKey: key,
+                            backupId: id,
+                            log: (message, payload) => this.log(options, message, payload),
+                        }));
+                        this.log(options, `Database '${source.connection || "default"}' backup finished`);
+                    }
+                    result.artifact = this.buildArtifact(key, backupType, workRunDir, contentDir, now, id, options);
+                    result.artifact.manifest = incremental.manifest;
+                    const manifestPath = path_1.default.join(workRunDir, `${result.artifact.filename}.run-manifest.json`);
+                    result.manifestPath = manifestPath;
+                    for (const output of outputs) {
+                        const retention = mergeRetention((_a = this.getConfig().defaults) === null || _a === void 0 ? void 0 : _a.retention, backupType.retention, output.retention);
+                        const driver = BackupOutputDrivers_1.BackupOutputDrivers.get(output.driver);
+                        this.log(options, `Writing artifact to '${output.driver}' output`, {
+                            path: output.path,
+                            folderPath: output.folderPath,
+                        });
+                        const outputResult = yield driver.write(result.artifact, output, {
                             backupKey: key,
                             backupId: id,
                             retention: retention,
                             log: (message, payload) => this.log(options, message, payload),
-                        }, { dryRun: false }));
-                        this.log(options, `Cleanup for '${output.driver}' output finished`, {
-                            deleted: ((_b = result.cleanup[result.cleanup.length - 1]) === null || _b === void 0 ? void 0 : _b.deleted.length) || 0,
                         });
+                        result.outputs.push(outputResult);
+                        this.log(options, `Output '${output.driver}' finished with status '${outputResult.status}'`, {
+                            path: outputResult.path,
+                            error: outputResult.error,
+                        });
+                        if (outputResult.status === "success" && (retention === null || retention === void 0 ? void 0 : retention.runAfterBackup)) {
+                            this.log(options, `Running cleanup for '${output.driver}' output`);
+                            result.cleanup.push(yield driver.cleanup(output, {
+                                backupKey: key,
+                                backupId: id,
+                                retention: retention,
+                                log: (message, payload) => this.log(options, message, payload),
+                            }, { dryRun: false }));
+                            this.log(options, `Cleanup for '${output.driver}' output finished`, {
+                                deleted: ((_b = result.cleanup[result.cleanup.length - 1]) === null || _b === void 0 ? void 0 : _b.deleted.length) || 0,
+                            });
+                        }
+                    }
+                    result.endedAt = new Date().toISOString();
+                    const outputManifestPath = (_c = result.outputs.find((output) => output.payload && output.payload.manifestPath)) === null || _c === void 0 ? void 0 : _c.payload.manifestPath;
+                    if (outputManifestPath) {
+                        result.manifestPath = outputManifestPath;
+                    }
+                    const manifestJson = JSON.stringify(result, null, 4);
+                    fs_1.default.writeFileSync(manifestPath, manifestJson, "utf-8");
+                    for (const output of result.outputs) {
+                        if (output.payload && output.payload.manifestPath) {
+                            fs_1.default.writeFileSync(output.payload.manifestPath, manifestJson, "utf-8");
+                        }
+                    }
+                    this.writeStatusLog(backupType, result, options);
+                    this.log(options, `Backup '${key}' finished`);
+                    return result;
+                }
+                finally {
+                    if (backupType.cleanupWorkDir) {
+                        this.log(options, "Cleaning backup work directory");
+                        fs_1.default.rmSync(workRunDir, { recursive: true, force: true });
                     }
                 }
-                result.endedAt = new Date().toISOString();
-                const outputManifestPath = (_c = result.outputs.find((output) => output.payload && output.payload.manifestPath)) === null || _c === void 0 ? void 0 : _c.payload.manifestPath;
-                if (outputManifestPath) {
-                    result.manifestPath = outputManifestPath;
-                }
-                const manifestJson = JSON.stringify(result, null, 4);
-                fs_1.default.writeFileSync(manifestPath, manifestJson, "utf-8");
-                for (const output of result.outputs) {
-                    if (output.payload && output.payload.manifestPath) {
-                        fs_1.default.writeFileSync(output.payload.manifestPath, manifestJson, "utf-8");
-                    }
-                }
-                this.log(options, `Backup '${key}' finished`);
-                return result;
             }
-            finally {
-                if (backupType.cleanupWorkDir) {
-                    this.log(options, "Cleaning backup work directory");
-                    fs_1.default.rmSync(workRunDir, { recursive: true, force: true });
-                }
+            catch (e) {
+                result.endedAt = new Date().toISOString();
+                this.writeStatusLog(backupType, result, options, e);
+                throw e;
             }
         });
     }

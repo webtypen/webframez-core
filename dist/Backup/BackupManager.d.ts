@@ -38,6 +38,10 @@ export declare class BackupManager {
     private writeContentManifest;
     private backupDatabase;
     private buildArtifact;
+    private statusLogPath;
+    private runStatus;
+    private statusLogOutputs;
+    private writeStatusLog;
     run(key: string, options?: BackupRunOptions): Promise<BackupRunResult>;
     private downloadRestoreArtifact;
     private restoreChain;
