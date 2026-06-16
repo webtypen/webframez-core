@@ -14,6 +14,7 @@ import { BaseBackupOutputDriver, BackupOutputDriverContext } from "./BaseBackupO
 
 type LocalBackupEntry = BackupCleanupEntry & {
     manifestPath?: string;
+    payload?: any;
 };
 
 function safeReadJson(filepath: string) {
@@ -36,9 +37,47 @@ function retentionValue(config: BackupRetentionConfig | undefined) {
     };
 }
 
+function backupDateFolder(value?: string | Date) {
+    const date = value ? new Date(value) : new Date();
+    if (Number.isNaN(date.getTime())) {
+        return new Date().toISOString().slice(0, 10);
+    }
+    return date.toISOString().slice(0, 10);
+}
+
 export class LocalBackupOutputDriver implements BaseBackupOutputDriver {
     private outputPath(output: BackupOutputConfig) {
         return resolveProjectPath(output.path || "storage/backups");
+    }
+
+    private targetDir(output: BackupOutputConfig, artifact?: BackupArtifact) {
+        const base = this.outputPath(output);
+        if (!output.groupByDate) {
+            return base;
+        }
+        return path.join(base, backupDateFolder(artifact?.manifest?.createdAt));
+    }
+
+    private listDirs(output: BackupOutputConfig) {
+        const base = this.outputPath(output);
+        if (!fs.existsSync(base)) {
+            return [];
+        }
+        if (!output.groupByDate) {
+            return [base];
+        }
+
+        const dirs = [base];
+        for (const entry of fs.readdirSync(base)) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(entry)) {
+                continue;
+            }
+            const filepath = path.join(base, entry);
+            if (fs.statSync(filepath).isDirectory()) {
+                dirs.push(filepath);
+            }
+        }
+        return dirs;
     }
 
     async write(
@@ -46,7 +85,7 @@ export class LocalBackupOutputDriver implements BaseBackupOutputDriver {
         output: BackupOutputConfig,
         context: BackupOutputDriverContext,
     ): Promise<BackupOutputResult> {
-        const targetDir = this.outputPath(output);
+        const targetDir = this.targetDir(output, artifact);
         fs.mkdirSync(targetDir, { recursive: true });
 
         const targetPath = path.join(targetDir, artifact.filename);
@@ -61,6 +100,7 @@ export class LocalBackupOutputDriver implements BaseBackupOutputDriver {
         const manifest = {
             backupKey: context.backupKey,
             backupId: context.backupId,
+            ...(artifact.manifest || {}),
             artifact: artifact.filename,
             artifactType: artifact.type,
             createdAt: new Date().toISOString(),
@@ -77,47 +117,99 @@ export class LocalBackupOutputDriver implements BaseBackupOutputDriver {
             path: targetPath,
             payload: {
                 manifestPath: manifestPath,
+                groupDate: output.groupByDate ? path.basename(targetDir) : undefined,
                 size: stats.size,
             },
         };
     }
 
-    list(output: BackupOutputConfig, context: BackupOutputDriverContext): LocalBackupEntry[] {
-        const targetDir = this.outputPath(output);
-        if (!fs.existsSync(targetDir)) {
-            return [];
-        }
-
+    listArtifacts(output: BackupOutputConfig, context: BackupOutputDriverContext): LocalBackupEntry[] {
         const entries: LocalBackupEntry[] = [];
-        const filenames = fs.readdirSync(targetDir);
-        for (const filename of filenames) {
-            if (!filename.endsWith(".manifest.json")) {
-                continue;
-            }
+        for (const targetDir of this.listDirs(output)) {
+            const filenames = fs.readdirSync(targetDir);
+            for (const filename of filenames) {
+                if (!filename.endsWith(".manifest.json")) {
+                    continue;
+                }
 
-            const manifestPath = path.join(targetDir, filename);
-            const manifest = safeReadJson(manifestPath);
-            if (!manifest || manifest.backupKey !== context.backupKey || !manifest.artifact) {
-                continue;
-            }
+                const manifestPath = path.join(targetDir, filename);
+                const manifest = safeReadJson(manifestPath);
+                const backupKey = manifest.backupKey || manifest.key;
+                const artifact = typeof manifest.artifact === "string" ? manifest.artifact : manifest.artifact?.filename;
+                if (!manifest || backupKey !== context.backupKey || !artifact) {
+                    continue;
+                }
 
-            const artifactPath = path.join(targetDir, manifest.artifact);
-            if (!fs.existsSync(artifactPath)) {
-                continue;
-            }
+                const artifactPath = path.join(targetDir, artifact);
+                if (!fs.existsSync(artifactPath)) {
+                    continue;
+                }
 
-            const stats = fs.statSync(artifactPath);
-            entries.push({
-                path: artifactPath,
-                filename: path.basename(artifactPath),
-                createdAt: manifest.createdAt ? new Date(manifest.createdAt) : stats.mtime,
-                size: stats.size,
-                reason: "",
-                manifestPath: manifestPath,
-            });
+                const stats = fs.statSync(artifactPath);
+                entries.push({
+                    path: artifactPath,
+                    filename: path.basename(artifactPath),
+                    createdAt: manifest.createdAt ? new Date(manifest.createdAt) : stats.mtime,
+                    size: stats.size,
+                    reason: "",
+                    manifestPath: manifestPath,
+                    payload: {
+                        manifest: manifest,
+                        groupDate: /^\d{4}-\d{2}-\d{2}$/.test(path.basename(targetDir)) ? path.basename(targetDir) : undefined,
+                    },
+                });
+            }
         }
 
         return entries.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    }
+
+    list(output: BackupOutputConfig, context: BackupOutputDriverContext): LocalBackupEntry[] {
+        return this.listArtifacts(output, context);
+    }
+
+    readManifest(output: BackupOutputConfig, entry: LocalBackupEntry) {
+        if (entry.payload?.manifest) {
+            return entry.payload.manifest;
+        }
+        if (entry.manifestPath) {
+            return safeReadJson(entry.manifestPath);
+        }
+        return null;
+    }
+
+    downloadArtifact(output: BackupOutputConfig, entry: LocalBackupEntry, targetPath: string) {
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+        fs.copyFileSync(entry.path, targetPath);
+        return targetPath;
+    }
+
+    private protectIncrementalChains(entries: LocalBackupEntry[], deleted: LocalBackupEntry[], kept: LocalBackupEntry[]) {
+        const keptChainIds = new Set(
+            kept
+                .map((entry) => this.readManifest({ driver: "local" }, entry))
+                .map((manifest) => manifest?.chainId)
+                .filter((chainId) => !!chainId),
+        );
+        if (keptChainIds.size < 1) {
+            return { deleted, kept };
+        }
+
+        const nextDeleted: LocalBackupEntry[] = [];
+        const nextKept = [...kept];
+        const keptPaths = new Set(nextKept.map((entry) => entry.path));
+        for (const entry of deleted) {
+            const manifest = this.readManifest({ driver: "local" }, entry);
+            if (manifest?.chainId && keptChainIds.has(manifest.chainId)) {
+                if (!keptPaths.has(entry.path)) {
+                    nextKept.push(entry);
+                    keptPaths.add(entry.path);
+                }
+            } else {
+                nextDeleted.push(entry);
+            }
+        }
+        return { deleted: nextDeleted, kept: nextKept.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) };
     }
 
     async cleanup(
@@ -142,8 +234,8 @@ export class LocalBackupOutputDriver implements BaseBackupOutputDriver {
         const keepLastProtected = new Set(
             retention.keepLast ? entries.slice(0, retention.keepLast).map((entry) => entry.path) : [],
         );
-        const deleted: LocalBackupEntry[] = [];
-        const kept: LocalBackupEntry[] = [];
+        let deleted: LocalBackupEntry[] = [];
+        let kept: LocalBackupEntry[] = [];
 
         for (let index = 0; index < entries.length; index += 1) {
             const entry = entries[index];
@@ -161,14 +253,21 @@ export class LocalBackupOutputDriver implements BaseBackupOutputDriver {
             if (reasons.length > 0 && !keepLastProtected.has(entry.path)) {
                 entry.reason = reasons.join(", ");
                 deleted.push(entry);
-                if (!options?.dryRun) {
-                    fs.rmSync(entry.path, { recursive: true, force: true });
-                    if (entry.manifestPath) {
-                        fs.rmSync(entry.manifestPath, { force: true });
-                    }
-                }
             } else {
                 kept.push(entry);
+            }
+        }
+
+        const protectedEntries = this.protectIncrementalChains(entries, deleted, kept);
+        deleted = protectedEntries.deleted;
+        kept = protectedEntries.kept;
+
+        if (!options?.dryRun) {
+            for (const entry of deleted) {
+                fs.rmSync(entry.path, { recursive: true, force: true });
+                if (entry.manifestPath) {
+                    fs.rmSync(entry.manifestPath, { force: true });
+                }
             }
         }
 

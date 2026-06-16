@@ -44,9 +44,15 @@ class BaseQueueJob {
         let temp = "";
         if (args) {
             for (let entry of args) {
+                if (entry === undefined || entry === null) {
+                    continue;
+                }
                 if (typeof entry === "object") {
                     try {
                         const str = JSON.stringify(entry);
+                        if (!str) {
+                            continue;
+                        }
                         if (str.length > 150 || temp.length > 150) {
                             temp += (temp && temp.trim() !== "" ? " " : "") + JSON.stringify(entry, null, 4);
                         }
@@ -59,7 +65,7 @@ class BaseQueueJob {
                     }
                 }
                 else {
-                    temp += (temp && temp.trim() !== "" ? " " : "") + entry.toString();
+                    temp += (temp && temp.trim() !== "" ? " " : "") + String(entry);
                 }
             }
         }

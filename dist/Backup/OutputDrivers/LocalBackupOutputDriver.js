@@ -34,13 +34,48 @@ function retentionValue(config) {
         runAfterBackup: config.runAfterBackup === true,
     };
 }
+function backupDateFolder(value) {
+    const date = value ? new Date(value) : new Date();
+    if (Number.isNaN(date.getTime())) {
+        return new Date().toISOString().slice(0, 10);
+    }
+    return date.toISOString().slice(0, 10);
+}
 class LocalBackupOutputDriver {
     outputPath(output) {
         return (0, BackupPathUtils_1.resolveProjectPath)(output.path || "storage/backups");
     }
+    targetDir(output, artifact) {
+        var _a;
+        const base = this.outputPath(output);
+        if (!output.groupByDate) {
+            return base;
+        }
+        return path_1.default.join(base, backupDateFolder((_a = artifact === null || artifact === void 0 ? void 0 : artifact.manifest) === null || _a === void 0 ? void 0 : _a.createdAt));
+    }
+    listDirs(output) {
+        const base = this.outputPath(output);
+        if (!fs_1.default.existsSync(base)) {
+            return [];
+        }
+        if (!output.groupByDate) {
+            return [base];
+        }
+        const dirs = [base];
+        for (const entry of fs_1.default.readdirSync(base)) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(entry)) {
+                continue;
+            }
+            const filepath = path_1.default.join(base, entry);
+            if (fs_1.default.statSync(filepath).isDirectory()) {
+                dirs.push(filepath);
+            }
+        }
+        return dirs;
+    }
     write(artifact, output, context) {
         return __awaiter(this, void 0, void 0, function* () {
-            const targetDir = this.outputPath(output);
+            const targetDir = this.targetDir(output, artifact);
             fs_1.default.mkdirSync(targetDir, { recursive: true });
             const targetPath = path_1.default.join(targetDir, artifact.filename);
             if (artifact.type === "directory") {
@@ -51,16 +86,7 @@ class LocalBackupOutputDriver {
                 fs_1.default.copyFileSync(artifact.path, targetPath);
             }
             const stats = fs_1.default.statSync(targetPath);
-            const manifest = {
-                backupKey: context.backupKey,
-                backupId: context.backupId,
-                artifact: artifact.filename,
-                artifactType: artifact.type,
-                createdAt: new Date().toISOString(),
-                driver: "local",
-                path: (0, BackupPathUtils_1.normalizeBackupPath)(path_1.default.relative(process.cwd(), targetPath)),
-                size: stats.size,
-            };
+            const manifest = Object.assign(Object.assign({ backupKey: context.backupKey, backupId: context.backupId }, (artifact.manifest || {})), { artifact: artifact.filename, artifactType: artifact.type, createdAt: new Date().toISOString(), driver: "local", path: (0, BackupPathUtils_1.normalizeBackupPath)(path_1.default.relative(process.cwd(), targetPath)), size: stats.size });
             const manifestPath = path_1.default.join(targetDir, `${artifact.filename}.manifest.json`);
             fs_1.default.writeFileSync(manifestPath, JSON.stringify(manifest, null, 4), "utf-8");
             return {
@@ -69,42 +95,91 @@ class LocalBackupOutputDriver {
                 path: targetPath,
                 payload: {
                     manifestPath: manifestPath,
+                    groupDate: output.groupByDate ? path_1.default.basename(targetDir) : undefined,
                     size: stats.size,
                 },
             };
         });
     }
-    list(output, context) {
-        const targetDir = this.outputPath(output);
-        if (!fs_1.default.existsSync(targetDir)) {
-            return [];
-        }
+    listArtifacts(output, context) {
+        var _a;
         const entries = [];
-        const filenames = fs_1.default.readdirSync(targetDir);
-        for (const filename of filenames) {
-            if (!filename.endsWith(".manifest.json")) {
-                continue;
+        for (const targetDir of this.listDirs(output)) {
+            const filenames = fs_1.default.readdirSync(targetDir);
+            for (const filename of filenames) {
+                if (!filename.endsWith(".manifest.json")) {
+                    continue;
+                }
+                const manifestPath = path_1.default.join(targetDir, filename);
+                const manifest = safeReadJson(manifestPath);
+                const backupKey = manifest.backupKey || manifest.key;
+                const artifact = typeof manifest.artifact === "string" ? manifest.artifact : (_a = manifest.artifact) === null || _a === void 0 ? void 0 : _a.filename;
+                if (!manifest || backupKey !== context.backupKey || !artifact) {
+                    continue;
+                }
+                const artifactPath = path_1.default.join(targetDir, artifact);
+                if (!fs_1.default.existsSync(artifactPath)) {
+                    continue;
+                }
+                const stats = fs_1.default.statSync(artifactPath);
+                entries.push({
+                    path: artifactPath,
+                    filename: path_1.default.basename(artifactPath),
+                    createdAt: manifest.createdAt ? new Date(manifest.createdAt) : stats.mtime,
+                    size: stats.size,
+                    reason: "",
+                    manifestPath: manifestPath,
+                    payload: {
+                        manifest: manifest,
+                        groupDate: /^\d{4}-\d{2}-\d{2}$/.test(path_1.default.basename(targetDir)) ? path_1.default.basename(targetDir) : undefined,
+                    },
+                });
             }
-            const manifestPath = path_1.default.join(targetDir, filename);
-            const manifest = safeReadJson(manifestPath);
-            if (!manifest || manifest.backupKey !== context.backupKey || !manifest.artifact) {
-                continue;
-            }
-            const artifactPath = path_1.default.join(targetDir, manifest.artifact);
-            if (!fs_1.default.existsSync(artifactPath)) {
-                continue;
-            }
-            const stats = fs_1.default.statSync(artifactPath);
-            entries.push({
-                path: artifactPath,
-                filename: path_1.default.basename(artifactPath),
-                createdAt: manifest.createdAt ? new Date(manifest.createdAt) : stats.mtime,
-                size: stats.size,
-                reason: "",
-                manifestPath: manifestPath,
-            });
         }
         return entries.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    }
+    list(output, context) {
+        return this.listArtifacts(output, context);
+    }
+    readManifest(output, entry) {
+        var _a;
+        if ((_a = entry.payload) === null || _a === void 0 ? void 0 : _a.manifest) {
+            return entry.payload.manifest;
+        }
+        if (entry.manifestPath) {
+            return safeReadJson(entry.manifestPath);
+        }
+        return null;
+    }
+    downloadArtifact(output, entry, targetPath) {
+        fs_1.default.mkdirSync(path_1.default.dirname(targetPath), { recursive: true });
+        fs_1.default.copyFileSync(entry.path, targetPath);
+        return targetPath;
+    }
+    protectIncrementalChains(entries, deleted, kept) {
+        const keptChainIds = new Set(kept
+            .map((entry) => this.readManifest({ driver: "local" }, entry))
+            .map((manifest) => manifest === null || manifest === void 0 ? void 0 : manifest.chainId)
+            .filter((chainId) => !!chainId));
+        if (keptChainIds.size < 1) {
+            return { deleted, kept };
+        }
+        const nextDeleted = [];
+        const nextKept = [...kept];
+        const keptPaths = new Set(nextKept.map((entry) => entry.path));
+        for (const entry of deleted) {
+            const manifest = this.readManifest({ driver: "local" }, entry);
+            if ((manifest === null || manifest === void 0 ? void 0 : manifest.chainId) && keptChainIds.has(manifest.chainId)) {
+                if (!keptPaths.has(entry.path)) {
+                    nextKept.push(entry);
+                    keptPaths.add(entry.path);
+                }
+            }
+            else {
+                nextDeleted.push(entry);
+            }
+        }
+        return { deleted: nextDeleted, kept: nextKept.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) };
     }
     cleanup(output, context, options) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -122,8 +197,8 @@ class LocalBackupOutputDriver {
             const now = new Date();
             const entries = this.list(output, context);
             const keepLastProtected = new Set(retention.keepLast ? entries.slice(0, retention.keepLast).map((entry) => entry.path) : []);
-            const deleted = [];
-            const kept = [];
+            let deleted = [];
+            let kept = [];
             for (let index = 0; index < entries.length; index += 1) {
                 const entry = entries[index];
                 const reasons = [];
@@ -139,15 +214,20 @@ class LocalBackupOutputDriver {
                 if (reasons.length > 0 && !keepLastProtected.has(entry.path)) {
                     entry.reason = reasons.join(", ");
                     deleted.push(entry);
-                    if (!(options === null || options === void 0 ? void 0 : options.dryRun)) {
-                        fs_1.default.rmSync(entry.path, { recursive: true, force: true });
-                        if (entry.manifestPath) {
-                            fs_1.default.rmSync(entry.manifestPath, { force: true });
-                        }
-                    }
                 }
                 else {
                     kept.push(entry);
+                }
+            }
+            const protectedEntries = this.protectIncrementalChains(entries, deleted, kept);
+            deleted = protectedEntries.deleted;
+            kept = protectedEntries.kept;
+            if (!(options === null || options === void 0 ? void 0 : options.dryRun)) {
+                for (const entry of deleted) {
+                    fs_1.default.rmSync(entry.path, { recursive: true, force: true });
+                    if (entry.manifestPath) {
+                        fs_1.default.rmSync(entry.manifestPath, { force: true });
+                    }
                 }
             }
             return {

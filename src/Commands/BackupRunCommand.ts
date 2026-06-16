@@ -34,6 +34,8 @@ export class BackupRunCommand extends ConsoleCommand {
 
         const result = await new BackupManager().run(key, {
             dryRun: this.getOption("dry-run") === true,
+            full: this.getOption("full") === true,
+            scheduledAt: typeof this.getOption("scheduled-at") === "string" ? (this.getOption("scheduled-at") as string) : undefined,
             channels: parseChannels(this.getOption("channel")),
             silent: this.getOption("silent") === true,
             logInterval: parsePositiveNumber(this.getOption("log-interval")),
@@ -51,6 +53,9 @@ export class BackupRunCommand extends ConsoleCommand {
         }
 
         this.writeln(`  ID: ${result.id}`);
+        if (result.kind) {
+            this.writeln(`  Kind: ${result.kind}${result.chainId ? " (chain " + result.chainId + ")" : ""}`);
+        }
         if (result.artifact) {
             this.writeln(`  Artifact: ${result.artifact.filename} (${result.artifact.size} bytes)`);
         }

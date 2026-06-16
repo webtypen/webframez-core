@@ -16,6 +16,8 @@ import { BackupListCommand } from "./Commands/BackupListCommand";
 import { BackupRunCommand } from "./Commands/BackupRunCommand";
 import { BackupQueueCommand } from "./Commands/BackupQueueCommand";
 import { BackupCleanupCommand } from "./Commands/BackupCleanupCommand";
+import { BackupRestoreCommand } from "./Commands/BackupRestoreCommand";
+import { BackupRestorePointsCommand } from "./Commands/BackupRestorePointsCommand";
 import { BackupRunJob } from "./Backup/Jobs/BackupRunJob";
 import { SystemCommands } from "./Commands/SystemCommands";
 import { ModulesLoader } from "./Modules/ModulesLoader";
@@ -28,6 +30,8 @@ export class ConsoleApplication {
         BackupRunCommand,
         BackupQueueCommand,
         BackupCleanupCommand,
+        BackupRestorePointsCommand,
+        BackupRestoreCommand,
         QueueStartCommand,
         QueueStatusCommand,
         QueueStopCommand,

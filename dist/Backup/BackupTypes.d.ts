@@ -10,6 +10,11 @@ export type BackupFileSourceConfig = {
     exclude?: string[];
     optional?: boolean;
 };
+export type BackupIncrementalConfig = {
+    enabled?: boolean;
+    fullExecutions?: any[];
+    checksum?: boolean;
+};
 export type BackupDatabaseSourceConfig = {
     connection?: string;
     to?: string;
@@ -18,6 +23,7 @@ export type BackupDatabaseSourceConfig = {
 export type BackupOutputConfig = {
     driver: string;
     path?: string;
+    groupByDate?: boolean;
     retention?: BackupRetentionConfig;
     [key: string]: any;
 };
@@ -36,6 +42,7 @@ export type BackupDefaultsConfig = {
     zipCompressionLevel?: number;
     cleanupWorkDir?: boolean;
     retention?: BackupRetentionConfig;
+    incremental?: BackupIncrementalConfig;
 };
 export type BackupTypeConfig = BackupDefaultsConfig & {
     is_active?: boolean;
@@ -55,6 +62,7 @@ export type BackupArtifact = {
     filename: string;
     size: number;
     type: "zip" | "directory" | "manifest";
+    manifest?: BackupRunManifest;
 };
 export type BackupOutputResult = {
     driver: string;
@@ -69,6 +77,56 @@ export type BackupCleanupEntry = {
     createdAt: Date;
     size: number;
     reason: string;
+    payload?: any;
+};
+export type BackupFileIndexEntry = {
+    path: string;
+    size: number;
+    mtimeMs?: number;
+    checksum?: string;
+};
+export type BackupRunManifestFileChange = BackupFileIndexEntry & {
+    source?: string;
+};
+export type BackupRunManifest = {
+    backupKey: string;
+    backupId: string;
+    kind: "normal" | "full" | "incremental";
+    chainId?: string;
+    parentBackupId?: string;
+    createdAt: string;
+    artifact: string;
+    artifactType: "zip" | "directory" | "manifest";
+    files: {
+        upserted: BackupRunManifestFileChange[];
+        deleted: string[];
+        fileIndex: {
+            [path: string]: BackupFileIndexEntry;
+        };
+    };
+};
+export type BackupRestorePoint = BackupCleanupEntry & {
+    backupKey: string;
+    backupId: string;
+    kind: "normal" | "full" | "incremental";
+    chainId?: string;
+    parentBackupId?: string;
+    manifest?: BackupRunManifest | any;
+};
+export type BackupRestoreResult = {
+    backupKey: string;
+    backupId?: string;
+    targetDir?: string;
+    dryRun?: boolean;
+    driver?: string;
+    restorePoints?: BackupRestorePoint[];
+    chain?: BackupRestorePoint[];
+    restored?: Array<{
+        artifact: string;
+        backupId: string;
+        kind: string;
+    }>;
+    deleted?: string[];
 };
 export type BackupCleanupResult = {
     driver: string;
@@ -81,6 +139,9 @@ export type BackupCleanupResult = {
 export type BackupRunResult = {
     key: string;
     id: string;
+    kind?: "normal" | "full" | "incremental";
+    chainId?: string;
+    parentBackupId?: string;
     startedAt: string;
     endedAt: string;
     dryRun: boolean;
@@ -98,9 +159,12 @@ export type BackupRunResult = {
         to: string;
         payload?: any;
     }>;
+    backupManifest?: BackupRunManifest;
 };
 export type BackupRunOptions = {
     dryRun?: boolean;
+    full?: boolean;
+    scheduledAt?: Date | string;
     channels?: string[];
     silent?: boolean;
     logInterval?: number;

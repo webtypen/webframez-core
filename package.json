@@ -1,6 +1,6 @@
 {
     "name": "@webtypen/webframez-core",
-    "version": "0.3.55",
+    "version": "0.3.59",
     "description": "The core package of the typescript based webframez (web-framework) by webtypen.de",
     "homepage": "https://webtypen.de/",
     "license": "MIT",
@@ -44,6 +44,7 @@
     "dependencies": {
         "busboy": "^1.6.0",
         "dotenv": "^8.2.0",
+        "extract-zip": "^2.0.1",
         "lodash": "^4.17.20",
         "mime-types": "^2.1.35",
         "moment-timezone": "^0.6.0",

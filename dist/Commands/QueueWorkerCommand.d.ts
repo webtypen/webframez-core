@@ -34,7 +34,6 @@ export declare class QueueWorkerCommand extends ConsoleCommand {
     private getWorkerTimezone;
     private getAutomationExecutionPayload;
     private createAutomationEntry;
-    private pushIfDue;
     checkWorkerAutomation(since?: any, until?: any): any;
     runAutomation(): Promise<void>;
     getNextJobNumber(connection: any): Promise<number>;

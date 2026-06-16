@@ -1,4 +1,4 @@
-import { BackupCleanupOptions, BackupCleanupResult, BackupConfig, BackupOutputConfig, BackupRetentionConfig, BackupRunOptions, BackupRunResult, BackupTypeConfig } from "./BackupTypes";
+import { BackupCleanupOptions, BackupCleanupResult, BackupConfig, BackupOutputConfig, BackupRetentionConfig, BackupRestorePoint, BackupRestoreResult, BackupRunOptions, BackupRunResult, BackupTypeConfig } from "./BackupTypes";
 type ResolvedBackupTypeConfig = BackupTypeConfig & {
     workDir: string;
     outputDir: string;
@@ -24,9 +24,29 @@ export declare class BackupManager {
     private resolveOutputs;
     private collectFilesFromSource;
     private copyFiles;
+    private buildFileIndex;
+    private fileIndexChanged;
+    private incrementalEnabled;
+    private assertIncrementalSupported;
+    private chooseOutputForRead;
+    private listRestorePointsForOutput;
+    listRestorePoints(key: string, options?: {
+        channels?: string[];
+    }): Promise<BackupRestorePoint[]>;
+    private isFullIncrementalRun;
+    private buildBackupManifest;
+    private writeContentManifest;
     private backupDatabase;
     private buildArtifact;
     run(key: string, options?: BackupRunOptions): Promise<BackupRunResult>;
+    private downloadRestoreArtifact;
+    private restoreChain;
+    private extractArtifact;
+    restore(key: string, targetDir: string | undefined, options?: {
+        backupId?: string;
+        channels?: string[];
+        dryRun?: boolean;
+    }): Promise<BackupRestoreResult>;
     cleanup(key: string, options?: BackupCleanupOptions): Promise<BackupCleanupResult[]>;
 }
 export {};

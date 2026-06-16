@@ -22,10 +22,10 @@ const FileFunctions_1 = require("../Functions/FileFunctions");
 const StringFunctions_1 = require("../Functions/StringFunctions");
 const Config_1 = require("../Config");
 const DBConnection_1 = require("../Database/DBConnection");
-const DateFunctions_1 = require("../Functions/DateFunctions");
 const ErrorHandler_1 = require("../ErrorHandling/ErrorHandler");
 const BackupManager_1 = require("../Backup/BackupManager");
 const WebframezHooks_1 = require("../Hooks/WebframezHooks");
+const AutomationSchedule_1 = require("../Queue/AutomationSchedule");
 class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
     constructor() {
         super(...arguments);
@@ -60,7 +60,8 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
         if (!Array.isArray(execution)) {
             return "invalid execution";
         }
-        const [type, value, options] = execution;
+        const [type, value, rawOptions, rawExtraOptions] = execution;
+        const options = type === "monthly" && typeof rawOptions === "string" ? rawExtraOptions : rawOptions;
         const suffix = options && options.identifier ? ` (${options.identifier})` : "";
         if (type === "daily") {
             return `daily at ${value}${suffix}`;
@@ -70,6 +71,9 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
         }
         if (type === "every_x_mins") {
             return `every ${value} minute(s)${suffix}`;
+        }
+        if (type === "monthly") {
+            return `monthly on day ${value} at ${rawOptions}${suffix}`;
         }
         if (value !== undefined && value !== null) {
             return `${type} at ${value}${suffix}`;
@@ -324,18 +328,12 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                 payload: this.getAutomationExecutionPayload(automation, options),
             } });
     }
-    pushIfDue(out, entryFactory, dueAt, since, until) {
-        if (dueAt.isAfter(since) && !dueAt.isAfter(until)) {
-            out.push(entryFactory(dueAt));
-        }
-    }
     checkWorkerAutomation(since, until) {
         const workerAutomation = this.getWorkerAutomation();
         if (!workerAutomation || workerAutomation.length < 1) {
             return null;
         }
         const out = [];
-        const days = DateFunctions_1.DateFunctions.getDays();
         const timezone = this.getWorkerTimezone();
         const now = until ? until.clone().tz(timezone) : (0, moment_timezone_1.default)().tz(timezone);
         const checkedSince = since ? since.clone().tz(timezone) : now.clone().startOf("minute").subtract(1, "millisecond");
@@ -350,91 +348,8 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
             if (!automation.executions || !Array.isArray(automation.executions) || automation.executions.length === 0) {
                 continue;
             }
-            let executionIndex = -1;
-            for (let execution of automation.executions) {
-                executionIndex++;
-                if (!Array.isArray(execution)) {
-                    this.log(`Invalid execution format for job '${automation.jobclass}' in worker automation.`);
-                    this.error(`Invalid execution format for job '${automation.jobclass}' in worker automation.`);
-                    continue;
-                }
-                const [type, value, options] = execution;
-                if (type !== "every_x_mins" && type !== "daily" && type !== "every_hour" && !days.includes(type)) {
-                    this.log(`Invalid execution type '${type}' for job '${automation.jobclass}' in worker automation.`);
-                    this.error(`Invalid execution type '${type}' for job '${automation.jobclass}' in worker automation.`);
-                    continue;
-                }
-                if (type === "every_x_mins" && (!value || isNaN(parseInt(value)) || parseInt(value) <= 0)) {
-                    this.log(`Invalid value '${value}' for 'every_x_mins' execution type in worker automation.`);
-                    this.error(`Invalid value '${value}' for 'every_x_mins' execution type in worker automation.`);
-                    continue;
-                }
-                if (type === "daily" && !(0, moment_timezone_1.default)(value, "HH:mm", true).isValid()) {
-                    this.log(`Invalid time format '${value}' for 'daily' execution type in worker automation.`);
-                    this.error(`Invalid time format '${value}' for 'daily' execution type in worker automation.`);
-                    continue;
-                }
-                if (days.includes(type) && !(0, moment_timezone_1.default)(value, "HH:mm", true).isValid()) {
-                    this.log(`Invalid time format '${value}' for '${type}' execution type in worker automation.`);
-                    this.error(`Invalid time format '${value}' for '${type}' execution type in worker automation.`);
-                    continue;
-                }
-                const useType = days.includes(type) ? "day_in_week" : type;
-                const executionKey = type + "-" + (value !== undefined && value !== null ? value : "0");
-                const executionIdentifier = options && options.identifier ? options.identifier : automation.identifier ? automation.identifier : null;
-                const entryFactory = (dueAt, executionValue = value) => this.createAutomationEntry(automation, type, executionValue, options, executionIdentifier, executionKey, dueAt);
-                switch (useType) {
-                    case "every_hour": {
-                        const minute = parseInt(value && !isNaN(parseInt(value)) ? value : "0");
-                        let dueAt = checkedSince.clone().startOf("hour").minute(minute).second(0).millisecond(0);
-                        if (!dueAt.isAfter(checkedSince)) {
-                            dueAt.add(1, "hour");
-                        }
-                        while (!dueAt.isAfter(now)) {
-                            this.pushIfDue(out, (entryDueAt) => entryFactory(entryDueAt, minute), dueAt, checkedSince, now);
-                            dueAt = dueAt.clone().add(1, "hour");
-                        }
-                        break;
-                    }
-                    case "every_x_mins": {
-                        const intervalMinutes = parseInt(value);
-                        let dueAt = checkedSince.clone().startOf("minute").second(0).millisecond(0);
-                        if (!dueAt.isAfter(checkedSince)) {
-                            dueAt.add(1, "minute");
-                        }
-                        while (!dueAt.isAfter(now)) {
-                            const diffMins = dueAt.diff(dueAt.clone().startOf("day"), "minutes");
-                            if (diffMins % intervalMinutes === 0) {
-                                this.pushIfDue(out, entryFactory, dueAt, checkedSince, now);
-                            }
-                            dueAt = dueAt.clone().add(1, "minute");
-                        }
-                        break;
-                    }
-                    case "daily": {
-                        let day = checkedSince.clone().startOf("day");
-                        const endDay = now.clone().startOf("day");
-                        while (!day.isAfter(endDay)) {
-                            const dueAt = moment_timezone_1.default.tz(`${day.format("YYYY-MM-DD")} ${value}`, "YYYY-MM-DD HH:mm", timezone);
-                            this.pushIfDue(out, entryFactory, dueAt, checkedSince, now);
-                            day = day.clone().add(1, "day");
-                        }
-                        break;
-                    }
-                    case "day_in_week": {
-                        const isoWeekday = days.indexOf(type) + 1;
-                        let day = checkedSince.clone().startOf("day");
-                        const endDay = now.clone().startOf("day");
-                        while (!day.isAfter(endDay)) {
-                            if (day.isoWeekday() === isoWeekday) {
-                                const dueAt = moment_timezone_1.default.tz(`${day.format("YYYY-MM-DD")} ${value}`, "YYYY-MM-DD HH:mm", timezone);
-                                this.pushIfDue(out, entryFactory, dueAt, checkedSince, now);
-                            }
-                            day = day.clone().add(1, "day");
-                        }
-                        break;
-                    }
-                }
+            for (const execution of (0, AutomationSchedule_1.getDueAutomationExecutions)(automation.executions, checkedSince, now, timezone, automation.identifier || null)) {
+                out.push(this.createAutomationEntry(automation, execution.type, execution.value, execution.options, execution.identifier, execution.executionKey, execution.dueAt));
             }
         }
         return out;

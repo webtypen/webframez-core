@@ -38,6 +38,8 @@ class BackupRunCommand extends ConsoleCommand_1.ConsoleCommand {
             }
             const result = yield new BackupManager_1.BackupManager().run(key, {
                 dryRun: this.getOption("dry-run") === true,
+                full: this.getOption("full") === true,
+                scheduledAt: typeof this.getOption("scheduled-at") === "string" ? this.getOption("scheduled-at") : undefined,
                 channels: parseChannels(this.getOption("channel")),
                 silent: this.getOption("silent") === true,
                 logInterval: parsePositiveNumber(this.getOption("log-interval")),
@@ -53,6 +55,9 @@ class BackupRunCommand extends ConsoleCommand_1.ConsoleCommand {
                 this.success(`Backup '${key}' finished.`);
             }
             this.writeln(`  ID: ${result.id}`);
+            if (result.kind) {
+                this.writeln(`  Kind: ${result.kind}${result.chainId ? " (chain " + result.chainId + ")" : ""}`);
+            }
             if (result.artifact) {
                 this.writeln(`  Artifact: ${result.artifact.filename} (${result.artifact.size} bytes)`);
             }

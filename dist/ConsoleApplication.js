@@ -28,6 +28,8 @@ const BackupListCommand_1 = require("./Commands/BackupListCommand");
 const BackupRunCommand_1 = require("./Commands/BackupRunCommand");
 const BackupQueueCommand_1 = require("./Commands/BackupQueueCommand");
 const BackupCleanupCommand_1 = require("./Commands/BackupCleanupCommand");
+const BackupRestoreCommand_1 = require("./Commands/BackupRestoreCommand");
+const BackupRestorePointsCommand_1 = require("./Commands/BackupRestorePointsCommand");
 const BackupRunJob_1 = require("./Backup/Jobs/BackupRunJob");
 const SystemCommands_1 = require("./Commands/SystemCommands");
 const ModulesLoader_1 = require("./Modules/ModulesLoader");
@@ -39,6 +41,8 @@ class ConsoleApplication {
             BackupRunCommand_1.BackupRunCommand,
             BackupQueueCommand_1.BackupQueueCommand,
             BackupCleanupCommand_1.BackupCleanupCommand,
+            BackupRestorePointsCommand_1.BackupRestorePointsCommand,
+            BackupRestoreCommand_1.BackupRestoreCommand,
             QueueStartCommand_1.QueueStartCommand,
             QueueStatusCommand_1.QueueStatusCommand,
             QueueStopCommand_1.QueueStopCommand,

@@ -14,6 +14,7 @@ const BaseQueueJob_1 = require("../../Queue/BaseQueueJob");
 const BackupManager_1 = require("../BackupManager");
 class BackupRunJob extends BaseQueueJob_1.BaseQueueJob {
     handle(job) {
+        var _a;
         return __awaiter(this, void 0, void 0, function* () {
             const backupKey = job && job.payload ? job.payload.backupKey : null;
             if (!backupKey || typeof backupKey !== "string") {
@@ -22,6 +23,8 @@ class BackupRunJob extends BaseQueueJob_1.BaseQueueJob {
             this.log(`Starting backup '${backupKey}'`);
             const result = yield new BackupManager_1.BackupManager().run(backupKey, {
                 channels: job.payload.channels,
+                full: job.payload.full === true,
+                scheduledAt: (_a = job.automation_execution) === null || _a === void 0 ? void 0 : _a.scheduled_at,
                 log: (message, payload) => this.log(message, payload),
             });
             this.log(`Backup '${backupKey}' finished`, {
