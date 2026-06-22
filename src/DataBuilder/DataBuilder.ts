@@ -18,6 +18,12 @@ export type DataBuilderSchema = {
     canDelete?: any;
 };
 
+export type DataBuilderOptionMapping = {
+    from: string;
+    value: string;
+    label: string;
+};
+
 export type DataBuilderType = {
     key: string;
     singular: string;

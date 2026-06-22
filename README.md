@@ -463,11 +463,27 @@ builder.registerType({
     collection: "users",
     fields: {
       email: { type: "text", required: true, unique: { match: {} } },
-      age: { type: "integer" }
+      age: { type: "integer" },
+      default_values: {
+        type: "array",
+        schema: {
+          key: { type: "string", required: true },
+          name: { type: "string", required: true }
+        }
+      },
+      target: {
+        type: "option",
+        optionsMapping: { from: "default_values", value: "key", label: "name" }
+      }
     }
   }
 });
 ```
+
+`option` fields can use static `options: [{ value, label }]` or a client-side
+`optionsMapping: { from: string; value: string; label: string }`. The mapping is
+resolved by the DataBuilder frontend against the current form data, so changes in
+the referenced array appear in selects without a backend reload.
 
 You can also use:
 - `registerModelType(...)`
