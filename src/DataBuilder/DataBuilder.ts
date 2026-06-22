@@ -22,7 +22,10 @@ export type DataBuilderOptionMapping = {
     from: string;
     value: string;
     label: string;
+    valuePrefix?: string;
 };
+
+export type DataBuilderOptionsMapping = DataBuilderOptionMapping | DataBuilderOptionMapping[];
 
 export type DataBuilderType = {
     key: string;

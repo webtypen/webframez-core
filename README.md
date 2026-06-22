@@ -474,6 +474,23 @@ builder.registerType({
       target: {
         type: "option",
         optionsMapping: { from: "default_values", value: "key", label: "name" }
+      },
+      mixed_target: {
+        type: "option",
+        optionsMapping: [
+          { from: "default_values", value: "key", label: "name", valuePrefix: "@defaults." },
+          { from: "features_targets", value: "key", label: "name" },
+          { from: "@parent.attributes", value: "key", label: "name" }
+        ]
+      },
+      licenses: {
+        type: "array",
+        toggable: true,
+        previewLabel: "{{ name }}",
+        schema: {
+          key: { type: "string", required: true },
+          name: { type: "string", required: true }
+        }
       }
     }
   }
@@ -481,9 +498,15 @@ builder.registerType({
 ```
 
 `option` fields can use static `options: [{ value, label }]` or a client-side
-`optionsMapping: { from: string; value: string; label: string }`. The mapping is
-resolved by the DataBuilder frontend against the current form data, so changes in
-the referenced array appear in selects without a backend reload.
+`optionsMapping`. The mapping can be a single object or an array of objects with
+`{ from: string; value: string; label: string; valuePrefix?: string }`. Multiple
+mapping entries are aggregated in order, and `@parent...` source paths resolve
+against the nearest outer array entry in the current form data.
+
+Array fields can set `toggable: true` to let the frontend collapse entries. Use
+`previewLabel` with the same template syntax to render a label in the entry title
+row. `toggable` and `previewLabel` may be defined on the schema field or the form
+layout entry; form layout options override schema options.
 
 You can also use:
 - `registerModelType(...)`
