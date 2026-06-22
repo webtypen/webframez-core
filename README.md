@@ -478,8 +478,8 @@ builder.registerType({
       mixed_target: {
         type: "option",
         optionsMapping: [
-          { from: "default_values", value: "key", label: "name", valuePrefix: "@defaults." },
-          { from: "features_targets", value: "key", label: "name" },
+          { from: "default_values", value: "key", label: "name", valuePrefix: "@defaults.", labelPrefix: "Standard: " },
+          { from: "features_targets", value: "key", label: "name", labelPrefix: "Ziel: " },
           { from: "@parent.attributes", value: "key", label: "name" }
         ]
       },
@@ -499,9 +499,11 @@ builder.registerType({
 
 `option` fields can use static `options: [{ value, label }]` or a client-side
 `optionsMapping`. The mapping can be a single object or an array of objects with
-`{ from: string; value: string; label: string; valuePrefix?: string }`. Multiple
-mapping entries are aggregated in order, and `@parent...` source paths resolve
-against the nearest outer array entry in the current form data.
+`{ from: string; value: string; label: string; valuePrefix?: string; labelPrefix?: string }`. Multiple
+mapping entries are aggregated in order. `@parent.<field>` source paths resolve
+schema-aware to the closest parent schema context defining `<field>`, for example
+`features_groups[].licenses[].adds[].key` with `@parent.attributes` resolves to
+`features_groups[].attributes`.
 
 Array fields can set `toggable: true` to let the frontend collapse entries. Use
 `previewLabel` with the same template syntax to render a label in the entry title

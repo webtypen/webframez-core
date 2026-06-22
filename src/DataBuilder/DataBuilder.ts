@@ -23,6 +23,7 @@ export type DataBuilderOptionMapping = {
     value: string;
     label: string;
     valuePrefix?: string;
+    labelPrefix?: string;
 };
 
 export type DataBuilderOptionsMapping = DataBuilderOptionMapping | DataBuilderOptionMapping[];
