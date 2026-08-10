@@ -9,6 +9,7 @@ import { ErrorHandler } from "./ErrorHandling/ErrorHandler";
 import { WebframezHooks } from "./Hooks/WebframezHooks";
 import { HttpKernelHandlerRegistry } from "./Http/HttpKernelHandlerRegistry";
 import { ApiScopeRegistry } from "./Api/ApiScopeRegistry";
+import { NotificationService } from "./Notifications/NotificationService";
 // import { SigNozTelemetry } from "./Telemetry/SigNozTelemetry";
 
 export class WebApplication {
@@ -33,6 +34,7 @@ export class WebApplication {
                 Config.register(key, options.config[key]);
             }
         }
+        NotificationService.init();
 
         if (options && options.errorHandler) {
             if (Array.isArray(options.errorHandler)) {

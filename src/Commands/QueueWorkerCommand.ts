@@ -11,6 +11,8 @@ import { ErrorHandler } from "../ErrorHandling/ErrorHandler";
 import { BackupManager } from "../Backup/BackupManager";
 import { WebframezHooks } from "../Hooks/WebframezHooks";
 import { getDueAutomationExecutions } from "../Queue/AutomationSchedule";
+import { Notification } from "../Notifications/Notification";
+import { NotificationService } from "../Notifications/NotificationService";
 
 export class QueueWorkerCommand extends ConsoleCommand {
     // Command
@@ -639,6 +641,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
             };
 
             let jobInstance: any = null;
+            let jobNotification: Notification | null = null;
             const jobType: any = this.jobTypes && this.jobTypes[job.jobclass] ? this.jobTypes[job.jobclass] : null;
             const jobOperationId = WebframezHooks.createOperationId("job");
             await WebframezHooks.emit("queue.job.start", {
@@ -652,6 +655,15 @@ export class QueueWorkerCommand extends ConsoleCommand {
             });
 
             try {
+                if (job.notification_queue_job) {
+                    if (!job._notification) {
+                        throw new Error(`Notification queue-job '${job._id.toString()}' has no _notification reference.`);
+                    }
+                    jobNotification = await NotificationService.getNotification(job._notification);
+                    job.notification = jobNotification;
+                    await NotificationService.setChangingStatus(jobNotification, "running");
+                }
+
                 if (!jobType) {
                     throw new Error(`QueueError: Invalid job-type ${job.jobclass}`);
                 }
@@ -667,11 +679,17 @@ export class QueueWorkerCommand extends ConsoleCommand {
                 job.executions[0].log = jobInstance.getLog();
                 job.executions[0].duration_ms = moment().diff(moment(startedAt), "milliseconds");
 
-                const updateData: any = {};
                 if (result && typeof result === "object" && result.__execute_again) {
                     job.status = "pending";
-                    job.started_at = result.__execute_again;
-                    updateData.started_at = result.__execute_again;
+                    job.ended_at = null;
+                    job.not_before = result.__execute_again;
+                }
+
+                if (jobNotification) {
+                    await NotificationService.setChangingStatus(
+                        jobNotification,
+                        job.status === "pending" ? "pending" : "success",
+                    );
                 }
 
                 await connection.client
@@ -683,6 +701,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
                             $set: {
                                 status: job.status,
                                 ended_at: job.ended_at,
+                                not_before: job.status === "pending" ? job.not_before : null,
                                 executions: [...job.executions],
                             },
                         }
@@ -728,6 +747,27 @@ export class QueueWorkerCommand extends ConsoleCommand {
                 });
                 const errorMessage = e instanceof Error ? e.stack || e.message : String(e);
                 const endedAt = new Date();
+
+                if (jobNotification) {
+                    try {
+                        await NotificationService.setChangingStatus(jobNotification, "error", errorMessage);
+                    } catch (notificationError) {
+                        await ErrorHandler.report(notificationError, {
+                            scope: "job",
+                            source: "queue.worker.notification.status",
+                            job: {
+                                id: job && job._id ? job._id.toString() : undefined,
+                                number: job && job.number ? job.number : undefined,
+                                jobclass: job && job.jobclass ? job.jobclass : undefined,
+                                worker: this.workerKey,
+                            },
+                            metadata: {
+                                notification: job._notification ? job._notification.toString() : null,
+                            },
+                        });
+                    }
+                }
+
                 job.status = "failed";
                 job.ended_at = endedAt;
                 job.executions[0].status = "failed";

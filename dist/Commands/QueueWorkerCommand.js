@@ -26,6 +26,7 @@ const ErrorHandler_1 = require("../ErrorHandling/ErrorHandler");
 const BackupManager_1 = require("../Backup/BackupManager");
 const WebframezHooks_1 = require("../Hooks/WebframezHooks");
 const AutomationSchedule_1 = require("../Queue/AutomationSchedule");
+const NotificationService_1 = require("../Notifications/NotificationService");
 class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
     constructor() {
         super(...arguments);
@@ -534,6 +535,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                     job_executions_count: job.executions.length,
                 };
                 let jobInstance = null;
+                let jobNotification = null;
                 const jobType = this.jobTypes && this.jobTypes[job.jobclass] ? this.jobTypes[job.jobclass] : null;
                 const jobOperationId = WebframezHooks_1.WebframezHooks.createOperationId("job");
                 yield WebframezHooks_1.WebframezHooks.emit("queue.job.start", {
@@ -546,6 +548,14 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                     },
                 });
                 try {
+                    if (job.notification_queue_job) {
+                        if (!job._notification) {
+                            throw new Error(`Notification queue-job '${job._id.toString()}' has no _notification reference.`);
+                        }
+                        jobNotification = yield NotificationService_1.NotificationService.getNotification(job._notification);
+                        job.notification = jobNotification;
+                        yield NotificationService_1.NotificationService.setChangingStatus(jobNotification, "running");
+                    }
                     if (!jobType) {
                         throw new Error(`QueueError: Invalid job-type ${job.jobclass}`);
                     }
@@ -558,11 +568,13 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                     job.executions[0].ended_at = endedAt;
                     job.executions[0].log = jobInstance.getLog();
                     job.executions[0].duration_ms = (0, moment_timezone_1.default)().diff((0, moment_timezone_1.default)(startedAt), "milliseconds");
-                    const updateData = {};
                     if (result && typeof result === "object" && result.__execute_again) {
                         job.status = "pending";
-                        job.started_at = result.__execute_again;
-                        updateData.started_at = result.__execute_again;
+                        job.ended_at = null;
+                        job.not_before = result.__execute_again;
+                    }
+                    if (jobNotification) {
+                        yield NotificationService_1.NotificationService.setChangingStatus(jobNotification, job.status === "pending" ? "pending" : "success");
                     }
                     yield connection.client
                         .db(null)
@@ -571,6 +583,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                         $set: {
                             status: job.status,
                             ended_at: job.ended_at,
+                            not_before: job.status === "pending" ? job.not_before : null,
                             executions: [...job.executions],
                         },
                     });
@@ -615,6 +628,26 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                     });
                     const errorMessage = e instanceof Error ? e.stack || e.message : String(e);
                     const endedAt = new Date();
+                    if (jobNotification) {
+                        try {
+                            yield NotificationService_1.NotificationService.setChangingStatus(jobNotification, "error", errorMessage);
+                        }
+                        catch (notificationError) {
+                            yield ErrorHandler_1.ErrorHandler.report(notificationError, {
+                                scope: "job",
+                                source: "queue.worker.notification.status",
+                                job: {
+                                    id: job && job._id ? job._id.toString() : undefined,
+                                    number: job && job.number ? job.number : undefined,
+                                    jobclass: job && job.jobclass ? job.jobclass : undefined,
+                                    worker: this.workerKey,
+                                },
+                                metadata: {
+                                    notification: job._notification ? job._notification.toString() : null,
+                                },
+                            });
+                        }
+                    }
                     job.status = "failed";
                     job.ended_at = endedAt;
                     job.executions[0].status = "failed";

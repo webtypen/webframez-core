@@ -24,6 +24,7 @@ const ErrorHandler_1 = require("./ErrorHandling/ErrorHandler");
 const WebframezHooks_1 = require("./Hooks/WebframezHooks");
 const HttpKernelHandlerRegistry_1 = require("./Http/HttpKernelHandlerRegistry");
 const ApiScopeRegistry_1 = require("./Api/ApiScopeRegistry");
+const NotificationService_1 = require("./Notifications/NotificationService");
 // import { SigNozTelemetry } from "./Telemetry/SigNozTelemetry";
 class WebApplication {
     constructor() {
@@ -46,6 +47,7 @@ class WebApplication {
                 Config_1.Config.register(key, options.config[key]);
             }
         }
+        NotificationService_1.NotificationService.init();
         if (options && options.errorHandler) {
             if (Array.isArray(options.errorHandler)) {
                 ErrorHandler_1.ErrorHandler.setHandlers(options.errorHandler);

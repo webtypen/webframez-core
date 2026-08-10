@@ -7,6 +7,16 @@ class QueueJobsRegistyFacade {
         return this.jobs;
     }
 
+    getJobOrFail(name: string) {
+        const job = this.jobs.find(
+            (entry) => typeof entry === "function" && entry.name === name && typeof entry.create === "function",
+        );
+        if (!job) {
+            throw new Error(`Queue job '${name}' is not registered.`);
+        }
+        return job;
+    }
+
     private getJobKey(job: any) {
         if (!job) {
             return null;

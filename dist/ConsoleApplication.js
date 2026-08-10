@@ -33,6 +33,7 @@ const BackupRestorePointsCommand_1 = require("./Commands/BackupRestorePointsComm
 const BackupRunJob_1 = require("./Backup/Jobs/BackupRunJob");
 const SystemCommands_1 = require("./Commands/SystemCommands");
 const ModulesLoader_1 = require("./Modules/ModulesLoader");
+const NotificationService_1 = require("./Notifications/NotificationService");
 class ConsoleApplication {
     constructor() {
         this.modulesLoader = null;
@@ -62,6 +63,7 @@ class ConsoleApplication {
                 Config_1.Config.register(key, options.config[key]);
             }
         }
+        NotificationService_1.NotificationService.init();
         if (options && options.errorHandler) {
             if (Array.isArray(options.errorHandler)) {
                 ErrorHandler_1.ErrorHandler.setHandlers(options.errorHandler);

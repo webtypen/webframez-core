@@ -21,6 +21,7 @@ import { BackupRestorePointsCommand } from "./Commands/BackupRestorePointsComman
 import { BackupRunJob } from "./Backup/Jobs/BackupRunJob";
 import { SystemCommands } from "./Commands/SystemCommands";
 import { ModulesLoader } from "./Modules/ModulesLoader";
+import { NotificationService } from "./Notifications/NotificationService";
 
 export class ConsoleApplication {
     modulesLoader: ModulesLoader | null = null;
@@ -54,6 +55,7 @@ export class ConsoleApplication {
                 Config.register(key, options.config[key]);
             }
         }
+        NotificationService.init();
 
         if (options && options.errorHandler) {
             if (Array.isArray(options.errorHandler)) {
