@@ -29,6 +29,16 @@ class ModulesLoader {
         }
         return commands;
     }
+    getNotifications() {
+        const notifications = [];
+        for (const key in this.loadedModules) {
+            const moduleNotifications = this.loadedModules[key].notifications;
+            if (Array.isArray(moduleNotifications)) {
+                notifications.push(...moduleNotifications);
+            }
+        }
+        return notifications;
+    }
     initRoutes() {
         for (let key in this.loadedModules) {
             this.loadedModules[key].routes();

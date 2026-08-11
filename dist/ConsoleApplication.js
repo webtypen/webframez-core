@@ -80,6 +80,7 @@ class ConsoleApplication {
             kernel: options && options.kernel ? options.kernel : null,
             options,
         });
+        NotificationService_1.NotificationService.registerTypes(this.modulesLoader.getNotifications());
         if (options && options.datatables) {
             DatatableRegistry_1.DatatableRegistry.registerMany(options.datatables);
         }

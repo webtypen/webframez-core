@@ -64,6 +64,7 @@ class WebApplication {
             kernel: options && options.kernel ? options.kernel : null,
             options,
         });
+        NotificationService_1.NotificationService.registerTypes(this.modulesLoader.getNotifications());
         if (options && options.kernel) {
             this.modulesLoader.loadKernel(options.kernel);
         }

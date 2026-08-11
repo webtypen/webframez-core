@@ -1,6 +1,7 @@
 import { KernelAiRegistrations } from "../Ai/AiTypes";
 import { ApiScopeRegistrationClass } from "../Api/ApiTypes";
 import { KernelMcpRegistrations } from "../Mcp/McpTypes";
+import type { NotificationDefinition } from "../Notifications/NotificationService";
 export declare class ModuleProvider {
     static key: string;
     controller: {
@@ -11,6 +12,7 @@ export declare class ModuleProvider {
     };
     apiScopes: ApiScopeRegistrationClass[];
     commands: any[];
+    notifications: NotificationDefinition[];
     mcp?: KernelMcpRegistrations;
     ai?: KernelAiRegistrations;
     boot(_context?: any): void;

@@ -1,3 +1,5 @@
+import type { NotificationDefinition } from "../Notifications/NotificationService";
+
 export class ModulesLoader {
     private loadedModules: { [key: string]: any } = {};
 
@@ -30,6 +32,17 @@ export class ModulesLoader {
             }
         }
         return commands;
+    }
+
+    getNotifications() {
+        const notifications: NotificationDefinition[] = [];
+        for (const key in this.loadedModules) {
+            const moduleNotifications = this.loadedModules[key].notifications;
+            if (Array.isArray(moduleNotifications)) {
+                notifications.push(...moduleNotifications);
+            }
+        }
+        return notifications;
     }
 
     initRoutes() {

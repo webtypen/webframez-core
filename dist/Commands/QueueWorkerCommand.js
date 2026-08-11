@@ -553,6 +553,14 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                             throw new Error(`Notification queue-job '${job._id.toString()}' has no _notification reference.`);
                         }
                         jobNotification = yield NotificationService_1.NotificationService.getNotification(job._notification);
+                        const targetContext = yield NotificationService_1.NotificationService.resolveTarget({
+                            target: jobNotification.target,
+                            target_id: jobNotification.target_id,
+                        });
+                        if (!(targetContext === null || targetContext === void 0 ? void 0 : targetContext.targetModel)) {
+                            throw new Error(`Notification queue-job '${job._id.toString()}' references a missing target.`);
+                        }
+                        NotificationService_1.NotificationService.attachTargetModel(jobNotification, targetContext.targetModel);
                         job.notification = jobNotification;
                         yield NotificationService_1.NotificationService.setChangingStatus(jobNotification, "running");
                     }
@@ -628,9 +636,11 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                     });
                     const errorMessage = e instanceof Error ? e.stack || e.message : String(e);
                     const endedAt = new Date();
+                    let notificationFailureStatusSaved = false;
                     if (jobNotification) {
                         try {
                             yield NotificationService_1.NotificationService.setChangingStatus(jobNotification, "error", errorMessage);
+                            notificationFailureStatusSaved = true;
                         }
                         catch (notificationError) {
                             yield ErrorHandler_1.ErrorHandler.report(notificationError, {
@@ -644,6 +654,29 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                                 },
                                 metadata: {
                                     notification: job._notification ? job._notification.toString() : null,
+                                },
+                            });
+                        }
+                    }
+                    if (!notificationFailureStatusSaved && job.notification_queue_job && job._notification) {
+                        try {
+                            const notificationFound = yield NotificationService_1.NotificationService.setQueueJobFailureStatus(job._notification, errorMessage);
+                            if (!notificationFound) {
+                                throw new Error(`Notification queue-job '${job._id.toString()}' references a missing notification '${job._notification.toString()}'.`);
+                            }
+                        }
+                        catch (notificationError) {
+                            yield ErrorHandler_1.ErrorHandler.report(notificationError, {
+                                scope: "job",
+                                source: "queue.worker.notification.status.fallback",
+                                job: {
+                                    id: job && job._id ? job._id.toString() : undefined,
+                                    number: job && job.number ? job.number : undefined,
+                                    jobclass: job && job.jobclass ? job.jobclass : undefined,
+                                    worker: this.workerKey,
+                                },
+                                metadata: {
+                                    notification: job._notification.toString(),
                                 },
                             });
                         }

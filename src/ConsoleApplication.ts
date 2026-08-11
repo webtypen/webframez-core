@@ -74,6 +74,7 @@ export class ConsoleApplication {
             kernel: options && options.kernel ? options.kernel : null,
             options,
         });
+        NotificationService.registerTypes(this.modulesLoader.getNotifications());
 
         if (options && options.datatables) {
             DatatableRegistry.registerMany(options.datatables);

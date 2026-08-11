@@ -660,6 +660,16 @@ export class QueueWorkerCommand extends ConsoleCommand {
                         throw new Error(`Notification queue-job '${job._id.toString()}' has no _notification reference.`);
                     }
                     jobNotification = await NotificationService.getNotification(job._notification);
+                    const targetContext = await NotificationService.resolveTarget({
+                        target: jobNotification.target as string,
+                        target_id: jobNotification.target_id as any,
+                    });
+                    if (!targetContext?.targetModel) {
+                        throw new Error(
+                            `Notification queue-job '${job._id.toString()}' references a missing target.`,
+                        );
+                    }
+                    NotificationService.attachTargetModel(jobNotification, targetContext.targetModel);
                     job.notification = jobNotification;
                     await NotificationService.setChangingStatus(jobNotification, "running");
                 }
@@ -748,9 +758,11 @@ export class QueueWorkerCommand extends ConsoleCommand {
                 const errorMessage = e instanceof Error ? e.stack || e.message : String(e);
                 const endedAt = new Date();
 
+                let notificationFailureStatusSaved = false;
                 if (jobNotification) {
                     try {
                         await NotificationService.setChangingStatus(jobNotification, "error", errorMessage);
+                        notificationFailureStatusSaved = true;
                     } catch (notificationError) {
                         await ErrorHandler.report(notificationError, {
                             scope: "job",
@@ -763,6 +775,34 @@ export class QueueWorkerCommand extends ConsoleCommand {
                             },
                             metadata: {
                                 notification: job._notification ? job._notification.toString() : null,
+                            },
+                        });
+                    }
+                }
+
+                if (!notificationFailureStatusSaved && job.notification_queue_job && job._notification) {
+                    try {
+                        const notificationFound = await NotificationService.setQueueJobFailureStatus(
+                            job._notification,
+                            errorMessage,
+                        );
+                        if (!notificationFound) {
+                            throw new Error(
+                                `Notification queue-job '${job._id.toString()}' references a missing notification '${job._notification.toString()}'.`,
+                            );
+                        }
+                    } catch (notificationError) {
+                        await ErrorHandler.report(notificationError, {
+                            scope: "job",
+                            source: "queue.worker.notification.status.fallback",
+                            job: {
+                                id: job && job._id ? job._id.toString() : undefined,
+                                number: job && job.number ? job.number : undefined,
+                                jobclass: job && job.jobclass ? job.jobclass : undefined,
+                                worker: this.workerKey,
+                            },
+                            metadata: {
+                                notification: job._notification.toString(),
                             },
                         });
                     }

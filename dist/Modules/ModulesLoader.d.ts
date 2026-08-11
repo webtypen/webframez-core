@@ -1,3 +1,4 @@
+import type { NotificationDefinition } from "../Notifications/NotificationService";
 export declare class ModulesLoader {
     private loadedModules;
     load(modules: any[], context?: any): void;
@@ -6,6 +7,7 @@ export declare class ModulesLoader {
     };
     getLoadedModuleInstances(): any[];
     getCommands(): any[];
+    getNotifications(): NotificationDefinition[];
     initRoutes(): void;
     loadKernel(kernel: any): void;
 }

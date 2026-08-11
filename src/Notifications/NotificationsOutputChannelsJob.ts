@@ -8,6 +8,7 @@ import { NotificationService } from "./NotificationService";
 type ActiveOutputChannel = {
     key: string;
     driver: any;
+    targets?: string[];
 };
 
 type OutputChannelResult = {
@@ -28,6 +29,11 @@ export class NotificationsOutputChannelsJob extends BaseQueueJob {
     private positiveNumber(value: any, fallback: number) {
         const parsed = Number(value);
         return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    }
+
+    private nonNegativeNumber(value: any, fallback: number) {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
     }
 
     private getErrorMessage(error: any) {
@@ -54,7 +60,11 @@ export class NotificationsOutputChannelsJob extends BaseQueueJob {
             if (!driver || !driver.activated) continue;
 
             registeredKeys.add(channel.key);
-            channels.push({ key: channel.key, driver });
+            channels.push({
+                key: channel.key,
+                driver,
+                ...(Array.isArray(channel.targets) ? { targets: channel.targets } : {}),
+            });
         }
 
         return channels;
@@ -69,14 +79,85 @@ export class NotificationsOutputChannelsJob extends BaseQueueJob {
         return this.getChannelResults(notification, channelKey).some((result) => result.status === "success");
     }
 
-    private async claimNotification(collection: any, claimTimeoutMinutes: number) {
+    private deliverableModeMatch() {
+        return [
+            { mode: null },
+            { mode: "fixed" },
+            { mode: "changing", changing_status: { $in: ["success", "error"] } },
+        ];
+    }
+
+    private async skipViewedNotifications(collection: any, eligibleBefore: Date, claimTimeoutMinutes: number) {
+        const now = new Date();
+        const staleClaimBefore = new Date(now.getTime() - claimTimeoutMinutes * 60 * 1000);
+        await collection.updateMany(
+            {
+                key: { $ne: null },
+                show_at: { $lte: eligibleBefore },
+                view_status: "viewed",
+                output_channels_finished_at: null,
+                $and: [
+                    {
+                        $or: [
+                            { output_channels_claimed_at: null },
+                            { output_channels_claimed_at: { $lte: staleClaimBefore } },
+                        ],
+                    },
+                    { $or: this.deliverableModeMatch() },
+                ],
+            },
+            {
+                $set: {
+                    output_channels_status: "skipped",
+                    output_channels_error: null,
+                    output_channels_finished_at: now,
+                    output_channels_next_attempt_at: null,
+                    output_channels_claimed_at: null,
+                    output_channels_claim_token: null,
+                },
+            },
+        );
+    }
+
+    private async finishSkipped(collection: any, notification: Notification) {
+        await collection.updateOne(
+            {
+                _id: notification._id,
+                output_channels_claim_token: notification.output_channels_claim_token,
+            },
+            {
+                $set: {
+                    output_channels_status: "skipped",
+                    output_channels_error: null,
+                    output_channels_finished_at: new Date(),
+                    output_channels_next_attempt_at: null,
+                    output_channels_claimed_at: null,
+                    output_channels_claim_token: null,
+                },
+            },
+        );
+    }
+
+    private async isStillUnviewed(collection: any, notification: Notification) {
+        const current = await collection.findOne(
+            {
+                _id: notification._id,
+                output_channels_claim_token: notification.output_channels_claim_token,
+            },
+            { projection: { view_status: 1 } },
+        );
+        return current?.view_status === "unviewed";
+    }
+
+    private async claimNotification(collection: any, claimTimeoutMinutes: number, eligibleBefore: Date) {
         const now = new Date();
         const staleClaimBefore = new Date(now.getTime() - claimTimeoutMinutes * 60 * 1000);
         const claimToken = new ObjectId().toHexString();
         const claimResult = await collection.findOneAndUpdate(
             {
                 key: { $ne: null },
-                show_at: { $lte: now },
+                show_at: { $lte: eligibleBefore },
+                view_status: "unviewed",
                 output_channels_finished_at: null,
                 $and: [
                     {
@@ -91,13 +172,7 @@ export class NotificationsOutputChannelsJob extends BaseQueueJob {
                             { output_channels_claimed_at: { $lte: staleClaimBefore } },
                         ],
                     },
-                    {
-                        $or: [
-                            { mode: null },
-                            { mode: "fixed" },
-                            { mode: "changing", changing_status: { $in: ["success", "error"] } },
-                        ],
-                    },
+                    { $or: this.deliverableModeMatch() },
                 ],
             },
             {
@@ -154,7 +229,7 @@ export class NotificationsOutputChannelsJob extends BaseQueueJob {
         maxChannelAttempts: number,
         retryDelayMinutes: number,
     ) {
-        const notType = notification.key ? NotificationService.registy[notification.key] : null;
+        const notType = notification.key ? NotificationService.registry[notification.key] : null;
         if (!notType) {
             await collection.updateOne(
                 {
@@ -175,6 +250,101 @@ export class NotificationsOutputChannelsJob extends BaseQueueJob {
             return;
         }
 
+        let effectivePreference;
+        let targetContext;
+        try {
+            targetContext = await NotificationService.resolveTarget({
+                target: notification.target as string,
+                target_id: notification.target_id as ObjectId,
+            });
+            if (targetContext?.targetModel) {
+                NotificationService.attachTargetModel(notification, targetContext.targetModel);
+            }
+            if (targetContext) {
+                const loadedNotification = await NotificationService.getNotificationForTarget(
+                    notification._id,
+                    targetContext,
+                );
+                if (!loadedNotification) {
+                    throw new Error("Notification could not be reloaded for output delivery.");
+                }
+                notification = loadedNotification;
+            }
+            effectivePreference = targetContext
+                ? await NotificationService.getEffectiveTargetPreference(notType.key, targetContext)
+                : { enabled: false, output_channels: [], owner_exists: false };
+        } catch (error: any) {
+            const now = new Date();
+            await collection.updateOne(
+                {
+                    _id: notification._id,
+                    output_channels_claim_token: notification.output_channels_claim_token,
+                },
+                {
+                    $set: {
+                        output_channels_status: "retry_pending",
+                        output_channels_error: `Could not prepare notification delivery: ${this.getErrorMessage(error)}`,
+                        output_channels_finished_at: null,
+                        output_channels_next_attempt_at: new Date(now.getTime() + retryDelayMinutes * 60 * 1000),
+                        output_channels_claimed_at: null,
+                        output_channels_claim_token: null,
+                    },
+                },
+            );
+            return;
+        }
+
+        if (!effectivePreference.owner_exists) {
+            await collection.updateOne(
+                {
+                    _id: notification._id,
+                    output_channels_claim_token: notification.output_channels_claim_token,
+                },
+                {
+                    $set: {
+                        output_channels_status: "skipped",
+                        output_channels_error: "Notification target not found.",
+                        output_channels_finished_at: new Date(),
+                        output_channels_next_attempt_at: null,
+                        output_channels_claimed_at: null,
+                        output_channels_claim_token: null,
+                    },
+                },
+            );
+            return;
+        }
+
+        if (notification.view_status !== "unviewed") {
+            await this.finishSkipped(collection, notification);
+            return;
+        }
+
+        const selectedChannelKeys = new Set(effectivePreference.output_channels);
+        channels = channels.filter(
+            (channel) =>
+                (!channel.targets || channel.targets.includes(notification.target as string)) &&
+                selectedChannelKeys.has(channel.key),
+        );
+        if (!effectivePreference.enabled || channels.length === 0) {
+            await collection.updateOne(
+                {
+                    _id: notification._id,
+                    output_channels_claim_token: notification.output_channels_claim_token,
+                },
+                {
+                    $set: {
+                        output_channels_status: "skipped",
+                        output_channels_error: null,
+                        output_channels_finished_at: new Date(),
+                        output_channels_next_attempt_at: null,
+                        output_channels_claimed_at: null,
+                        output_channels_claim_token: null,
+                    },
+                },
+            );
+            return;
+        }
+
         if (!Array.isArray(notification.output_channels_result)) {
             notification.output_channels_result = [];
         }
@@ -185,25 +355,32 @@ export class NotificationsOutputChannelsJob extends BaseQueueJob {
             const previousAttempts = this.getChannelResults(notification, channel.key).length;
             if (previousAttempts >= maxChannelAttempts) continue;
 
+            if (!(await this.isStillUnviewed(collection, notification))) {
+                await this.finishSkipped(collection, notification);
+                return;
+            }
+
             let result: OutputChannelResult;
             try {
                 const status = await channel.driver.handle(notification);
+                const payload =
+                    status?.payload && typeof status.payload === "object" && !Array.isArray(status.payload)
+                        ? status.payload
+                        : status?.payload !== undefined
+                          ? { payload: status.payload }
+                          : {};
                 if (!status?.status) {
                     result = {
+                        ...payload,
                         channel: channel.key,
                         date: new Date(),
                         attempt: previousAttempts + 1,
                         status: "error",
-                        error_message: "Output-channel returned status false.",
+                        error_message: status?.error_message || "Output-channel returned status false.",
                     };
                 } else {
-                    const payload = status.payload;
                     result = {
-                        ...(payload && typeof payload === "object" && !Array.isArray(payload)
-                            ? payload
-                            : payload !== undefined
-                              ? { payload }
-                              : {}),
+                        ...payload,
                         channel: channel.key,
                         date: new Date(),
                         attempt: previousAttempts + 1,
@@ -268,12 +445,16 @@ export class NotificationsOutputChannelsJob extends BaseQueueJob {
         const maxChannelAttempts = this.positiveNumber(deliveryConfig.max_attempts, 3);
         const retryDelayMinutes = this.positiveNumber(deliveryConfig.retry_delay_minutes, 5);
         const claimTimeoutMinutes = this.positiveNumber(deliveryConfig.claim_timeout_minutes, 30);
+        const delaySeconds = this.nonNegativeNumber(deliveryConfig.delay_seconds, 0);
         const connection = await DBConnection.getConnection();
         const collection = connection.client.db(null).collection(new Notification().__table);
         const maxNotifications = this.attempts * this.perAttempt;
+        const eligibleBefore = new Date(Date.now() - delaySeconds * 1000);
+
+        await this.skipViewedNotifications(collection, eligibleBefore, claimTimeoutMinutes);
 
         for (let handledNotifications = 0; handledNotifications < maxNotifications; handledNotifications++) {
-            const notification = await this.claimNotification(collection, claimTimeoutMinutes);
+            const notification = await this.claimNotification(collection, claimTimeoutMinutes, eligibleBefore);
             if (!notification) break;
 
             await this.deliverNotification(

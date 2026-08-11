@@ -53,6 +53,7 @@ export class WebApplication {
             kernel: options && options.kernel ? options.kernel : null,
             options,
         });
+        NotificationService.registerTypes(this.modulesLoader.getNotifications());
 
         if (options && options.kernel) {
             this.modulesLoader.loadKernel(options.kernel);

@@ -7,6 +7,7 @@ class ModuleProvider {
         this.middleware = {};
         this.apiScopes = [];
         this.commands = [];
+        this.notifications = [];
     }
     boot(_context) { }
     routes() { }
