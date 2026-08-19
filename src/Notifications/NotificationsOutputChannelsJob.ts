@@ -257,9 +257,6 @@ export class NotificationsOutputChannelsJob extends BaseQueueJob {
                 target: notification.target as string,
                 target_id: notification.target_id as ObjectId,
             });
-            if (targetContext?.targetModel) {
-                NotificationService.attachTargetModel(notification, targetContext.targetModel);
-            }
             if (targetContext) {
                 const loadedNotification = await NotificationService.getNotificationForTarget(
                     notification._id,
@@ -269,6 +266,9 @@ export class NotificationsOutputChannelsJob extends BaseQueueJob {
                     throw new Error("Notification could not be reloaded for output delivery.");
                 }
                 notification = loadedNotification;
+            }
+            if (targetContext?.targetModel) {
+                NotificationService.attachTargetModel(notification, targetContext.targetModel);
             }
             effectivePreference = targetContext
                 ? await NotificationService.getEffectiveTargetPreference(notType.key, targetContext)

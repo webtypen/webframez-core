@@ -134,6 +134,12 @@ declare class RouterFacade {
         };
     } | undefined>;
     handleMiddleware(route: RouteObject, request: Request, response: Response): Promise<void>;
+    /**
+     * Runs registered kernel middleware outside a regular route definition.
+     * Package-provided multiplexing endpoints can use this while preserving
+     * the router's existing next/reject behavior.
+     */
+    runMiddleware(middlewareKeys: string[], request: Request, response: Response): Promise<void>;
     mapRequest(req: null | IncomingMessage, options?: any): Promise<Request>;
     parseRequestBody(req: IncomingMessage): Promise<unknown>;
     handleReturn(request: Request, response: Response, body: any): {

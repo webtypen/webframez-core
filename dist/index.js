@@ -31,6 +31,7 @@ __exportStar(require("./BuildApplication"), exports);
 __exportStar(require("./LambdaApplication"), exports);
 __exportStar(require("./WebApplication"), exports);
 __exportStar(require("./Router/Route"), exports);
+__exportStar(require("./Router/Router"), exports);
 __exportStar(require("./Router/Request"), exports);
 __exportStar(require("./Router/Response"), exports);
 __exportStar(require("./Database/BaseDBDriver"), exports);

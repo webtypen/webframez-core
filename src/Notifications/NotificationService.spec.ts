@@ -344,10 +344,9 @@ test("output worker resolves targetModel and sends only target-compatible select
     const originalResolve = NotificationService.resolveTarget;
     const originalGetNotificationForTarget = NotificationService.getNotificationForTarget;
     NotificationService.resolveTarget = (async (context: any) => ({ ...context, targetModel })) as any;
-    NotificationService.getNotificationForTarget = (async (_id: any, context: any) => {
-        NotificationService.attachTargetModel(notification, context.targetModel);
-        return notification;
-    }) as any;
+    const reloadedNotification = Object.assign(new Notification(), notification);
+    delete reloadedNotification.targetModel;
+    NotificationService.getNotificationForTarget = (async () => reloadedNotification) as any;
     const handled: string[] = [];
     const updates: any[] = [];
     const collection = {
@@ -359,14 +358,24 @@ test("output worker resolves targetModel and sends only target-compatible select
             collection,
             notification,
             [
-                { key: "email", targets: ["user"], driver: { handle: async () => (handled.push("email"), { status: true }) } },
+                {
+                    key: "email",
+                    targets: ["user"],
+                    driver: {
+                        handle: async (deliveredNotification: Notification) => {
+                            assert.equal(deliveredNotification.targetModel, targetModel);
+                            handled.push("email");
+                            return { status: true };
+                        },
+                    },
+                },
                 { key: "customer-mail", targets: ["customer"], driver: { handle: async () => (handled.push("customer"), { status: true }) } },
             ],
             3,
             5,
         );
         assert.deepEqual(handled, ["email"]);
-        assert.equal(notification.targetModel, targetModel);
+        assert.equal(reloadedNotification.targetModel, targetModel);
         assert.equal(updates[updates.length - 1].$set.output_channels_status, "sent");
     } finally {
         NotificationService.resolveTarget = originalResolve;

@@ -676,6 +676,20 @@ class RouterFacade {
             }
         });
     }
+    /**
+     * Runs registered kernel middleware outside a regular route definition.
+     * Package-provided multiplexing endpoints can use this while preserving
+     * the router's existing next/reject behavior.
+     */
+    runMiddleware(middlewareKeys, request, response) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const middleware = Array.from(new Set((middlewareKeys || []).filter((key) => typeof key === "string" && key.trim() !== "")));
+            yield this.handleMiddleware({
+                path: request.pathname || request.url || "",
+                options: { middleware },
+            }, request, response);
+        });
+    }
     mapRequest(req, options) {
         return __awaiter(this, void 0, void 0, function* () {
             const request = new Request_1.Request();

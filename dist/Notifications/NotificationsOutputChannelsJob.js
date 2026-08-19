@@ -219,15 +219,15 @@ class NotificationsOutputChannelsJob extends BaseQueueJob_1.BaseQueueJob {
                     target: notification.target,
                     target_id: notification.target_id,
                 });
-                if (targetContext === null || targetContext === void 0 ? void 0 : targetContext.targetModel) {
-                    NotificationService_1.NotificationService.attachTargetModel(notification, targetContext.targetModel);
-                }
                 if (targetContext) {
                     const loadedNotification = yield NotificationService_1.NotificationService.getNotificationForTarget(notification._id, targetContext);
                     if (!loadedNotification) {
                         throw new Error("Notification could not be reloaded for output delivery.");
                     }
                     notification = loadedNotification;
+                }
+                if (targetContext === null || targetContext === void 0 ? void 0 : targetContext.targetModel) {
+                    NotificationService_1.NotificationService.attachTargetModel(notification, targetContext.targetModel);
                 }
                 effectivePreference = targetContext
                     ? yield NotificationService_1.NotificationService.getEffectiveTargetPreference(notType.key, targetContext)

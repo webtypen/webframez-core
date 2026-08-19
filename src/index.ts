@@ -15,6 +15,7 @@ export * from "./BuildApplication";
 export * from "./LambdaApplication";
 export * from "./WebApplication";
 export * from "./Router/Route";
+export * from "./Router/Router";
 export * from "./Router/Request";
 export * from "./Router/Response";
 export * from "./Database/BaseDBDriver";

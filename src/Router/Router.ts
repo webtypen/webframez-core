@@ -806,6 +806,31 @@ class RouterFacade {
         }
     }
 
+    /**
+     * Runs registered kernel middleware outside a regular route definition.
+     * Package-provided multiplexing endpoints can use this while preserving
+     * the router's existing next/reject behavior.
+     */
+    async runMiddleware(middlewareKeys: string[], request: Request, response: Response) {
+        const middleware = Array.from(
+            new Set(
+                (middlewareKeys || []).filter(
+                    (key): key is string =>
+                        typeof key === "string" && key.trim() !== "",
+                ),
+            ),
+        );
+
+        await this.handleMiddleware(
+            {
+                path: request.pathname || request.url || "",
+                options: { middleware },
+            },
+            request,
+            response,
+        );
+    }
+
     async mapRequest(req: null | IncomingMessage, options?: any) {
         const request = new Request();
         if (!req && this.mode === "aws-lambda" && options && options.event) {
