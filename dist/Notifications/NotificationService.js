@@ -56,15 +56,22 @@ class NotificationServiceFacade {
     set registy(registry) {
         this.registry = registry;
     }
-    getNotificationReferenceId(notificationRef) {
-        const notificationId = typeof notificationRef === "string"
-            ? notificationRef
-            : notificationRef && typeof notificationRef.toString === "function"
-                ? notificationRef.toString()
+    getObjectIdString(value) {
+        const objectIdString = typeof value === "string"
+            ? value
+            : value && typeof value.toString === "function"
+                ? value.toString()
                 : null;
-        return notificationId && notificationId.length === 24 && mongodb_1.ObjectId.isValid(notificationId)
-            ? notificationId
+        return objectIdString && objectIdString.length === 24 && mongodb_1.ObjectId.isValid(objectIdString)
+            ? objectIdString
             : null;
+    }
+    normalizeObjectId(value) {
+        const objectIdString = this.getObjectIdString(value);
+        return objectIdString ? new mongodb_1.ObjectId(objectIdString) : null;
+    }
+    getNotificationReferenceId(notificationRef) {
+        return this.getObjectIdString(notificationRef);
     }
     init() {
         this.registry = {};
@@ -168,14 +175,11 @@ class NotificationServiceFacade {
         return this.targetRegistry[target] || null;
     }
     normalizeTargetId(targetId) {
-        var _a;
-        if (targetId instanceof mongodb_1.ObjectId)
-            return targetId;
-        const value = typeof targetId === "string" ? targetId : (_a = targetId === null || targetId === void 0 ? void 0 : targetId.toString) === null || _a === void 0 ? void 0 : _a.call(targetId);
-        if (typeof value !== "string" || value.length !== 24 || !mongodb_1.ObjectId.isValid(value)) {
+        const normalized = this.normalizeObjectId(targetId);
+        if (!normalized) {
             throw new NotificationTargetValidationError("Invalid notification target_id.");
         }
-        return new mongodb_1.ObjectId(value);
+        return normalized;
     }
     normalizeTargetContext(context) {
         if (!context || typeof context.target !== "string" || context.target.trim() === "") {
@@ -243,15 +247,8 @@ class NotificationServiceFacade {
         return notification;
     }
     getModelId(model) {
-        var _a, _b;
-        const value = (_a = model === null || model === void 0 ? void 0 : model._id) !== null && _a !== void 0 ? _a : model === null || model === void 0 ? void 0 : model.id;
-        if (value instanceof mongodb_1.ObjectId)
-            return value;
-        const stringValue = typeof value === "string" ? value : (_b = value === null || value === void 0 ? void 0 : value.toString) === null || _b === void 0 ? void 0 : _b.call(value);
-        if (typeof stringValue === "string" && stringValue.length === 24 && mongodb_1.ObjectId.isValid(stringValue)) {
-            return new mongodb_1.ObjectId(stringValue);
-        }
-        return null;
+        var _a;
+        return this.normalizeObjectId((_a = model === null || model === void 0 ? void 0 : model._id) !== null && _a !== void 0 ? _a : model === null || model === void 0 ? void 0 : model.id);
     }
     getPreferencesField(target) {
         var _a;
@@ -746,18 +743,9 @@ class NotificationServiceFacade {
     getNotificationForTarget(notificationRef, context) {
         return __awaiter(this, void 0, void 0, function* () {
             const notificationId = notificationRef instanceof Notification_1.Notification ? notificationRef._id : notificationRef;
-            if (!notificationId)
+            const objectId = this.normalizeObjectId(notificationId);
+            if (!objectId)
                 return null;
-            let objectId;
-            if (notificationId instanceof mongodb_1.ObjectId) {
-                objectId = notificationId;
-            }
-            else if (typeof notificationId === "string" && mongodb_1.ObjectId.isValid(notificationId)) {
-                objectId = new mongodb_1.ObjectId(notificationId);
-            }
-            else {
-                return null;
-            }
             const notifications = yield Notification_1.Notification.aggregate([
                 {
                     $match: Object.assign(Object.assign({}, (yield this.getLoadMatch(context))), { _id: objectId }),

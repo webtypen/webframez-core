@@ -123,6 +123,8 @@ declare class NotificationServiceFacade {
     set registy(registry: {
         [key: string]: NotificationDefinition;
     });
+    private getObjectIdString;
+    private normalizeObjectId;
     private getNotificationReferenceId;
     init(): void;
     registerType(type: NotificationDefinition): this;

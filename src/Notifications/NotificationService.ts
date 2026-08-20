@@ -142,17 +142,26 @@ class NotificationServiceFacade {
         this.registry = registry;
     }
 
-    private getNotificationReferenceId(notificationRef: ObjectId | string | null): string | null {
-        const notificationId =
-            typeof notificationRef === "string"
-                ? notificationRef
-                : notificationRef && typeof (notificationRef as any).toString === "function"
-                  ? (notificationRef as any).toString()
+    private getObjectIdString(value: unknown): string | null {
+        const objectIdString =
+            typeof value === "string"
+                ? value
+                : value && typeof (value as any).toString === "function"
+                  ? (value as any).toString()
                   : null;
 
-        return notificationId && notificationId.length === 24 && ObjectId.isValid(notificationId)
-            ? notificationId
+        return objectIdString && objectIdString.length === 24 && ObjectId.isValid(objectIdString)
+            ? objectIdString
             : null;
+    }
+
+    private normalizeObjectId(value: unknown): ObjectId | null {
+        const objectIdString = this.getObjectIdString(value);
+        return objectIdString ? new ObjectId(objectIdString) : null;
+    }
+
+    private getNotificationReferenceId(notificationRef: ObjectId | string | null): string | null {
+        return this.getObjectIdString(notificationRef);
     }
 
     init() {
@@ -266,12 +275,11 @@ class NotificationServiceFacade {
     }
 
     private normalizeTargetId(targetId: ObjectId | string) {
-        if (targetId instanceof ObjectId) return targetId;
-        const value = typeof targetId === "string" ? targetId : (targetId as any)?.toString?.();
-        if (typeof value !== "string" || value.length !== 24 || !ObjectId.isValid(value)) {
+        const normalized = this.normalizeObjectId(targetId);
+        if (!normalized) {
             throw new NotificationTargetValidationError("Invalid notification target_id.");
         }
-        return new ObjectId(value);
+        return normalized;
     }
 
     normalizeTargetContext(context: NotificationTargetContext): NotificationTargetContext {
@@ -337,13 +345,7 @@ class NotificationServiceFacade {
     }
 
     private getModelId(model: any): ObjectId | null {
-        const value = model?._id ?? model?.id;
-        if (value instanceof ObjectId) return value;
-        const stringValue = typeof value === "string" ? value : value?.toString?.();
-        if (typeof stringValue === "string" && stringValue.length === 24 && ObjectId.isValid(stringValue)) {
-            return new ObjectId(stringValue);
-        }
-        return null;
+        return this.normalizeObjectId(model?._id ?? model?.id);
     }
 
     private getPreferencesField(target: string) {
@@ -922,16 +924,8 @@ class NotificationServiceFacade {
         context: NotificationTargetContext,
     ): Promise<Notification | null> {
         const notificationId = notificationRef instanceof Notification ? notificationRef._id : notificationRef;
-        if (!notificationId) return null;
-
-        let objectId: ObjectId;
-        if (notificationId instanceof ObjectId) {
-            objectId = notificationId;
-        } else if (typeof notificationId === "string" && ObjectId.isValid(notificationId)) {
-            objectId = new ObjectId(notificationId);
-        } else {
-            return null;
-        }
+        const objectId = this.normalizeObjectId(notificationId);
+        if (!objectId) return null;
 
         const notifications = await Notification.aggregate([
             {

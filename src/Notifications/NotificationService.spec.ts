@@ -71,13 +71,12 @@ test("validates target ids, resolves targets and authorizes request ownership", 
         () => NotificationService.normalizeTargetContext({ target: "user", target_id: "invalid" }),
         NotificationTargetValidationError,
     );
-    assert.equal(
-        NotificationService.normalizeTargetContext({
-            target: "user",
-            target_id: { toString: () => targetId.toString() } as any,
-        }).target_id.toString(),
-        targetId.toString(),
-    );
+    const normalizedForeignTargetId = NotificationService.normalizeTargetContext({
+        target: "user",
+        target_id: { toString: () => targetId.toString() } as any,
+    }).target_id;
+    assert.ok(normalizedForeignTargetId instanceof ObjectId);
+    assert.equal(normalizedForeignTargetId.toString(), targetId.toString());
     const request: any = { user: targetModel };
     const resolved = await NotificationService.authorizeTarget({
         target: "user",
@@ -123,6 +122,7 @@ test("normalizes parameters and persists only target/target_id", async () => {
         );
         assert.ok(notification);
         assert.equal(notification.target, "user");
+        assert.ok(notification.target_id instanceof ObjectId);
         assert.equal(notification.target_id?.toString(), targetId.toString());
         assert.equal((notification as any)._user, undefined);
         assert.equal(notification.targetModel, targetModel);
@@ -543,6 +543,30 @@ test("output worker rechecks viewed status immediately before invoking a channel
 
 test("payload errors remain distinguishable for controllers", () => {
     assert.equal(new NotificationPayloadValidationError("invalid").name, "NotificationPayloadValidationError");
+});
+
+test("normalizes foreign notification ObjectIds before target reload", async () => {
+    reset();
+    NotificationService.registerType({ key: "foreign-id", targets: ["user"] });
+    const originalAggregate = Notification.aggregate;
+    const notificationId = new ObjectId();
+    let matchedId: any = null;
+    (Notification as any).aggregate = async (pipeline: any[]) => {
+        matchedId = pipeline[0].$match._id;
+        return [];
+    };
+
+    try {
+        await NotificationService.getNotificationForTarget(
+            { toString: () => notificationId.toString() } as any,
+            target(),
+        );
+
+        assert.ok(matchedId instanceof ObjectId);
+        assert.equal(matchedId.toString(), notificationId.toString());
+    } finally {
+        (Notification as any).aggregate = originalAggregate;
+    }
 });
 
 test("appends read-only load aggregation after list pagination and details limiting", async () => {
