@@ -1,7 +1,20 @@
 import moment from "moment";
+import { ObjectId } from "mongodb";
 import { DBConnection } from "../Database/DBConnection";
 import { NumericFunctions } from "../Functions/NumericFunctions";
 import { Request } from "../Router/Request";
+
+export interface DatatableModelSelectorConfig {
+    value?: string;
+    label?: string;
+    subtitle?: string;
+}
+
+export interface NormalizedDatatableModelSelectorConfig {
+    value: string;
+    label: string;
+    subtitle?: string;
+}
 
 export class Datatable {
     collection: string | Function = "";
@@ -22,6 +35,7 @@ export class Datatable {
     defaultUnwind?: string | null = null;
     disablePerPageConfig = false;
     selectable = false;
+    modelSelector: boolean | DatatableModelSelectorConfig = false;
     selectableFunctions: {
         [key: string]: {
             label: string;
@@ -40,6 +54,10 @@ export class Datatable {
             selectable: this.selectable ? true : false,
             selectableFunctions: await this.getSelectableFunctionsDef(req),
         };
+        const modelSelector = this.getModelSelectorConfig();
+        if (modelSelector) {
+            out.modelSelector = modelSelector;
+        }
         const promises = [];
         promises.push(
             new Promise(async (resolve) => {
@@ -85,6 +103,82 @@ export class Datatable {
             await this.onInit(req, out);
         }
         return out;
+    }
+
+    getModelSelectorConfig(): NormalizedDatatableModelSelectorConfig | null {
+        if (!this.modelSelector) {
+            return null;
+        }
+
+        const config = this.modelSelector === true ? {} : this.modelSelector;
+        const subtitle = typeof config.subtitle === "string" && config.subtitle.trim() !== "" ? config.subtitle : undefined;
+        return {
+            value: typeof config.value === "string" && config.value.trim() !== "" ? config.value.trim() : "_id",
+            label: typeof config.label === "string" && config.label.trim() !== "" ? config.label.trim() : "_id",
+            ...(subtitle ? { subtitle: subtitle.trim() } : {}),
+        };
+    }
+
+    async getModelSelectorPreview(req: Request) {
+        const config = this.getModelSelectorConfig();
+        if (!config) {
+            throw new Error("Datatable is not enabled for model selection.");
+        }
+
+        const rawValue = req.body.value;
+        if (rawValue === undefined || rawValue === null || rawValue === "") {
+            return null;
+        }
+
+        let value = rawValue;
+        if (config.value === "_id") {
+            if (rawValue instanceof ObjectId) {
+                value = rawValue;
+            } else if (typeof rawValue === "string" && ObjectId.isValid(rawValue)) {
+                value = new ObjectId(rawValue);
+            } else {
+                return null;
+            }
+        }
+
+        const normalizeStages = (stages: any[] | null | undefined) => (stages ?? []).map((stage) => {
+            if (!stage || typeof stage !== "object" || !Object.prototype.hasOwnProperty.call(stage, "skipStats")) {
+                return stage;
+            }
+            const { skipStats: _skipStats, ...normalized } = stage;
+            return normalized;
+        });
+        const aggregation = [
+            ...normalizeStages(await this.getAggregation(req)),
+            ...normalizeStages(await this.getSubAggregation(req)),
+            { $match: { [config.value]: value } },
+            { $limit: 1 },
+        ];
+
+        const connection = await DBConnection.getConnection();
+        const results = await connection.client
+            .db(null)
+            .collection(await this.getCollection(req))
+            .aggregate(aggregation, {
+                collation: {
+                    locale: "de",
+                    strength: 2,
+                },
+            })
+            .toArray();
+
+        if (!results[0]) {
+            return null;
+        }
+
+        let result = results[0];
+        if (this.onRow) {
+            result = await this.onRow(result);
+        }
+        if (this.onAttributes) {
+            result.__cellattr = await this.onAttributes(result);
+        }
+        return result;
     }
 
     async getSelectableFunctionsDef(req: Request) {

@@ -8,12 +8,24 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Datatable = void 0;
 const moment_1 = __importDefault(require("moment"));
+const mongodb_1 = require("mongodb");
 const DBConnection_1 = require("../Database/DBConnection");
 const NumericFunctions_1 = require("../Functions/NumericFunctions");
 class Datatable {
@@ -32,6 +44,7 @@ class Datatable {
         this.defaultUnwind = null;
         this.disablePerPageConfig = false;
         this.selectable = false;
+        this.modelSelector = false;
         this.selectableFunctions = null;
     }
     getInit(req) {
@@ -41,6 +54,10 @@ class Datatable {
                 selectable: this.selectable ? true : false,
                 selectableFunctions: yield this.getSelectableFunctionsDef(req),
             };
+            const modelSelector = this.getModelSelectorConfig();
+            if (modelSelector) {
+                out.modelSelector = modelSelector;
+            }
             const promises = [];
             promises.push(new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
                 out.filter = yield this.getFilter(req);
@@ -76,6 +93,73 @@ class Datatable {
                 yield this.onInit(req, out);
             }
             return out;
+        });
+    }
+    getModelSelectorConfig() {
+        if (!this.modelSelector) {
+            return null;
+        }
+        const config = this.modelSelector === true ? {} : this.modelSelector;
+        const subtitle = typeof config.subtitle === "string" && config.subtitle.trim() !== "" ? config.subtitle : undefined;
+        return Object.assign({ value: typeof config.value === "string" && config.value.trim() !== "" ? config.value.trim() : "_id", label: typeof config.label === "string" && config.label.trim() !== "" ? config.label.trim() : "_id" }, (subtitle ? { subtitle: subtitle.trim() } : {}));
+    }
+    getModelSelectorPreview(req) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const config = this.getModelSelectorConfig();
+            if (!config) {
+                throw new Error("Datatable is not enabled for model selection.");
+            }
+            const rawValue = req.body.value;
+            if (rawValue === undefined || rawValue === null || rawValue === "") {
+                return null;
+            }
+            let value = rawValue;
+            if (config.value === "_id") {
+                if (rawValue instanceof mongodb_1.ObjectId) {
+                    value = rawValue;
+                }
+                else if (typeof rawValue === "string" && mongodb_1.ObjectId.isValid(rawValue)) {
+                    value = new mongodb_1.ObjectId(rawValue);
+                }
+                else {
+                    return null;
+                }
+            }
+            const normalizeStages = (stages) => (stages !== null && stages !== void 0 ? stages : []).map((stage) => {
+                if (!stage || typeof stage !== "object" || !Object.prototype.hasOwnProperty.call(stage, "skipStats")) {
+                    return stage;
+                }
+                const { skipStats: _skipStats } = stage, normalized = __rest(stage, ["skipStats"]);
+                return normalized;
+            });
+            const aggregation = [
+                ...normalizeStages(yield this.getAggregation(req)),
+                ...normalizeStages(yield this.getSubAggregation(req)),
+                { $match: { [config.value]: value } },
+                { $limit: 1 },
+            ];
+            const connection = yield DBConnection_1.DBConnection.getConnection();
+            const results = yield connection.client
+                .db(null)
+                .collection(yield this.getCollection(req))
+                .aggregate(aggregation, {
+                collation: {
+                    locale: "de",
+                    strength: 2,
+                },
+            })
+                .toArray();
+            if (!results[0]) {
+                return null;
+            }
+            let result = results[0];
+            if (this.onRow) {
+                result = yield this.onRow(result);
+            }
+            if (this.onAttributes) {
+                result.__cellattr = yield this.onAttributes(result);
+            }
+            return result;
         });
     }
     getSelectableFunctionsDef(req) {

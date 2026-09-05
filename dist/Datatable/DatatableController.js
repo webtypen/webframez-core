@@ -43,6 +43,18 @@ class DatatableController extends Controller_1.Controller {
                 });
             }
             const table = new tableClass();
+            if (req.body.mode === "model-selector-preview") {
+                if (!table.getModelSelectorConfig()) {
+                    return res.status(403).send({
+                        status: "error",
+                        message: "Datatable is not enabled for model selection.",
+                    });
+                }
+                return res.send({
+                    status: "success",
+                    data: yield table.getModelSelectorPreview(req),
+                });
+            }
             if (req.body.type === "stats" || req.body.mode === "stats") {
                 return res.send({
                     status: "success",

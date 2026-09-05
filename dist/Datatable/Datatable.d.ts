@@ -1,4 +1,14 @@
 import { Request } from "../Router/Request";
+export interface DatatableModelSelectorConfig {
+    value?: string;
+    label?: string;
+    subtitle?: string;
+}
+export interface NormalizedDatatableModelSelectorConfig {
+    value: string;
+    label: string;
+    subtitle?: string;
+}
 export declare class Datatable {
     collection: string | Function;
     aggregation: {
@@ -26,6 +36,7 @@ export declare class Datatable {
     defaultUnwind?: string | null;
     disablePerPageConfig: boolean;
     selectable: boolean;
+    modelSelector: boolean | DatatableModelSelectorConfig;
     selectableFunctions: {
         [key: string]: {
             label: string;
@@ -38,6 +49,8 @@ export declare class Datatable {
         };
     } | null;
     getInit(req: Request): Promise<any>;
+    getModelSelectorConfig(): NormalizedDatatableModelSelectorConfig | null;
+    getModelSelectorPreview(req: Request): Promise<any>;
     getSelectableFunctionsDef(req: Request): Promise<{
         label: string;
         icon: string | undefined;
