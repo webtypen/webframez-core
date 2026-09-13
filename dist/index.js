@@ -77,3 +77,4 @@ __exportStar(require("./Notifications/NotificationService"), exports);
 __exportStar(require("./Notifications/NotificationsOutputChannel"), exports);
 __exportStar(require("./Notifications/NotificationsOutputChannelsJob"), exports);
 __exportStar(require("./info"), exports);
+__exportStar(require("./Queue/Queue"), exports);

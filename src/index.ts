@@ -61,3 +61,6 @@ export * from "./Notifications/NotificationService";
 export * from "./Notifications/NotificationsOutputChannel";
 export * from "./Notifications/NotificationsOutputChannelsJob";
 export * from "./info";
+export type { InlineTextDefinition, InlineTextIcon } from "./Presentation/InlineText";
+
+export * from "./Queue/Queue";

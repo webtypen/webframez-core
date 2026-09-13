@@ -11,6 +11,8 @@ export type DataBuilderSchema = {
     afterSave?: any;
     beforeDelete?: any;
     afterDelete?: any;
+    /** Override persistence for nested/model-backed records; authorization and hooks still run. */
+    deleteHandler?: (element: any, req: Request) => Promise<void>;
     getAggregation?: any;
     events?: { [key: string]: any };
     fields: { [key: string]: any };
@@ -675,7 +677,8 @@ export class DataBuilder {
             throw e;
         }
 
-        await db.collection(collection).deleteOne({ _id: element._id });
+        if (typeof type.schema.deleteHandler === "function") await type.schema.deleteHandler(element, req);
+        else await db.collection(collection).deleteOne({ _id: element._id });
 
         try {
             if (typeof type.schema.afterDelete === "function") {

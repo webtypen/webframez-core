@@ -68,12 +68,14 @@ class DBConnectionFacade {
     }
     runQuery(query, options) {
         return __awaiter(this, void 0, void 0, function* () {
-            const connection = yield this.getConnection();
+            const mapping = query.modelMapping;
+            const model = typeof mapping === "function" ? new mapping() : mapping;
+            const connection = yield this.getConnection(model === null || model === void 0 ? void 0 : model.__connection);
             const data = yield connection.driver.handleQueryBuilder(connection.client, query);
             if (options && options.raw) {
                 return data;
             }
-            if (!data) {
+            if (data === null || data === undefined) {
                 return null;
             }
             // @ToDo: Model-Mapping

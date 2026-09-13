@@ -67,8 +67,8 @@ export declare class Response {
      * @param mimeType
      * @returns void
      */
-    stream(req: Request, filepath: string, filename: string, mimeType: string): Promise<unknown>;
-    download(filepath: string, options?: any): Promise<unknown>;
+    stream(req: Request, filepath: string, filename: string, mimeType: string): Promise<Response | undefined>;
+    download(filepath: string, options?: any): Promise<void>;
     end(): this;
     registerEvent(eventKey: string, func: any): Promise<void>;
     /**

@@ -32,7 +32,8 @@ node_modules/@webtypen/webframez-core/agents/webframez_rules.md
 ```
 
 Die Regeln beschreiben unter anderem:
-- bevorzugte Nutzung von Model.objectId(...) statt eigener ObjectId-Resolver
+- verbindliche Nutzung konkreter Model-Klassen fuer fachliche Datenzugriffe statt Collection-Wrappern
+- Nutzung von Model.objectId(...) statt eigener ObjectId-Resolver
 - bevorzugte Nutzung der vorhandenen Helper wie StringFunctions, NumericFunctions und DateFunctions
 - Verwendung der Webframez-Abstraktionen fuer Request, Response, Middleware, Storage, Datatables und Routes
 
@@ -49,6 +50,8 @@ Uebernimm fuer alle Webframez-bezogenen Implementierungen die Konventionen aus:
 ./node_modules/@webtypen/webframez-core/agents/webframez_rules.md
 
 Insbesondere gilt:
+- pro persistierter Entitaet eine Model-Klasse unter app/Models anlegen; Controller, Services und Screens greifen ueber diese Klassen zu
+- keine DatabaseService.collection(...)-Wrapper oder eigene Cursor-/JSON-Persistenzschichten implementieren; fehlende atomare Operationen im Treiber ergaenzen
 - fuer ObjectId-Konvertierungen Model.objectId(...) oder die passende Model-Instanzmethode verwenden
 - vorhandene Webframez-Helper und Facades bevorzugen statt neue Utilities oder Resolver anzulegen
 - fuer HTTP-, Routing-, Middleware-, Storage- und Datatable-Code die Webframez-APIs und Konventionen beibehalten
@@ -790,3 +793,24 @@ export const handler = (event: any, context: any) => {
   });
 };
 ```
+
+
+## Inline text and icons
+
+`InlineTextDefinition` is a JSON-safe text contract exported by Webframez Core and
+structurally compatible with Native Design. Strings and existing locale maps stay
+valid. Arrays preserve order and explicit whitespace:
+
+```ts
+[{ type: "icon", name: "ubuntu" }, " Ubuntu 24.04"]
+```
+
+Suite screen titles/subtitles, Card/CardHeader, Alert and Text accept this content
+(`SuiteTextDefinition`). In React, use `<InlineText value={content} />` in other
+text slots; `ScreenTitle` also accepts the array directly. On React Native, place
+InlineText inside Text. Icons use the registered Native Design Icon component.
+Built-in names include `linux`, `linux-pinguin` and `ubuntu` (native OS icons use
+a penguin glyph fallback). Set `accessibilityLabel` only when the icon adds meaning
+not already present in adjacent text. Optional `size` is a positive number.
+Content is rendered as text and icons, never HTML. Plain navigation labels retain
+the text representation; their separate `icon` property controls navigation icons.

@@ -300,14 +300,15 @@ export class Model {
                 primaryKey: this.__primaryKey,
                 filter: { [this.__primaryKey]: this[this.__primaryKey] },
                 data: this.getModelData(),
-            });
+            }, this.__connection);
         } else {
             // Insert
             status = await DBConnection.execute({
                 type: "insertOne",
                 table: this.__table,
+                primaryKey: this.__primaryKey,
                 data: this.getModelData(),
-            });
+            }, this.__connection);
         }
 
         // onModelSave
@@ -330,7 +331,7 @@ export class Model {
             primaryKey: this.__primaryKey,
             filter: { [this.__primaryKey]: this[this.__primaryKey] },
             data: updateData,
-        });
+        }, this.__connection);
     }
 
     /**

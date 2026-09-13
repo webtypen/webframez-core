@@ -43,9 +43,13 @@ Vermeide Importe aus internen Pfaden wie src/..., dist/... oder einzelnen Deep-I
 1. Fuer ObjectId-Konvertierungen immer Model.objectId(...) oder die Instanzmethode objectId(...) verwenden, wenn man sich im Kontext eines Models befindet.
 2. Keine redundanten resolveObjectId, parseObjectId, normalizeObjectId, toObjectId oder aehnlichen Hilfsmethoden erzeugen, wenn objectId(...) ausreicht.
 3. Wenn kein konkretes Model passt, ist DBConnection.objectId(...) die zweite Wahl. Ein projektspezifischer Resolver ist nicht die erste Wahl.
-4. Fuer Standardabfragen bevorzugt die vorhandenen Model-Methoden verwenden: where(...), orderBy(...), first(), get(), paginate(), aggregate().
-5. Beziehungen ueber hasOne(...), hasMany(...) und hasManyArray(...) abbilden statt manuelle Lade- oder Resolve-Methoden pro Beziehung zu schreiben.
-6. Model-Klassen sollen die Webframez-Konventionen fuer __table, __primaryKey und Mapping respektieren.
+4. Fachliche Datenzugriffe muessen ueber konkrete Model-Klassen erfolgen: pro persistierter Entitaet eine Klasse unter app/Models mit __table und gegebenenfalls __primaryKey / __connection. Models von Anfang an anlegen und in Controllern, Services, Screens und Formular-Hooks verwenden. Keine DatabaseService.collection(...)-Wrapper und keine eigenen Collection-/Cursor-/JSON-Persistenzschichten im Projekt.
+5. Fuer Abfragen die Model-Methoden where(...), orderBy(...), first(), get(), paginate(), aggregate() verwenden. Fuer Einzelobjekte save(), update() und delete() verwenden. Vorbelegte IDs bei neuen Objekten beachten: Core Model.save() behandelt einen vorhandenen Primaerschluessel als Update; eine dokumentierte Insert-/create-Methode des Treibers nutzen, wenn die ID vor dem Insert feststeht.
+6. Falls eine notwendige Faehigkeit fehlt (z.B. atomare bedingte Updates, Upserts, Projektionen oder Bulk-Inserts), diese generisch im Datenbanktreiber bzw. Framework ergaenzen. Keine Read-Modify-Save-Schleifen fuer Token-Rotation, Zaehler oder einmalige Codes; Filter und Aenderung muessen atomar ausgefuehrt werden.
+7. Direkte DBConnection-/Treiberzugriffe sind auf Verbindungsverwaltung, Migrationen und Framework-Adapter begrenzt. Wenn ein bestehender Framework-Controller einen Datenbank-Handle verlangt, diesen nur an der Adaptergrenze weiterreichen. Geschaeftslogik bleibt bei Models.
+8. Model-Mapping, Projekt-/Tenantfilter, versteckte Felder, Datentypen und bestehende Daten beim Wechsel des Treibers testen. Raw-Aggregationen liefern Datenobjekte; normale Model-Abfragen liefern Model-Instanzen.
+9. Beziehungen ueber hasOne(...), hasMany(...) und hasManyArray(...) abbilden statt manuelle Lade- oder Resolve-Methoden pro Beziehung zu schreiben.
+10. Model-Klassen sollen die Webframez-Konventionen fuer __table, __primaryKey und Mapping respektieren.
 
 Bevorzugt:
 
@@ -234,3 +238,13 @@ Wenn Codex zwischen Eigenbau und Framework-Funktion waehlen muss, gilt standardm
 3. Erst zuletzt eine neue Abstraktion einfuehren.
 
 Wenn eine neue Abstraktion doch noetig ist, muss im Code klar erkennbar sein, warum die vorhandene Webframez-Funktion nicht ausreicht.
+
+## Suite navigation in generated projects
+
+Use actual router Link components for navigation, with href and browser modifiers
+preserved. Keep the Suite provider, renderer and AdminLayout mounted within a
+project; never key them by pathname or hide them behind per-page context loading.
+Key only changing page content, and reset the provider at project/account boundaries.
+Configure Native Design's `suite.navigation.linkComponent` at the application
+boundary. Keep server schemas serializable and authorization checks on every API.
+Verify persistent layout state during navigation, not just HTTP status codes.

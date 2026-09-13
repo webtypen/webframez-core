@@ -145,3 +145,17 @@ export function matchesAutomationExecutions(executions: any[] | undefined, date:
     const until = dueAt.clone();
     return getDueAutomationExecutions(executions, since, until, timezone).some((execution) => execution.dueAt.isSame(dueAt));
 }
+
+/** Next wall-clock automation occurrence, preserving the scheduler's timezone/DST semantics. */
+export function nextAutomationExecution(executions: any[], after: Date | string, timezone = "Europe/Berlin"): Date | null {
+    const since = moment(after).tz(timezone);
+    if (!since.isValid() || !moment.tz.zone(timezone)) throw new Error("Invalid automation time or timezone");
+    // Short windows avoid materializing months of minute/hourly occurrences just to find one.
+    const windows: Array<[number, "minutes" | "hours" | "days" | "months"]> = [[1, "minutes"], [1, "hours"], [1, "days"], [8, "days"], [2, "months"]];
+    for (const [amount, unit] of windows) {
+        const due = getDueAutomationExecutions(executions, since, since.clone().add(amount, unit), timezone);
+        const first = due.reduce<DueAutomationExecution | null>((best, entry) => !best || entry.dueAt.isBefore(best.dueAt) ? entry : best, null);
+        if (first) return first.dueAt.toDate();
+    }
+    return null;
+}

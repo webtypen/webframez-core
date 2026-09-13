@@ -73,14 +73,16 @@ class DBConnectionFacade {
     }
 
     async runQuery(query: QueryBuilder, options?: { [name: string]: any }) {
-        const connection = await this.getConnection();
+        const mapping: any = query.modelMapping;
+        const model = typeof mapping === "function" ? new mapping() : mapping;
+        const connection = await this.getConnection(model?.__connection);
         const data = await connection.driver.handleQueryBuilder(connection.client, query);
 
         if (options && options.raw) {
             return data;
         }
 
-        if (!data) {
+        if (data === null || data === undefined) {
             return null;
         }
 

@@ -553,7 +553,10 @@ class DataBuilder {
             catch (e) {
                 throw e;
             }
-            yield db.collection(collection).deleteOne({ _id: element._id });
+            if (typeof type.schema.deleteHandler === "function")
+                yield type.schema.deleteHandler(element, req);
+            else
+                yield db.collection(collection).deleteOne({ _id: element._id });
             try {
                 if (typeof type.schema.afterDelete === "function") {
                     yield type.schema.afterDelete(element, req);

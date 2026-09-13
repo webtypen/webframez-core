@@ -8,6 +8,8 @@ export type DataBuilderSchema = {
     afterSave?: any;
     beforeDelete?: any;
     afterDelete?: any;
+    /** Override persistence for nested/model-backed records; authorization and hooks still run. */
+    deleteHandler?: (element: any, req: Request) => Promise<void>;
     getAggregation?: any;
     events?: {
         [key: string]: any;

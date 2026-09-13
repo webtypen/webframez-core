@@ -1,4 +1,5 @@
 import fs from "fs";
+import { pipeline } from "stream/promises";
 import path from "path";
 import mime from "mime-types";
 import { ServerResponse } from "http";
@@ -135,98 +136,46 @@ export class Response {
      * @returns void
      */
     async stream(req: Request, filepath: string, filename: string, mimeType: string) {
-        const stats: any = fs.statSync(filepath);
-        const range = req.req?.headers.range || "";
+        if (!this.res) throw new Error("Native Response-Objekt nicht verfügbar");
+        const stats = await fs.promises.stat(filepath);
         const total = stats.size;
-
-        let start: any = undefined;
-        let end: any = undefined;
-
+        const range = String(req.headers?.range || req.message?.headers.range || "");
+        let start = 0, end = total - 1;
         if (range) {
-            var parts = range.replace(/bytes=/, "").split("-");
-            var partialstart = parts[0];
-            var partialend = parts[1];
-
-            start = parseInt(partialstart, 10);
-            end = partialend ? parseInt(partialend, 10) : total - 1;
-            var chunksize = end - start + 1;
-
-            this.status(206);
-            this.header("Content-Range", "bytes " + start + "-" + end + "/" + total);
-            this.header("Accept-Ranges", "bytes");
-            this.header("Content-Length", chunksize.toString());
-            this.header("Content-Type", mimeType);
-            this.header("Content-Disposition", `attachment; filename="${filename}"`);
-        } else {
-            this.status(200);
-            this.header("Accept-Ranges", "bytes");
-            this.header("Content-Length", stats.size.toString());
-            this.header("Content-Type", mimeType);
-            this.header("Content-Disposition", `attachment; filename="${filename}"`);
+            const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+            if (!match || (!match[1] && !match[2])) {
+                return this.status(416).header("Content-Range", `bytes */${total}`).end();
+            }
+            if (!match[1]) {
+                const suffix = Number(match[2]);
+                start = Math.max(0, total - suffix);
+                if (suffix === 0) start = total;
+            } else {
+                start = Number(match[1]);
+                end = match[2] ? Math.min(Number(match[2]), total - 1) : total - 1;
+            }
+            if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start >= total || end < start) {
+                return this.status(416).header("Content-Range", `bytes */${total}`).end();
+            }
+            this.status(206).header("Content-Range", `bytes ${start}-${end}/${total}`);
         }
-
-        // @ts-ignore
-        var readStream = fs.createReadStream(filepath, { start: start, end: end });
-
-        readStream.on("error", (streamError) => {
-            console.error("WebframezStreamError:", streamError);
-        });
-
-        readStream.on("end", () => {});
-
-        // Prüfe ob res.res verfügbar ist
-        if (!this.res) {
-            throw new Error("Native Response-Objekt nicht verfügbar");
-        }
-
-        readStream.pipe(this.res);
-
-        return new Promise((resolve: any) => {
-            readStream.on("end", resolve);
-            readStream.on("error", resolve);
-        });
+        this.header("Accept-Ranges", "bytes");
+        this.header("Content-Length", String(range ? end - start + 1 : total));
+        this.header("Content-Type", mimeType);
+        this.header("Content-Disposition", `attachment; filename="${filename.replace(/["\r\n\\]/g, "_")}"`);
+        if (total === 0) return this.end();
+        await pipeline(fs.createReadStream(filepath, {start, end}), this.res);
     }
 
     async download(filepath: string, options?: any) {
-        return new Promise((resolve: Function, reject: Function) => {
-            if (!this.res) {
-                return reject("Cannot download: Original response object is missing");
-            }
-
-            if (!fs.existsSync(filepath)) {
-                return reject("Cannot download: File '" + filepath + "' does not exist");
-            }
-
-            let mimeType = options && options.contentType ? options.contentType : "application/octet-stream";
-            if (options && options.inline) {
-                let tempMime = mime.lookup(filepath);
-                if (tempMime) {
-                    mimeType = tempMime;
-                }
-            }
-
-            const stats = fs.lstatSync(filepath);
-            this.header(
-                "Content-Disposition",
-                (options && options.inline ? "inline" : "attachment") +
-                    "; filename=" +
-                    (options && options.filename ? options.filename : path.basename(filepath))
-            );
-            this.header("Content-Type", mimeType);
-            this.header("Content-Length", stats.size.toString());
-
-            const readStream = fs.createReadStream(filepath);
-            readStream.pipe(this.res);
-
-            readStream.on("close", () => {
-                resolve();
-            });
-
-            readStream.on("error", (streamErr) => {
-                console.error(streamErr);
-                reject(streamErr);
-            });
-        });
+        if (!this.res) throw new Error("Cannot download: Original response object is missing");
+        const stats = await fs.promises.stat(filepath);
+        const mimeType = options?.contentType || (options?.inline && mime.lookup(filepath)) || "application/octet-stream";
+        const filename = String(options?.filename || path.basename(filepath)).replace(/["\r\n\\]/g, "_");
+        this.header("Content-Disposition", `${options?.inline ? "inline" : "attachment"}; filename="${filename}"`);
+        this.header("Content-Type", mimeType);
+        this.header("Content-Length", String(stats.size));
+        await pipeline(fs.createReadStream(filepath), this.res);
     }
 
     end() {

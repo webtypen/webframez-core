@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.matchesAutomationExecutions = exports.getDueAutomationExecutions = void 0;
+exports.nextAutomationExecution = exports.matchesAutomationExecutions = exports.getDueAutomationExecutions = void 0;
 const moment_timezone_1 = __importDefault(require("moment-timezone"));
 const DateFunctions_1 = require("../Functions/DateFunctions");
 function pushIfDue(out, entry, since, until) {
@@ -124,3 +124,19 @@ function matchesAutomationExecutions(executions, date, timezone = "Europe/Berlin
     return getDueAutomationExecutions(executions, since, until, timezone).some((execution) => execution.dueAt.isSame(dueAt));
 }
 exports.matchesAutomationExecutions = matchesAutomationExecutions;
+/** Next wall-clock automation occurrence, preserving the scheduler's timezone/DST semantics. */
+function nextAutomationExecution(executions, after, timezone = "Europe/Berlin") {
+    const since = (0, moment_timezone_1.default)(after).tz(timezone);
+    if (!since.isValid() || !moment_timezone_1.default.tz.zone(timezone))
+        throw new Error("Invalid automation time or timezone");
+    // Short windows avoid materializing months of minute/hourly occurrences just to find one.
+    const windows = [[1, "minutes"], [1, "hours"], [1, "days"], [8, "days"], [2, "months"]];
+    for (const [amount, unit] of windows) {
+        const due = getDueAutomationExecutions(executions, since, since.clone().add(amount, unit), timezone);
+        const first = due.reduce((best, entry) => !best || entry.dueAt.isBefore(best.dueAt) ? entry : best, null);
+        if (first)
+            return first.dueAt.toDate();
+    }
+    return null;
+}
+exports.nextAutomationExecution = nextAutomationExecution;
