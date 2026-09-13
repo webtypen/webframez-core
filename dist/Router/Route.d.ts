@@ -3,6 +3,10 @@ type RouteRegistrationOptions = {
 };
 type RouteExtensionFactory = (route: RouteFacade) => (...args: any[]) => any;
 export declare class RouteFacade {
+    get basename(): string;
+    /** Public application URL, including the configured router basename. */
+    path(value: string): string;
+    relativePath(value: string): string;
     tempGroupPrefix: string | null;
     tempGroupMiddleware: string[] | null;
     tempGroupDomains: string[] | null;

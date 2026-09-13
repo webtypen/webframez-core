@@ -62,7 +62,7 @@ export class WebApplication {
         Router.init({
             mode: options && options.mode ? options.mode : null,
             kernel: options && options.kernel ? options.kernel : null,
-            basename: options && options.basename ? options.basename : null,
+            basename: options?.basename,
             routesFunction: options && options.routesFunction ? options.routesFunction : null,
             tempDir: options && options.tempDir ? options.tempDir : null,
         });
@@ -89,7 +89,7 @@ export class WebApplication {
                     res,
                     kernel: options && options.kernel ? options.kernel : null,
                     modulesLoader: this.modulesLoader,
-                    basename: options && options.basename ? options.basename : null,
+                    basename: Router.basename,
                     options,
                 });
 
@@ -152,7 +152,7 @@ export class WebApplication {
                 runtimeConsole.log(
                     "Server started and listening on port " +
                         port +
-                        (options && options.basename ? " (Basename: " + options && options.basename + ")" : "")
+                        (Router.basename ? " (Basename: " + Router.basename + ")" : "")
                 );
             }
 

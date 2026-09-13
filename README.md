@@ -63,6 +63,44 @@ Projektspezifische Ergaenzung:
 
 Wenn eine Regel aus der lokalen Projekt-AGENTS.md einer Regel aus der Paketdatei widerspricht, sollte die lokale Projektregel Vorrang haben.
 
+## Application basename
+
+Set the public mount once in `config/application.ts`:
+
+```ts
+export default {
+  router: {
+    get basename() { return process.env.BASENAME || ""; },
+  },
+};
+```
+
+Pass this config as `boot({ config: { application }, ... })`. For example,
+`BASENAME=/my-app` mounts every registered route (including route groups and
+module/API routes) below `/my-app`. Empty or `/` keeps the application at the
+root. The legacy `boot({ basename })` option takes precedence when explicitly
+provided, including `""` or `null`. The basename is normalized and validated at
+boot; changing it requires restarting the application. Web and Lambda use the
+same configuration.
+
+`Route.path("/api/items")`, `appPath("/api/items")`, and
+`res.redirect("/login")` include the basename. Already-prefixed URLs retain one
+prefix, and external URLs, anchors, and relative URLs remain unchanged.
+`Route.relativePath(...)` / `appRelativePath(...)` remove a matching basename
+at a complete path boundary. Route registration always takes application-local
+paths; do not pass `Route.path(...)` into `Route.get(...)`.
+
+Node applications import these helpers from `@webtypen/webframez-core`.
+Browser code can use the public, Node-free `@webtypen/webframez-core/routing`
+entry. Rendering adapters provide the runtime basename to that shared API;
+Core does not rewrite arbitrary HTML strings, native `fetch` calls or raw
+`Location` headers. Use `appPath` for those application URLs.
+
+`webframez-react` automatically adopts the Core basename for `Route.renderReact`,
+including nested mounts and route groups. It publishes the basename for browser
+navigation, forms and asset URLs. The build output directory remains independent
+of the deployment path, so one artifact can be mounted at different basenames.
+
 ## Basic Web Setup
 
 ```ts

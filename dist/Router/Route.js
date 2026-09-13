@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Route = exports.RouteFacade = void 0;
+const routing_1 = require("../routing");
 const Router_1 = require("./Router");
 class RouteFacade {
     constructor() {
@@ -24,6 +25,10 @@ class RouteFacade {
             Router_1.Router.register(method, (this.tempGroupPrefix ? this.tempGroupPrefix : "") + path, component, mergedOptions);
         };
     }
+    get basename() { return Router_1.Router.basename || ""; }
+    /** Public application URL, including the configured router basename. */
+    path(value) { return (0, routing_1.appPath)(value, this.basename); }
+    relativePath(value) { return (0, routing_1.appRelativePath)(value, this.basename); }
     normalizeStringArray(values) {
         if (!Array.isArray(values)) {
             return [];

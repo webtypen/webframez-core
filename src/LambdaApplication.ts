@@ -37,7 +37,7 @@ export class LambdaApplication {
         Router.init({
             mode: "aws-lambda",
             kernel: options && options.kernel ? options.kernel : null,
-            basename: options && options.basename ? options.basename : null,
+            basename: options?.basename,
             routesFunction: options && options.routesFunction ? options.routesFunction : null,
             tempDir: options && options.tempDir ? options.tempDir : null,
         });

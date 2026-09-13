@@ -1,3 +1,5 @@
+import { Config } from "../Config";
+import { normalizeBasename } from "../routing";
 import { IncomingMessage, ServerResponse } from "http";
 import { Response } from "./Response";
 import { Request } from "./Request";
@@ -97,7 +99,9 @@ class RouterFacade {
      * Load the application-routes
      */
     init(options?: any) {
-        this.basename = options && options.basename ? options.basename : null;
+        this.basename = normalizeBasename(options?.basename !== undefined
+            ? options.basename : Config.get("application.router.basename"));
+        (globalThis as { __WEBFRAMEZ_ROUTER_BASENAME__?: string }).__WEBFRAMEZ_ROUTER_BASENAME__ = this.basename;
         this.kernel = options && options.kernel ? options.kernel : null;
         this.mode = options && options.mode ? options.mode : null;
         this.maxRequestBodySizeBytes =

@@ -13,6 +13,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Response = void 0;
+const routing_1 = require("../routing");
 const fs_1 = __importDefault(require("fs"));
 const promises_1 = require("stream/promises");
 const path_1 = __importDefault(require("path"));
@@ -36,6 +37,10 @@ class Response {
     setServerResponse(res) {
         this.res = res;
         return this;
+    }
+    /** Redirect to an application URL, retaining external destinations unchanged. */
+    redirect(location, status = 302) {
+        return this.status(status).header("Location", (0, routing_1.appPath)(location)).send("");
     }
     /**
      * Set the http-status-code

@@ -20,6 +20,8 @@ export declare class Response {
      * @returns Response
      */
     setServerResponse(res: ServerResponse): this;
+    /** Redirect to an application URL, retaining external destinations unchanged. */
+    redirect(location: string, status?: number): Response;
     /**
      * Set the http-status-code
      *

@@ -13,6 +13,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Router = void 0;
+const Config_1 = require("../Config");
+const routing_1 = require("../routing");
 const http_1 = require("http");
 const Response_1 = require("./Response");
 const Request_1 = require("./Request");
@@ -72,7 +74,9 @@ class RouterFacade {
      * Load the application-routes
      */
     init(options) {
-        this.basename = options && options.basename ? options.basename : null;
+        this.basename = (0, routing_1.normalizeBasename)((options === null || options === void 0 ? void 0 : options.basename) !== undefined
+            ? options.basename : Config_1.Config.get("application.router.basename"));
+        globalThis.__WEBFRAMEZ_ROUTER_BASENAME__ = this.basename;
         this.kernel = options && options.kernel ? options.kernel : null;
         this.mode = options && options.mode ? options.mode : null;
         this.maxRequestBodySizeBytes =

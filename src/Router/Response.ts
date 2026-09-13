@@ -1,3 +1,4 @@
+import { appPath } from "../routing";
 import fs from "fs";
 import { pipeline } from "stream/promises";
 import path from "path";
@@ -29,6 +30,11 @@ export class Response {
     setServerResponse(res: ServerResponse) {
         this.res = res;
         return this;
+    }
+
+    /** Redirect to an application URL, retaining external destinations unchanged. */
+    redirect(location: string, status = 302): Response {
+        return this.status(status).header("Location", appPath(location)).send("");
     }
 
     /**

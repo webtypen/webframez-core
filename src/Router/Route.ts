@@ -1,3 +1,4 @@
+import { appPath, appRelativePath } from "../routing";
 import { Router } from "./Router";
 
 type RouteRegistrationOptions = { [key: string]: any };
@@ -11,6 +12,13 @@ type RouteRegistrationHandler = (
 type RouteExtensionFactory = (route: RouteFacade) => (...args: any[]) => any;
 
 export class RouteFacade {
+    get basename(): string { return Router.basename || ""; }
+
+    /** Public application URL, including the configured router basename. */
+    path(value: string): string { return appPath(value, this.basename); }
+
+    relativePath(value: string): string { return appRelativePath(value, this.basename); }
+
     tempGroupPrefix: string | null = null;
     tempGroupMiddleware: string[] | null = null;
     tempGroupDomains: string[] | null = null;

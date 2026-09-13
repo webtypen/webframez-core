@@ -37,7 +37,7 @@ class LambdaApplication {
         Router_1.Router.init({
             mode: "aws-lambda",
             kernel: options && options.kernel ? options.kernel : null,
-            basename: options && options.basename ? options.basename : null,
+            basename: options === null || options === void 0 ? void 0 : options.basename,
             routesFunction: options && options.routesFunction ? options.routesFunction : null,
             tempDir: options && options.tempDir ? options.tempDir : null,
         });
