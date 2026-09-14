@@ -490,7 +490,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                 });
                 const job = jobUpdate && jobUpdate.jobclass && jobUpdate._id
                     ? jobUpdate
-                    : jobUpdate.value && jobUpdate.ok && jobUpdate.value._id && jobUpdate.value.jobclass
+                    : (jobUpdate === null || jobUpdate === void 0 ? void 0 : jobUpdate.value) && jobUpdate.ok && jobUpdate.value._id && jobUpdate.value.jobclass
                         ? jobUpdate.value
                         : null;
                 if (!job || !job.jobclass || !job._id) {

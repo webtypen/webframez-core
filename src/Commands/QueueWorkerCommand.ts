@@ -583,7 +583,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
             const job =
                 jobUpdate && jobUpdate.jobclass && jobUpdate._id
                     ? jobUpdate
-                    : jobUpdate.value && jobUpdate.ok && jobUpdate.value._id && jobUpdate.value.jobclass
+                    : jobUpdate?.value && jobUpdate.ok && jobUpdate.value._id && jobUpdate.value.jobclass
                     ? jobUpdate.value
                     : null;
 
