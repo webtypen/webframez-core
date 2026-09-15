@@ -1,3 +1,4 @@
+import type { DatabaseIdAdapter, DocumentDatabase } from "./DatabaseAdapter";
 // @ts-ignore
 import { Config } from "../Config";
 import { DBDrivers } from "./DBDrivers";
@@ -10,7 +11,7 @@ type ObjectIDType = {
 class DBConnectionFacade {
     connections: { [key: string]: any } = {};
 
-    getConnectionConfig(connection: string) {
+    getConnectionConfig(connection?: string) {
         const dbconfig = Config.get("database");
 
         if (!dbconfig) {
@@ -28,16 +29,37 @@ class DBConnectionFacade {
         return dbconfig.connections[connection as keyof {}];
     }
 
-    getConnectionDriver(connection: string) {
+    getConnectionDriver(connection?: string) {
         const config = this.getConnectionConfig(connection);
         if (!config || !config["driver"]) {
-            return null;
+            throw new Error("No database driver configured.");
         }
 
         const driverClass = DBDrivers.get(config["driver"]);
+        if (!driverClass) throw new Error(`Database driver "${config["driver"]}" is not registered. Install and register a driver before using database features.`);
         const driver = new driverClass();
         driver.setConfig(config);
         return driver;
+    }
+
+    /** Resolves ID handling without opening a connection. Core import stays side-effect free. */
+    getIdAdapter(connectionName?: string): DatabaseIdAdapter {
+        const name = connectionName || Config.get("database")?.defaultConnection;
+        const driver = (name && this.connections[name]?.driver) || this.getConnectionDriver(connectionName);
+        const adapter = driver.idAdapter;
+        if (!adapter) throw new Error("This database driver does not implement ID handling.");
+        return adapter;
+    }
+
+    documentStore(connection: any): DocumentDatabase {
+        if (typeof connection?.driver?.documentStore !== "function") {
+            throw new Error("The configured database driver does not support document queries. Update the driver to use this feature.");
+        }
+        return connection.driver.documentStore(connection.client);
+    }
+
+    async getDocumentStore(connectionName?: string): Promise<DocumentDatabase> {
+        return this.documentStore(await this.getConnection(connectionName));
     }
 
     async getConnection(connectionName?: string) {
@@ -52,7 +74,7 @@ class DBConnectionFacade {
         }
 
         if (!connectionName) {
-            return null;
+            throw new Error("No default database connection configured.");
         }
 
         if (this.connections[connectionName] && this.connections[connectionName].driver) {
@@ -101,19 +123,14 @@ class DBConnectionFacade {
         return connection.driver;
     }
 
-    async objectId(val?: any, connectionName?: string, options?: ObjectIDType) {
-        if (options && options.noExceptions) {
-            try {
-                const connection = await this.getConnection(connectionName);
-                return await connection.driver.objectId(val);
-            } catch (e) {
-                console.error(e);
-            }
+    // Preserve the existing driver-defined return type for Model.objectId consumers.
+    async objectId(val?: any, connectionName?: string, options?: ObjectIDType): Promise<any> {
+        try {
+            return this.getIdAdapter(connectionName).create(val);
+        } catch (error) {
+            if (!options?.noExceptions) throw error;
             return null;
         }
-
-        const connection = await this.getConnection(connectionName);
-        return await connection.driver.objectId(val);
     }
 
     mapDataToModel(model: any, data: any) {

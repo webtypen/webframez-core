@@ -33,12 +33,36 @@ class DBConnectionFacade {
     getConnectionDriver(connection) {
         const config = this.getConnectionConfig(connection);
         if (!config || !config["driver"]) {
-            return null;
+            throw new Error("No database driver configured.");
         }
         const driverClass = DBDrivers_1.DBDrivers.get(config["driver"]);
+        if (!driverClass)
+            throw new Error(`Database driver "${config["driver"]}" is not registered. Install and register a driver before using database features.`);
         const driver = new driverClass();
         driver.setConfig(config);
         return driver;
+    }
+    /** Resolves ID handling without opening a connection. Core import stays side-effect free. */
+    getIdAdapter(connectionName) {
+        var _a, _b;
+        const name = connectionName || ((_a = Config_1.Config.get("database")) === null || _a === void 0 ? void 0 : _a.defaultConnection);
+        const driver = (name && ((_b = this.connections[name]) === null || _b === void 0 ? void 0 : _b.driver)) || this.getConnectionDriver(connectionName);
+        const adapter = driver.idAdapter;
+        if (!adapter)
+            throw new Error("This database driver does not implement ID handling.");
+        return adapter;
+    }
+    documentStore(connection) {
+        var _a;
+        if (typeof ((_a = connection === null || connection === void 0 ? void 0 : connection.driver) === null || _a === void 0 ? void 0 : _a.documentStore) !== "function") {
+            throw new Error("The configured database driver does not support document queries. Update the driver to use this feature.");
+        }
+        return connection.driver.documentStore(connection.client);
+    }
+    getDocumentStore(connectionName) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return this.documentStore(yield this.getConnection(connectionName));
+        });
     }
     getConnection(connectionName) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -50,7 +74,7 @@ class DBConnectionFacade {
                 connectionName = dbconfig.defaultConnection;
             }
             if (!connectionName) {
-                return null;
+                throw new Error("No default database connection configured.");
             }
             if (this.connections[connectionName] && this.connections[connectionName].driver) {
                 // Use cached connection
@@ -94,20 +118,17 @@ class DBConnectionFacade {
             return connection.driver;
         });
     }
+    // Preserve the existing driver-defined return type for Model.objectId consumers.
     objectId(val, connectionName, options) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (options && options.noExceptions) {
-                try {
-                    const connection = yield this.getConnection(connectionName);
-                    return yield connection.driver.objectId(val);
-                }
-                catch (e) {
-                    console.error(e);
-                }
+            try {
+                return this.getIdAdapter(connectionName).create(val);
+            }
+            catch (error) {
+                if (!(options === null || options === void 0 ? void 0 : options.noExceptions))
+                    throw error;
                 return null;
             }
-            const connection = yield this.getConnection(connectionName);
-            return yield connection.driver.objectId(val);
         });
     }
     mapDataToModel(model, data) {

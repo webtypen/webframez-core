@@ -15,7 +15,7 @@ const paginationList = (options, aggregation, aggregationOptional) => __awaiter(
     const page = options.page && parseInt(options.page) > 0 ? parseInt(options.page) : 0;
     const perPage = options.perPage && parseInt(options.perPage) > 0 ? parseInt(options.perPage) : 50;
     const connection = yield DBConnection_1.DBConnection.getConnection();
-    const collection = connection.client.db(null).collection(options.collection);
+    const collection = DBConnection_1.DBConnection.documentStore(connection).collection(options.collection);
     const promises = [];
     let total = 0;
     promises.push(new Promise((resolve) => __awaiter(void 0, void 0, void 0, function* () {

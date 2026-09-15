@@ -21,6 +21,38 @@ This README reflects the current API in this repository and focuses on:
 npm i @webtypen/webframez-core
 ```
 
+## Database drivers (from 0.3.69)
+
+The core has no MongoDB/BSON dependency. HTTP routing and database-independent
+commands work without installing or registering a database driver. Database access
+requires a registered driver; missing configuration or capabilities fail explicitly.
+
+For MongoDB, use `@webtypen/webframez-dbdriver-mongodb >=0.0.11` and register
+`MongoDBDriver` with `DBDrivers.register("mongodb", MongoDBDriver)` before database
+features are used. Upgrade the driver before the core. Applications that directly
+import MongoDB must declare their own `mongodb` dependency.
+
+Driver authors implement `idAdapter` for ID creation, normalization, validation and
+comparison. ID conversion does not open a connection. `Model.objectId(...)` keeps
+its existing name and driver-defined return value for compatibility.
+
+Datatables, DataBuilder, pagination, queues and notifications use the optional
+`documentStore(client): DocumentDatabase` capability. Its filters, updates and
+aggregation stages use MongoDB-style document operators; another driver must
+translate them or report that this capability is unsupported. This is not a SQL
+query abstraction. `findOneAndUpdate` must atomically select/update one record and
+return the document or `null`, never a native result wrapper. No read-then-write
+fallback is allowed for queue or notification claims.
+
+Verification after `npm run build`:
+
+```bash
+node --test -r ts-node/register/transpile-only src/Database/DatabaseAdapter.spec.ts src/Commands/QueueWorkerCommand.spec.ts src/Notifications/NotificationService.spec.ts
+```
+
+The tests include an HTTP server with MongoDB, BSON and all database-driver imports
+blocked, and a numeric-ID test driver that never opens a database connection.
+
 ## Agent-Regeln fuer Codex und Copilot
 
 Das Paket enthaelt unter agents/webframez_rules.md empfohlene Arbeitsregeln fuer AI-Coding-Agents in Webframez-Projekten.

@@ -1,4 +1,4 @@
-import { ObjectId } from "mongodb";
+import type { DatabaseId } from "../Database/DatabaseAdapter";
 import { Request } from "../Router/Request";
 import { Notification } from "./Notification";
 import { Config } from "../Config";
@@ -17,7 +17,7 @@ export type NotificationParameterDefinition = {
 };
 export type NotificationTargetContext = {
     target: string;
-    target_id: ObjectId | string;
+    target_id: DatabaseId;
     targetModel?: any;
     request?: Request;
 };
@@ -142,26 +142,16 @@ class NotificationServiceFacade {
         this.registry = registry;
     }
 
-    private getObjectIdString(value: unknown): string | null {
-        const objectIdString =
-            typeof value === "string"
-                ? value
-                : value && typeof (value as any).toString === "function"
-                  ? (value as any).toString()
-                  : null;
-
-        return objectIdString && objectIdString.length === 24 && ObjectId.isValid(objectIdString)
-            ? objectIdString
-            : null;
+    private normalizeObjectId(value: unknown): DatabaseId | null {
+        return DBConnection.getIdAdapter(new Notification().__connection).normalize(value);
     }
 
-    private normalizeObjectId(value: unknown): ObjectId | null {
-        const objectIdString = this.getObjectIdString(value);
-        return objectIdString ? new ObjectId(objectIdString) : null;
+    private sameId(left: unknown, right: unknown): boolean {
+        return DBConnection.getIdAdapter(new Notification().__connection).equals(left, right);
     }
 
-    private getNotificationReferenceId(notificationRef: ObjectId | string | null): string | null {
-        return this.getObjectIdString(notificationRef);
+    private getNotificationReferenceId(notificationRef: DatabaseId | null): DatabaseId | null {
+        return this.normalizeObjectId(notificationRef);
     }
 
     init() {
@@ -274,9 +264,9 @@ class NotificationServiceFacade {
         return this.targetRegistry[target] || null;
     }
 
-    private normalizeTargetId(targetId: ObjectId | string) {
+    private normalizeTargetId(targetId: DatabaseId) {
         const normalized = this.normalizeObjectId(targetId);
-        if (!normalized) {
+        if (normalized === null) {
             throw new NotificationTargetValidationError("Invalid notification target_id.");
         }
         return normalized;
@@ -290,7 +280,7 @@ class NotificationServiceFacade {
         if (!this.getTargetDefinition(target)) {
             throw new NotificationTargetValidationError(`Unknown notification target '${target}'.`);
         }
-        if (!context.target_id) {
+        if (context.target_id === null || context.target_id === undefined || context.target_id === "") {
             throw new NotificationTargetValidationError("Notification target_id required.");
         }
         return { ...context, target, target_id: this.normalizeTargetId(context.target_id) };
@@ -299,7 +289,7 @@ class NotificationServiceFacade {
     async resolveTarget(context: NotificationTargetContext): Promise<NotificationTargetContext | null> {
         const normalized = this.normalizeTargetContext(context);
         if (normalized.targetModel) {
-            return this.getModelId(normalized.targetModel)?.equals(normalized.target_id as ObjectId) ? normalized : null;
+            return this.sameId(this.getModelId(normalized.targetModel), normalized.target_id) ? normalized : null;
         }
         const definition = this.getTargetDefinition(normalized.target)!;
         let targetModel: any = null;
@@ -308,18 +298,17 @@ class NotificationServiceFacade {
         } else if (
             normalized.target === "user" &&
             normalized.request?.user &&
-            this.getModelId(normalized.request.user)?.equals(normalized.target_id as ObjectId)
+            this.sameId(this.getModelId(normalized.request.user), normalized.target_id)
         ) {
             targetModel = normalized.request.user;
         } else if (definition.collection) {
             const connection = await DBConnection.getConnection();
-            targetModel = await connection.client
-                .db(null)
+            targetModel = await DBConnection.documentStore(connection)
                 .collection(definition.collection)
                 .findOne({ _id: normalized.target_id });
         }
         const modelId = this.getModelId(targetModel);
-        return modelId?.equals(normalized.target_id as ObjectId) ? { ...normalized, targetModel } : null;
+        return this.sameId(modelId, normalized.target_id) ? { ...normalized, targetModel } : null;
     }
 
     async authorizeTarget(context: NotificationTargetContext): Promise<NotificationTargetContext | null> {
@@ -331,7 +320,7 @@ class NotificationServiceFacade {
         }
         if (!resolved.request) return resolved;
         const requestUserId = this.getModelId(resolved.request.user);
-        return requestUserId?.equals(resolved.target_id as ObjectId) ? resolved : null;
+        return this.sameId(requestUserId, resolved.target_id) ? resolved : null;
     }
 
     attachTargetModel(notification: Notification, targetModel: any) {
@@ -344,7 +333,7 @@ class NotificationServiceFacade {
         return notification;
     }
 
-    private getModelId(model: any): ObjectId | null {
+    private getModelId(model: any): DatabaseId | null {
         return this.normalizeObjectId(model?._id ?? model?.id);
     }
 
@@ -471,8 +460,7 @@ class NotificationServiceFacade {
             await owner.save();
         } else if (this.getTargetDefinition(resolved.target)?.collection && owner._id) {
             const connection = await DBConnection.getConnection();
-            await connection.client
-                .db(null)
+            await DBConnection.documentStore(connection)
                 .collection(this.getTargetDefinition(resolved.target)!.collection!)
                 .updateOne({ _id: owner._id }, { $set: { [preferencesField]: preferences } });
         } else {
@@ -703,7 +691,7 @@ class NotificationServiceFacade {
 
         const notification = new Notification();
         notification.target = targetContext.target;
-        notification.target_id = targetContext.target_id as ObjectId;
+        notification.target_id = targetContext.target_id;
         this.attachTargetModel(notification, targetContext.targetModel);
         notification.key = notType.key;
         notification.mode = notificationMode;
@@ -784,14 +772,14 @@ class NotificationServiceFacade {
         return notification;
     }
 
-    async getNotification(notificationRef: Notification | ObjectId | string | null): Promise<Notification> {
+    async getNotification(notificationRef: Notification | DatabaseId | null): Promise<Notification> {
         if (notificationRef instanceof Notification) {
             return notificationRef;
         }
 
         const notificationId = this.getNotificationReferenceId(notificationRef);
 
-        if (notificationId && notificationId.length === 24 && ObjectId.isValid(notificationId)) {
+        if (notificationId !== null) {
             const loadNotification = await Notification.where(
                 "_id",
                 "=",
@@ -806,18 +794,17 @@ class NotificationServiceFacade {
     }
 
     async setQueueJobFailureStatus(
-        notificationRef: ObjectId | string | null,
+        notificationRef: DatabaseId | null,
         error?: string | null,
     ): Promise<boolean> {
         const notificationId = this.getNotificationReferenceId(notificationRef);
-        if (!notificationId) {
+        if (notificationId === null) {
             throw new Error("Invalid notification reference provided: " + notificationRef?.toString());
         }
 
         const connection = await DBConnection.getConnection();
         const completedAt = new Date();
-        const result = await connection.client
-            .db(null)
+        const result = await DBConnection.documentStore(connection)
             .collection(new Notification().__table)
             .updateOne(
                 { _id: await Notification.objectId(notificationId) },
@@ -837,8 +824,8 @@ class NotificationServiceFacade {
         return result.matchedCount > 0;
     }
 
-    async markAsRead(notification: Notification | ObjectId | string | null): Promise<Notification> {
-        notification = await this.getNotification(notification);
+    async markAsRead(notificationRef: Notification | DatabaseId | null): Promise<Notification> {
+        const notification = await this.getNotification(notificationRef);
         if (notification.read_status === "read" && notification.view_status === "viewed") {
             return notification;
         }
@@ -859,8 +846,8 @@ class NotificationServiceFacade {
         return notification;
     }
 
-    async markAsViewed(notification: Notification | ObjectId | string | null): Promise<Notification> {
-        notification = await this.getNotification(notification);
+    async markAsViewed(notificationRef: Notification | DatabaseId | null): Promise<Notification> {
+        const notification = await this.getNotification(notificationRef);
         if (notification.view_status === "viewed") {
             return notification;
         }
@@ -879,8 +866,7 @@ class NotificationServiceFacade {
     async markAllAsRead(context: NotificationTargetContext): Promise<void> {
         const connection = await DBConnection.getConnection();
         const now = new Date();
-        await connection.client
-            .db(null)
+        await DBConnection.documentStore(connection)
             .collection(new Notification().__table)
             .updateMany(
                 {
@@ -902,8 +888,7 @@ class NotificationServiceFacade {
 
     async markAllAsViewed(context: NotificationTargetContext): Promise<void> {
         const connection = await DBConnection.getConnection();
-        await connection.client
-            .db(null)
+        await DBConnection.documentStore(connection)
             .collection(new Notification().__table)
             .updateMany(
                 {
@@ -920,12 +905,12 @@ class NotificationServiceFacade {
     }
 
     async getNotificationForTarget(
-        notificationRef: Notification | ObjectId | string | null,
+        notificationRef: Notification | DatabaseId | null,
         context: NotificationTargetContext,
     ): Promise<Notification | null> {
         const notificationId = notificationRef instanceof Notification ? notificationRef._id : notificationRef;
         const objectId = this.normalizeObjectId(notificationId);
-        if (!objectId) return null;
+        if (objectId === null) return null;
 
         const notifications = await Notification.aggregate([
             {
@@ -969,7 +954,7 @@ class NotificationServiceFacade {
     }
 
     async updateNotification(
-        notification: Notification | ObjectId | string | null,
+        notificationRef: Notification | DatabaseId | null,
         updateData: {
             payload?: NotificationPayload;
             show_at?: Date | null;
@@ -979,7 +964,7 @@ class NotificationServiceFacade {
             viewed_at?: Date | null;
         },
     ): Promise<Notification> {
-        notification = await this.getNotification(notification);
+        const notification = await this.getNotification(notificationRef);
 
         if (updateData.payload) {
             notification.payload = { ...notification.payload, ...updateData.payload };
@@ -1010,11 +995,11 @@ class NotificationServiceFacade {
     }
 
     async setChangingStatus(
-        notification: Notification | ObjectId | string | null,
+        notificationRef: Notification | DatabaseId | null,
         status: NotificationChangingStatus,
         error?: string | null,
     ): Promise<Notification> {
-        notification = await this.getNotification(notification);
+        const notification = await this.getNotification(notificationRef);
         if (notification.mode !== "changing") {
             throw new Error(`Notification '${notification._id?.toString()}' is not in changing mode.`);
         }
@@ -1034,7 +1019,7 @@ class NotificationServiceFacade {
 
     async loadNotifications(options: {
         target: string;
-        target_id: ObjectId | string;
+        target_id: DatabaseId;
         targetModel?: any;
         offset?: number;
         limit?: number;

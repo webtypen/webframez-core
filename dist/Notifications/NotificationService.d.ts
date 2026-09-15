@@ -1,4 +1,4 @@
-import { ObjectId } from "mongodb";
+import type { DatabaseId } from "../Database/DatabaseAdapter";
 import { Request } from "../Router/Request";
 import { Notification } from "./Notification";
 export type NotificationModes = "fixed" | "changing";
@@ -13,7 +13,7 @@ export type NotificationParameterDefinition = {
 };
 export type NotificationTargetContext = {
     target: string;
-    target_id: ObjectId | string;
+    target_id: DatabaseId;
     targetModel?: any;
     request?: Request;
 };
@@ -123,8 +123,8 @@ declare class NotificationServiceFacade {
     set registy(registry: {
         [key: string]: NotificationDefinition;
     });
-    private getObjectIdString;
     private normalizeObjectId;
+    private sameId;
     private getNotificationReferenceId;
     init(): void;
     registerType(type: NotificationDefinition): this;
@@ -158,17 +158,17 @@ declare class NotificationServiceFacade {
     private getLoadAggregation;
     private enrichNotification;
     create(typeKey: string, payload: NotificationPayload, options: NotificationOptions): Promise<Notification | null>;
-    getNotification(notificationRef: Notification | ObjectId | string | null): Promise<Notification>;
-    setQueueJobFailureStatus(notificationRef: ObjectId | string | null, error?: string | null): Promise<boolean>;
-    markAsRead(notification: Notification | ObjectId | string | null): Promise<Notification>;
-    markAsViewed(notification: Notification | ObjectId | string | null): Promise<Notification>;
+    getNotification(notificationRef: Notification | DatabaseId | null): Promise<Notification>;
+    setQueueJobFailureStatus(notificationRef: DatabaseId | null, error?: string | null): Promise<boolean>;
+    markAsRead(notificationRef: Notification | DatabaseId | null): Promise<Notification>;
+    markAsViewed(notificationRef: Notification | DatabaseId | null): Promise<Notification>;
     markAllAsRead(context: NotificationTargetContext): Promise<void>;
     markAllAsViewed(context: NotificationTargetContext): Promise<void>;
-    getNotificationForTarget(notificationRef: Notification | ObjectId | string | null, context: NotificationTargetContext): Promise<Notification | null>;
+    getNotificationForTarget(notificationRef: Notification | DatabaseId | null, context: NotificationTargetContext): Promise<Notification | null>;
     private countByStatus;
     getUnreadCount(context: NotificationTargetContext): Promise<number>;
     getUnviewedCount(context: NotificationTargetContext): Promise<number>;
-    updateNotification(notification: Notification | ObjectId | string | null, updateData: {
+    updateNotification(notificationRef: Notification | DatabaseId | null, updateData: {
         payload?: NotificationPayload;
         show_at?: Date | null;
         read_status?: NotificationReadStatus;
@@ -176,10 +176,10 @@ declare class NotificationServiceFacade {
         view_status?: NotificationViewStatus;
         viewed_at?: Date | null;
     }): Promise<Notification>;
-    setChangingStatus(notification: Notification | ObjectId | string | null, status: NotificationChangingStatus, error?: string | null): Promise<Notification>;
+    setChangingStatus(notificationRef: Notification | DatabaseId | null, status: NotificationChangingStatus, error?: string | null): Promise<Notification>;
     loadNotifications(options: {
         target: string;
-        target_id: ObjectId | string;
+        target_id: DatabaseId;
         targetModel?: any;
         offset?: number;
         limit?: number;

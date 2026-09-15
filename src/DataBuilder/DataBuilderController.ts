@@ -17,13 +17,13 @@ export class DataBuilderController extends Controller {
         if (req.body.__builder_rest_api === "api-autocomplete") {
             return res.send(await this.builder.apiAutoComplete(req));
         } else if (req.body.__builder_rest_api === "details") {
-            return res.send(await this.builder.details(db.client.db(null), req));
+            return res.send(await this.builder.details(DBConnection.documentStore(db), req));
         } else if (req.body.__builder_rest_api === "details-newdata") {
-            return res.send(await this.builder.detailsNewData(db.client.db(null), req));
+            return res.send(await this.builder.detailsNewData(DBConnection.documentStore(db), req));
         } else if (req.body.__builder_rest_api === "save") {
-            return res.send(await this.builder.save(db.client.db(null), req));
+            return res.send(await this.builder.save(DBConnection.documentStore(db), req));
         } else if (req.body.__builder_rest_api === "delete") {
-            return res.send(await this.builder.delete(db.client.db(null), req));
+            return res.send(await this.builder.delete(DBConnection.documentStore(db), req));
         } else if (req.body.__builder_rest_api === "type") {
             return res.send(await this.builder.loadType(req));
         }

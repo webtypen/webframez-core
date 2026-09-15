@@ -1,3 +1,4 @@
+import { DBConnection } from "../Database/DBConnection";
 /// <reference types="node" />
 import { IncomingMessage } from "http";
 import { Request } from "../Router/Request";
@@ -238,12 +239,12 @@ export function coerceApiFunctionParam(key: string, value: any, definition: ApiF
         throw new ApiFunctionRuntimeError(`Parameter "${key}" must be a boolean`, 400);
     }
 
-    if (type === "objectid") {
-        const stringValue = value.toString();
-        if (!/^[a-fA-F0-9]{24}$/.test(stringValue)) {
+    if (["objectid", "databaseid"].includes(type)) {
+        const normalizedId = DBConnection.getIdAdapter().normalize(value);
+        if (normalizedId === null) {
             throw new ApiFunctionRuntimeError(`Parameter "${key}" must be a valid ObjectId`, 400);
         }
-        return stringValue;
+        return String(normalizedId);
     }
 
     if (type === "option") {

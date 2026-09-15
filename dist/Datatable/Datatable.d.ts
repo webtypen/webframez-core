@@ -67,7 +67,7 @@ export declare class Datatable {
         max_entries: any;
         total_pages: number;
         per_page: number;
-        entries: any;
+        entries: any[];
         sums: any;
     }>;
     stats(req: Request): Promise<Array<{
@@ -75,7 +75,7 @@ export declare class Datatable {
         type: string;
         value: any;
     }>>;
-    getTotalData(req: Request): Promise<any>;
+    getTotalData(req: Request): Promise<any[]>;
     getFilter(req: Request): Promise<any>;
     getColumns(req: Request): Promise<any>;
     getOnPressLink(req: Request): Promise<any>;

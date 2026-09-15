@@ -10,6 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.instantiateApiFunction = exports.instantiateApiScope = exports.assertUniqueApiFunctionKeys = exports.createApiFrameworkRequest = exports.toApiFunctionPayload = exports.toApiFunctionHttpResult = exports.apiFunctionParamToJsonSchema = exports.apiFunctionParamsToJsonSchema = exports.coerceApiFunctionParam = exports.validateApiFunctionParams = exports.runApiScopeRegistrationMiddleware = exports.runApiScopeGroupMiddleware = exports.runApiScopesGroupMiddleware = exports.runApiScopeMiddleware = exports.collectApiScopeRegistrations = exports.instantiateApiScopesGroup = exports.isApiScopesGroupInstance = exports.normalizeApiScopesGroupProvider = exports.getApiFunctionClasses = exports.normalizeApiFunctionProvider = exports.isPlainApiObject = exports.getApiErrorMessage = exports.joinApiPath = exports.normalizeApiPath = exports.ApiFunctionRuntimeError = void 0;
+const DBConnection_1 = require("../Database/DBConnection");
 const Request_1 = require("../Router/Request");
 const ApiFunction_1 = require("./ApiFunction");
 const ApiScopesGroup_1 = require("./ApiScopesGroup");
@@ -206,12 +207,12 @@ function coerceApiFunctionParam(key, value, definition) {
         }
         throw new ApiFunctionRuntimeError(`Parameter "${key}" must be a boolean`, 400);
     }
-    if (type === "objectid") {
-        const stringValue = value.toString();
-        if (!/^[a-fA-F0-9]{24}$/.test(stringValue)) {
+    if (["objectid", "databaseid"].includes(type)) {
+        const normalizedId = DBConnection_1.DBConnection.getIdAdapter().normalize(value);
+        if (normalizedId === null) {
             throw new ApiFunctionRuntimeError(`Parameter "${key}" must be a valid ObjectId`, 400);
         }
-        return stringValue;
+        return String(normalizedId);
     }
     if (type === "option") {
         const allowedValues = Array.isArray(definition.options) ? definition.options.map((option) => option.value) : [];

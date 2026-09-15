@@ -25,7 +25,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Datatable = void 0;
 const moment_1 = __importDefault(require("moment"));
-const mongodb_1 = require("mongodb");
 const DBConnection_1 = require("../Database/DBConnection");
 const NumericFunctions_1 = require("../Functions/NumericFunctions");
 class Datatable {
@@ -115,15 +114,9 @@ class Datatable {
             }
             let value = rawValue;
             if (config.value === "_id") {
-                if (rawValue instanceof mongodb_1.ObjectId) {
-                    value = rawValue;
-                }
-                else if (typeof rawValue === "string" && mongodb_1.ObjectId.isValid(rawValue)) {
-                    value = new mongodb_1.ObjectId(rawValue);
-                }
-                else {
+                value = DBConnection_1.DBConnection.getIdAdapter().normalize(rawValue);
+                if (value === null)
                     return null;
-                }
             }
             const normalizeStages = (stages) => (stages !== null && stages !== void 0 ? stages : []).map((stage) => {
                 if (!stage || typeof stage !== "object" || !Object.prototype.hasOwnProperty.call(stage, "skipStats")) {
@@ -139,8 +132,7 @@ class Datatable {
                 { $limit: 1 },
             ];
             const connection = yield DBConnection_1.DBConnection.getConnection();
-            const results = yield connection.client
-                .db(null)
+            const results = yield DBConnection_1.DBConnection.documentStore(connection)
                 .collection(yield this.getCollection(req))
                 .aggregate(aggregation, {
                 collation: {
@@ -310,8 +302,7 @@ class Datatable {
                 log("[DATATABLE_AGGREGATION" + (req.body._table ? "-" + req.body._table : "") + "]", aggr);
             }
             const connection = yield DBConnection_1.DBConnection.getConnection();
-            const results = yield connection.client
-                .db(null)
+            const results = yield DBConnection_1.DBConnection.documentStore(connection)
                 .collection(yield this.getCollection(req))
                 .aggregate(aggr, {
                 collation: {
@@ -334,8 +325,7 @@ class Datatable {
                     }
                 }
             }
-            const stats = yield connection.client
-                .db(null)
+            const stats = yield DBConnection_1.DBConnection.documentStore(connection)
                 .collection(yield this.getCollection(req))
                 .aggregate([...(aggregationStats ? aggregationStats : []), statsGroup])
                 .toArray();
@@ -417,8 +407,7 @@ class Datatable {
                 }
             }
             const connection = yield DBConnection_1.DBConnection.getConnection();
-            return yield connection.client
-                .db(null)
+            return yield DBConnection_1.DBConnection.documentStore(connection)
                 .collection(yield this.getCollection(req))
                 .aggregate([...(aggregation ? aggregation : [])])
                 .toArray();

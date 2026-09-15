@@ -4,7 +4,7 @@ export const paginationList = async (options: any, aggregation?: any, aggregatio
     const page = options.page && parseInt(options.page) > 0 ? parseInt(options.page) : 0;
     const perPage = options.perPage && parseInt(options.perPage) > 0 ? parseInt(options.perPage) : 50;
     const connection = await DBConnection.getConnection();
-    const collection = connection.client.db(null).collection(options.collection);
+    const collection = DBConnection.documentStore(connection).collection(options.collection);
 
     const promises = [];
     let total = 0;

@@ -1,8 +1,22 @@
+import type { DatabaseIdAdapter, DocumentDatabase } from "./DatabaseAdapter";
 import { Model } from "./Model";
 import { QueryBuilder } from "./QueryBuilder";
 
 export class BaseDBDriver {
   config?: object;
+
+  get idAdapter(): DatabaseIdAdapter {
+    throw new Error("This database driver does not implement ID handling.");
+  }
+
+  documentStore(client: any): DocumentDatabase {
+    throw new Error("This database driver does not support document queries (required for Datatables, DataBuilder, queues and notifications).");
+  }
+
+  async objectId(value?: unknown) {
+    return this.idAdapter.create(value);
+  }
+
 
   setConfig(config: object) {
     this.config = config;

@@ -1,7 +1,11 @@
+import type { DatabaseIdAdapter, DocumentDatabase } from "./DatabaseAdapter";
 import { Model } from "./Model";
 import { QueryBuilder } from "./QueryBuilder";
 export declare class BaseDBDriver {
     config?: object;
+    get idAdapter(): DatabaseIdAdapter;
+    documentStore(client: any): DocumentDatabase;
+    objectId(value?: unknown): Promise<import("./DatabaseAdapter").DatabaseId>;
     setConfig(config: object): void;
     connect(): Promise<void>;
     close(client: any): Promise<void>;

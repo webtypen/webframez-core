@@ -3,12 +3,12 @@ import test from "node:test";
 import { QueueWorkerCommand } from "./QueueWorkerCommand";
 import { DBConnection } from "../Database/DBConnection";
 
-for (const result of [null, { ok: 1, value: null }]) {
-    test(`empty queue waits with ${result === null ? "MongoDB 6" : "legacy"} result`, async () => {
+{
+    test("empty queue waits with document adapter result", async () => {
         const original = DBConnection.getConnection;
         let polls = 0, waits = 0;
-        DBConnection.getConnection = (async () => ({ client: { db: () => ({ collection: () => ({
-            findOneAndUpdate: async () => { polls++; return result; },
+        DBConnection.getConnection = (async () => ({ client: {}, driver: { documentStore: () => ({ collection: () => ({
+            findOneAndUpdate: async () => { polls++; return null; },
         }) }) } })) as any;
         const worker = new QueueWorkerCommand();
         worker.workerKey = "test";
@@ -27,12 +27,12 @@ for (const result of [null, { ok: 1, value: null }]) {
     });
 }
 
-for (const legacy of [false, true]) {
-    test(`claimed job is accepted with ${legacy ? "legacy" : "MongoDB 6"} result`, async () => {
+{
+    test("claimed job is accepted with document adapter result", async () => {
         const original = DBConnection.getConnection;
         const job = { _id: "fixture", jobclass: "FixtureJob", number: 1 };
-        DBConnection.getConnection = (async () => ({ client: { db: () => ({ collection: () => ({
-            findOneAndUpdate: async () => legacy ? { ok: 1, value: job } : job,
+        DBConnection.getConnection = (async () => ({ client: {}, driver: { documentStore: () => ({ collection: () => ({
+            findOneAndUpdate: async () => job,
         }) }) } })) as any;
         const worker = new QueueWorkerCommand();
         worker.workerKey = "test";

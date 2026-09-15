@@ -1,3 +1,4 @@
+import type { DocumentDatabase } from "../Database/DatabaseAdapter";
 import lodash from "lodash";
 import { Request } from "../Router/Request";
 import { Model } from "../Database/Model";
@@ -149,7 +150,7 @@ export class DataBuilder {
         return type;
     }
 
-    async validateFields(db: any, type: any, fields: any, req: Request, errors?: any, path?: string) {
+    async validateFields(db: DocumentDatabase, type: any, fields: any, req: Request, errors?: any, path?: string) {
         if (!errors) {
             errors = {};
         }
@@ -219,7 +220,7 @@ export class DataBuilder {
         return errors;
     }
 
-    async handleUnique(db: any, req: any, key: string, value: any, field: any, type: any) {
+    async handleUnique(db: DocumentDatabase, req: any, key: string, value: any, field: any, type: any) {
         const match: any = {
             [key]: value,
             ...(typeof field.unique.match === "function"
@@ -384,8 +385,8 @@ export class DataBuilder {
             } else {
                 let elementVal = null;
                 if (fields[key].type === "ObjectId") {
-                    if (value && (value.toString().length === 12 || value.toString().length === 24)) {
-                        elementVal = typeof value === "string" ? await Model.objectId(value) : value;
+                    if (value !== undefined && value !== null && value !== "") {
+                        elementVal = await Model.objectId(value);
                     } else {
                         elementVal = await Model.objectId();
                     }
@@ -451,7 +452,7 @@ export class DataBuilder {
         ];
     }
 
-    async save(db: any, req: any) {
+    async save(db: DocumentDatabase, req: any) {
         if (!req || !req.body || typeof req.body !== "object") {
             throw new Error("Missing request-body ...");
         }
@@ -621,7 +622,7 @@ export class DataBuilder {
         };
     }
 
-    async delete(db: any, req: any) {
+    async delete(db: DocumentDatabase, req: any) {
         if (!req || !req.body || typeof req.body !== "object" || !req.body.__builder_id || req.body.__builder_id.toString().trim() === "") {
             throw new Error("Missing id ...");
         }
@@ -719,7 +720,7 @@ export class DataBuilder {
         return str.replace(/\[\d+\]/g, ".schema");
     }
 
-    async details(db: any, req: any) {
+    async details(db: DocumentDatabase, req: any) {
         if (!req.body.__builder_id || req.body.__builder_id.toString().trim() === "") {
             throw new Error("Missing id ...");
         }
@@ -730,6 +731,7 @@ export class DataBuilder {
         }
 
         const collection = type.schema && type.schema.collection ? type.schema.collection : undefined;
+        if (!collection) throw new Error("Missing schema collection ...");
         let element: any = null;
         try {
             element = await db
@@ -756,7 +758,7 @@ export class DataBuilder {
         };
     }
 
-    async detailsNewData(db: any, req: any) {
+    async detailsNewData(db: DocumentDatabase, req: any) {
         const type = this.getTypeFromRequest(req);
         if (!type || !type.schema || !type.schema.fields) {
             throw new Error("Missing schema fields ...");

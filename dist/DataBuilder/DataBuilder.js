@@ -293,8 +293,8 @@ class DataBuilder {
                 else {
                     let elementVal = null;
                     if (fields[key].type === "ObjectId") {
-                        if (value && (value.toString().length === 12 || value.toString().length === 24)) {
-                            elementVal = typeof value === "string" ? yield Model_1.Model.objectId(value) : value;
+                        if (value !== undefined && value !== null && value !== "") {
+                            elementVal = yield Model_1.Model.objectId(value);
                         }
                         else {
                             elementVal = yield Model_1.Model.objectId();
@@ -605,6 +605,8 @@ class DataBuilder {
                 throw new Error("Missing schema fields ...");
             }
             const collection = type.schema && type.schema.collection ? type.schema.collection : undefined;
+            if (!collection)
+                throw new Error("Missing schema collection ...");
             let element = null;
             try {
                 element = yield db

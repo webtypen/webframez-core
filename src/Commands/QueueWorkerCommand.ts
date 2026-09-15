@@ -291,8 +291,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
     async cancelRun(jobId: any) {
         return new Promise(async (resolve) => {
             const connection = await DBConnection.getConnection();
-            await connection.client
-                .db(null)
+            await DBConnection.documentStore(connection)
                 .collection("queue_jobs")
                 .updateOne(
                     {
@@ -461,7 +460,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
                         continue;
                     }
 
-                    const existingJob = await connection.client.db(null).collection("queue_jobs").findOne({
+                    const existingJob = await DBConnection.documentStore(connection).collection("queue_jobs").findOne({
                         is_automated: true,
                         automation_key: automation._execution.key,
                     });
@@ -487,7 +486,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
                         executions: [],
                         worker: this.workerKey,
                     };
-                    await connection.client.db(null).collection("queue_jobs").insertOne(newJob);
+                    await DBConnection.documentStore(connection).collection("queue_jobs").insertOne(newJob);
                 }
 
                 await this.wait(5000);
@@ -509,8 +508,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
     }
 
     async getNextJobNumber(connection: any): Promise<number> {
-        const lastJob = await connection.client
-            .db(null)
+        const lastJob = await DBConnection.documentStore(connection)
             .collection("queue_jobs")
             .findOne({}, { sort: { number: -1 } });
 
@@ -550,8 +548,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
                     .tz(this.workerConfig.timezone ? this.workerConfig.timezone : "Europe/Berlin")
                     .format("YYYYMMDDHHmmss") + StringFunctions.random(24);
             const workerJobclasses = this.getWorkerJobclasses();
-            const jobUpdate = await connection.client
-                .db(null)
+            const jobUpdate = await DBConnection.documentStore(connection)
                 .collection("queue_jobs")
                 .findOneAndUpdate(
                     {
@@ -580,12 +577,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
                     }
                 );
 
-            const job =
-                jobUpdate && jobUpdate.jobclass && jobUpdate._id
-                    ? jobUpdate
-                    : jobUpdate?.value && jobUpdate.ok && jobUpdate.value._id && jobUpdate.value.jobclass
-                    ? jobUpdate.value
-                    : null;
+            const job = jobUpdate;
 
             if (!job || !job.jobclass || !job._id) {
                 this.currentJob = null;
@@ -619,8 +611,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
                 ...(job.executions && job.executions.length > 0 ? job.executions : []),
             ];
 
-            await connection.client
-                .db(null)
+            await DBConnection.documentStore(connection)
                 .collection("queue_jobs")
                 .updateOne(
                     { _id: job._id },
@@ -702,8 +693,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
                     );
                 }
 
-                await connection.client
-                    .db(null)
+                await DBConnection.documentStore(connection)
                     .collection("queue_jobs")
                     .updateOne(
                         { _id: job._id },
@@ -819,8 +809,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
                     job.executions[0].log = jobInstance.getLog();
                 }
 
-                await connection.client
-                    .db(null)
+                await DBConnection.documentStore(connection)
                     .collection("queue_jobs")
                     .updateOne(
                         { _id: job._id },

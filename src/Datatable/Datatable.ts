@@ -1,5 +1,4 @@
 import moment from "moment";
-import { ObjectId } from "mongodb";
 import { DBConnection } from "../Database/DBConnection";
 import { NumericFunctions } from "../Functions/NumericFunctions";
 import { Request } from "../Router/Request";
@@ -132,13 +131,8 @@ export class Datatable {
 
         let value = rawValue;
         if (config.value === "_id") {
-            if (rawValue instanceof ObjectId) {
-                value = rawValue;
-            } else if (typeof rawValue === "string" && ObjectId.isValid(rawValue)) {
-                value = new ObjectId(rawValue);
-            } else {
-                return null;
-            }
+            value = DBConnection.getIdAdapter().normalize(rawValue);
+            if (value === null) return null;
         }
 
         const normalizeStages = (stages: any[] | null | undefined) => (stages ?? []).map((stage) => {
@@ -156,8 +150,7 @@ export class Datatable {
         ];
 
         const connection = await DBConnection.getConnection();
-        const results = await connection.client
-            .db(null)
+        const results = await DBConnection.documentStore(connection)
             .collection(await this.getCollection(req))
             .aggregate(aggregation, {
                 collation: {
@@ -330,8 +323,7 @@ export class Datatable {
         }
 
         const connection = await DBConnection.getConnection();
-        const results = await connection.client
-            .db(null)
+        const results = await DBConnection.documentStore(connection)
             .collection(await this.getCollection(req))
             .aggregate(aggr, {
                 collation: {
@@ -355,8 +347,7 @@ export class Datatable {
             }
         }
 
-        const stats = await connection.client
-            .db(null)
+        const stats = await DBConnection.documentStore(connection)
             .collection(await this.getCollection(req))
             .aggregate([...(aggregationStats ? aggregationStats : []), statsGroup])
             .toArray();
@@ -449,8 +440,7 @@ export class Datatable {
         }
 
         const connection = await DBConnection.getConnection();
-        return await connection.client
-            .db(null)
+        return await DBConnection.documentStore(connection)
             .collection(await this.getCollection(req))
             .aggregate([...(aggregation ? aggregation : [])])
             .toArray();

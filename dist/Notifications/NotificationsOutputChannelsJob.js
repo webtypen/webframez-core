@@ -10,7 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificationsOutputChannelsJob = void 0;
-const mongodb_1 = require("mongodb");
+const node_crypto_1 = require("node:crypto");
 const Config_1 = require("../Config");
 const DBConnection_1 = require("../Database/DBConnection");
 const BaseQueueJob_1 = require("../Queue/BaseQueueJob");
@@ -131,7 +131,7 @@ class NotificationsOutputChannelsJob extends BaseQueueJob_1.BaseQueueJob {
         return __awaiter(this, void 0, void 0, function* () {
             const now = new Date();
             const staleClaimBefore = new Date(now.getTime() - claimTimeoutMinutes * 60 * 1000);
-            const claimToken = new mongodb_1.ObjectId().toHexString();
+            const claimToken = (0, node_crypto_1.randomUUID)();
             const claimResult = yield collection.findOneAndUpdate({
                 key: { $ne: null },
                 show_at: { $lte: eligibleBefore },
@@ -164,11 +164,7 @@ class NotificationsOutputChannelsJob extends BaseQueueJob_1.BaseQueueJob {
                 sort: { show_at: 1, created_at: 1 },
                 returnDocument: "after",
             });
-            const notificationData = claimResult && claimResult._id
-                ? claimResult
-                : (claimResult === null || claimResult === void 0 ? void 0 : claimResult.value) && claimResult.value._id
-                    ? claimResult.value
-                    : null;
+            const notificationData = claimResult;
             if (!notificationData)
                 return null;
             return DBConnection_1.DBConnection.mapDataToModel(Notification_1.Notification, notificationData);
@@ -368,7 +364,7 @@ class NotificationsOutputChannelsJob extends BaseQueueJob_1.BaseQueueJob {
             const claimTimeoutMinutes = this.positiveNumber(deliveryConfig.claim_timeout_minutes, 30);
             const delaySeconds = this.nonNegativeNumber(deliveryConfig.delay_seconds, 0);
             const connection = yield DBConnection_1.DBConnection.getConnection();
-            const collection = connection.client.db(null).collection(new Notification_1.Notification().__table);
+            const collection = DBConnection_1.DBConnection.documentStore(connection).collection(new Notification_1.Notification().__table);
             const maxNotifications = this.attempts * this.perAttempt;
             const eligibleBefore = new Date(Date.now() - delaySeconds * 1000);
             yield this.skipViewedNotifications(collection, eligibleBefore, claimTimeoutMinutes);

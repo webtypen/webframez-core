@@ -1,3 +1,4 @@
+import type { DocumentDatabase } from "../Database/DatabaseAdapter";
 import { Request } from "../Router/Request";
 export type DataBuilderSchema = {
     version: string;
@@ -60,8 +61,8 @@ export declare class DataBuilder {
     getFieldTypesFrontend(): any;
     getFieldsFrontend(fields: any, payload?: any): Promise<any>;
     getTypeFromRequest(req: any): DataBuilderType;
-    validateFields(db: any, type: any, fields: any, req: Request, errors?: any, path?: string): Promise<any>;
-    handleUnique(db: any, req: any, key: string, value: any, field: any, type: any): Promise<boolean>;
+    validateFields(db: DocumentDatabase, type: any, fields: any, req: Request, errors?: any, path?: string): Promise<any>;
+    handleUnique(db: DocumentDatabase, req: any, key: string, value: any, field: any, type: any): Promise<boolean>;
     typeForFrontend(type: any, req: any): Promise<any>;
     loadType(req: Request): Promise<{
         status: string;
@@ -73,7 +74,7 @@ export declare class DataBuilder {
             [x: number]: any;
         };
     }[]>;
-    save(db: any, req: any): Promise<{
+    save(db: DocumentDatabase, req: any): Promise<{
         status: string;
         errors: any;
         data?: undefined;
@@ -82,7 +83,7 @@ export declare class DataBuilder {
         data: any;
         errors?: undefined;
     }>;
-    delete(db: any, req: any): Promise<{
+    delete(db: DocumentDatabase, req: any): Promise<{
         status: string;
         data: {
             _id: any;
@@ -91,11 +92,11 @@ export declare class DataBuilder {
     }>;
     getField(req: Request, type: DataBuilderType, path: string): Promise<any>;
     removeArrayIndicators(str: string): string;
-    details(db: any, req: any): Promise<{
+    details(db: DocumentDatabase, req: any): Promise<{
         status: string;
         data: any;
     }>;
-    detailsNewData(db: any, req: any): Promise<{
+    detailsNewData(db: DocumentDatabase, req: any): Promise<{
         status: string;
         message: string;
         data?: undefined;

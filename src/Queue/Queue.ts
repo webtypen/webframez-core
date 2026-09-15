@@ -9,7 +9,7 @@ export class Queue {
     private static running: Promise<void> | undefined;
     private static abort: AbortController | undefined;
     private static worker = "embedded-" + crypto.randomUUID();
-    private static async collection() {return (await DBConnection.getConnection()).client.db(null).collection("queue_jobs");}
+    private static async collection() {return (await DBConnection.getDocumentStore()).collection("queue_jobs");}
     static async enqueue(jobclass:string, props:Record<string,any>={}) {
         QueueJobsRegisty.getJobOrFail(jobclass);
         const jobs=await this.collection(), id=props._id || crypto.randomUUID();
@@ -27,7 +27,7 @@ export class Queue {
         await jobs.updateMany({status:"running",embedded_queue:true,lease_until:{$lt:now}},{$set:{status:"pending",worker:null,recovered:true}});
         const token=crypto.randomUUID();
         const claimed=await jobs.findOneAndUpdate({status:"pending",jobclass:{$in:jobclasses},$or:[{not_before:null},{not_before:{$lte:now}}]},{$set:{status:"running",worker:this.worker,embedded_queue:true,lease_token:token,lease_until:new Date(Date.now()+60000),started_at:now}},{sort:{priority:-1,created_at:1},returnDocument:"after"});
-        const job=claimed?._id?claimed:claimed?.value;
+        const job=claimed;
         if(!job)return;
         const filter={_id:job._id,lease_token:token,status:"running"};
         const controller=new AbortController();this.abort=controller;

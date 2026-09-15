@@ -11,6 +11,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BaseDBDriver = void 0;
 class BaseDBDriver {
+    get idAdapter() {
+        throw new Error("This database driver does not implement ID handling.");
+    }
+    documentStore(client) {
+        throw new Error("This database driver does not support document queries (required for Datatables, DataBuilder, queues and notifications).");
+    }
+    objectId(value) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return this.idAdapter.create(value);
+        });
+    }
     setConfig(config) {
         this.config = config;
     }

@@ -19,6 +19,7 @@ export * from "./Router/Router";
 export * from "./Router/Request";
 export * from "./Router/Response";
 export * from "./Database/BaseDBDriver";
+export * from "./Database/DatabaseAdapter";
 export * from "./Database/DBDrivers";
 export * from "./Database/QueryBuilder";
 export * from "./Facades/StorageDrivers/BaseStorageDriver";

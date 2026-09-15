@@ -264,8 +264,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
         return __awaiter(this, void 0, void 0, function* () {
             return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
                 const connection = yield DBConnection_1.DBConnection.getConnection();
-                yield connection.client
-                    .db(null)
+                yield DBConnection_1.DBConnection.documentStore(connection)
                     .collection("queue_jobs")
                     .updateOne({
                     _id: jobId,
@@ -382,7 +381,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                         if (!automation || !automation.jobclass || !automation._execution || !automation._execution.key) {
                             continue;
                         }
-                        const existingJob = yield connection.client.db(null).collection("queue_jobs").findOne({
+                        const existingJob = yield DBConnection_1.DBConnection.documentStore(connection).collection("queue_jobs").findOne({
                             is_automated: true,
                             automation_key: automation._execution.key,
                         });
@@ -407,7 +406,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                             executions: [],
                             worker: this.workerKey,
                         };
-                        yield connection.client.db(null).collection("queue_jobs").insertOne(newJob);
+                        yield DBConnection_1.DBConnection.documentStore(connection).collection("queue_jobs").insertOne(newJob);
                     }
                     yield this.wait(5000);
                 }
@@ -430,8 +429,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
     }
     getNextJobNumber(connection) {
         return __awaiter(this, void 0, void 0, function* () {
-            const lastJob = yield connection.client
-                .db(null)
+            const lastJob = yield DBConnection_1.DBConnection.documentStore(connection)
                 .collection("queue_jobs")
                 .findOne({}, { sort: { number: -1 } });
             return lastJob ? (lastJob.number || 0) + 1 : 1;
@@ -463,8 +461,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                     .tz(this.workerConfig.timezone ? this.workerConfig.timezone : "Europe/Berlin")
                     .format("YYYYMMDDHHmmss") + StringFunctions_1.StringFunctions.random(24);
                 const workerJobclasses = this.getWorkerJobclasses();
-                const jobUpdate = yield connection.client
-                    .db(null)
+                const jobUpdate = yield DBConnection_1.DBConnection.documentStore(connection)
                     .collection("queue_jobs")
                     .findOneAndUpdate({
                     status: "pending",
@@ -488,11 +485,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                     sort: { priority: -1, created_at: 1 },
                     returnDocument: "after",
                 });
-                const job = jobUpdate && jobUpdate.jobclass && jobUpdate._id
-                    ? jobUpdate
-                    : (jobUpdate === null || jobUpdate === void 0 ? void 0 : jobUpdate.value) && jobUpdate.ok && jobUpdate.value._id && jobUpdate.value.jobclass
-                        ? jobUpdate.value
-                        : null;
+                const job = jobUpdate;
                 if (!job || !job.jobclass || !job._id) {
                     this.currentJob = null;
                     if (job && job._id) {
@@ -518,8 +511,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                     { key: executionKey, worker: this.workerKey, status: "running", started_at: startedAt },
                     ...(job.executions && job.executions.length > 0 ? job.executions : []),
                 ];
-                yield connection.client
-                    .db(null)
+                yield DBConnection_1.DBConnection.documentStore(connection)
                     .collection("queue_jobs")
                     .updateOne({ _id: job._id }, {
                     $set: {
@@ -584,8 +576,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                     if (jobNotification) {
                         yield NotificationService_1.NotificationService.setChangingStatus(jobNotification, job.status === "pending" ? "pending" : "success");
                     }
-                    yield connection.client
-                        .db(null)
+                    yield DBConnection_1.DBConnection.documentStore(connection)
                         .collection("queue_jobs")
                         .updateOne({ _id: job._id }, {
                         $set: {
@@ -690,8 +681,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                     if (jobInstance) {
                         job.executions[0].log = jobInstance.getLog();
                     }
-                    yield connection.client
-                        .db(null)
+                    yield DBConnection_1.DBConnection.documentStore(connection)
                         .collection("queue_jobs")
                         .updateOne({ _id: job._id }, {
                         $set: {

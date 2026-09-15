@@ -1,4 +1,5 @@
-import { ObjectId } from "mongodb";
+import { randomUUID } from "node:crypto";
+import type { DatabaseId } from "../Database/DatabaseAdapter";
 import { Config } from "../Config";
 import { DBConnection } from "../Database/DBConnection";
 import { BaseQueueJob } from "../Queue/BaseQueueJob";
@@ -152,7 +153,7 @@ export class NotificationsOutputChannelsJob extends BaseQueueJob {
     private async claimNotification(collection: any, claimTimeoutMinutes: number, eligibleBefore: Date) {
         const now = new Date();
         const staleClaimBefore = new Date(now.getTime() - claimTimeoutMinutes * 60 * 1000);
-        const claimToken = new ObjectId().toHexString();
+        const claimToken = randomUUID();
         const claimResult = await collection.findOneAndUpdate(
             {
                 key: { $ne: null },
@@ -190,12 +191,7 @@ export class NotificationsOutputChannelsJob extends BaseQueueJob {
             },
         );
 
-        const notificationData =
-            claimResult && claimResult._id
-                ? claimResult
-                : claimResult?.value && claimResult.value._id
-                  ? claimResult.value
-                  : null;
+        const notificationData = claimResult;
 
         if (!notificationData) return null;
         return DBConnection.mapDataToModel(Notification, notificationData) as Notification;
@@ -255,7 +251,7 @@ export class NotificationsOutputChannelsJob extends BaseQueueJob {
         try {
             targetContext = await NotificationService.resolveTarget({
                 target: notification.target as string,
-                target_id: notification.target_id as ObjectId,
+                target_id: notification.target_id as DatabaseId,
             });
             if (targetContext) {
                 const loadedNotification = await NotificationService.getNotificationForTarget(
@@ -447,7 +443,7 @@ export class NotificationsOutputChannelsJob extends BaseQueueJob {
         const claimTimeoutMinutes = this.positiveNumber(deliveryConfig.claim_timeout_minutes, 30);
         const delaySeconds = this.nonNegativeNumber(deliveryConfig.delay_seconds, 0);
         const connection = await DBConnection.getConnection();
-        const collection = connection.client.db(null).collection(new Notification().__table);
+        const collection = DBConnection.documentStore(connection).collection(new Notification().__table);
         const maxNotifications = this.attempts * this.perAttempt;
         const eligibleBefore = new Date(Date.now() - delaySeconds * 1000);
 

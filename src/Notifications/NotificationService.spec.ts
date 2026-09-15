@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ObjectId } from "mongodb";
+import { TestId as ObjectId, testIds } from "../../test-support/ids";
+import { DBConnection } from "../Database/DBConnection";
+const originalIdAdapter = DBConnection.getIdAdapter;
+test.before(() => { DBConnection.getIdAdapter = () => testIds; });
+test.after(() => { DBConnection.getIdAdapter = originalIdAdapter; });
 import { Config } from "../Config";
 import { ModuleProvider } from "../Modules/ModuleProvider";
 import { ModulesLoader } from "../Modules/ModulesLoader";

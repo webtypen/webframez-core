@@ -35,6 +35,7 @@ __exportStar(require("./Router/Router"), exports);
 __exportStar(require("./Router/Request"), exports);
 __exportStar(require("./Router/Response"), exports);
 __exportStar(require("./Database/BaseDBDriver"), exports);
+__exportStar(require("./Database/DatabaseAdapter"), exports);
 __exportStar(require("./Database/DBDrivers"), exports);
 __exportStar(require("./Database/QueryBuilder"), exports);
 __exportStar(require("./Facades/StorageDrivers/BaseStorageDriver"), exports);

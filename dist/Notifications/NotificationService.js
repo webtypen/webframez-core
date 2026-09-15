@@ -21,7 +21,6 @@ var __rest = (this && this.__rest) || function (s, e) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificationService = exports.NotificationTargetValidationError = exports.NotificationPayloadValidationError = void 0;
-const mongodb_1 = require("mongodb");
 const Notification_1 = require("./Notification");
 const Config_1 = require("../Config");
 const DBConnection_1 = require("../Database/DBConnection");
@@ -56,22 +55,14 @@ class NotificationServiceFacade {
     set registy(registry) {
         this.registry = registry;
     }
-    getObjectIdString(value) {
-        const objectIdString = typeof value === "string"
-            ? value
-            : value && typeof value.toString === "function"
-                ? value.toString()
-                : null;
-        return objectIdString && objectIdString.length === 24 && mongodb_1.ObjectId.isValid(objectIdString)
-            ? objectIdString
-            : null;
-    }
     normalizeObjectId(value) {
-        const objectIdString = this.getObjectIdString(value);
-        return objectIdString ? new mongodb_1.ObjectId(objectIdString) : null;
+        return DBConnection_1.DBConnection.getIdAdapter(new Notification_1.Notification().__connection).normalize(value);
+    }
+    sameId(left, right) {
+        return DBConnection_1.DBConnection.getIdAdapter(new Notification_1.Notification().__connection).equals(left, right);
     }
     getNotificationReferenceId(notificationRef) {
-        return this.getObjectIdString(notificationRef);
+        return this.normalizeObjectId(notificationRef);
     }
     init() {
         this.registry = {};
@@ -176,7 +167,7 @@ class NotificationServiceFacade {
     }
     normalizeTargetId(targetId) {
         const normalized = this.normalizeObjectId(targetId);
-        if (!normalized) {
+        if (normalized === null) {
             throw new NotificationTargetValidationError("Invalid notification target_id.");
         }
         return normalized;
@@ -189,17 +180,17 @@ class NotificationServiceFacade {
         if (!this.getTargetDefinition(target)) {
             throw new NotificationTargetValidationError(`Unknown notification target '${target}'.`);
         }
-        if (!context.target_id) {
+        if (context.target_id === null || context.target_id === undefined || context.target_id === "") {
             throw new NotificationTargetValidationError("Notification target_id required.");
         }
         return Object.assign(Object.assign({}, context), { target, target_id: this.normalizeTargetId(context.target_id) });
     }
     resolveTarget(context) {
-        var _a, _b, _c;
+        var _a;
         return __awaiter(this, void 0, void 0, function* () {
             const normalized = this.normalizeTargetContext(context);
             if (normalized.targetModel) {
-                return ((_a = this.getModelId(normalized.targetModel)) === null || _a === void 0 ? void 0 : _a.equals(normalized.target_id)) ? normalized : null;
+                return this.sameId(this.getModelId(normalized.targetModel), normalized.target_id) ? normalized : null;
             }
             const definition = this.getTargetDefinition(normalized.target);
             let targetModel = null;
@@ -207,19 +198,18 @@ class NotificationServiceFacade {
                 targetModel = yield definition.resolve(normalized);
             }
             else if (normalized.target === "user" &&
-                ((_b = normalized.request) === null || _b === void 0 ? void 0 : _b.user) &&
-                ((_c = this.getModelId(normalized.request.user)) === null || _c === void 0 ? void 0 : _c.equals(normalized.target_id))) {
+                ((_a = normalized.request) === null || _a === void 0 ? void 0 : _a.user) &&
+                this.sameId(this.getModelId(normalized.request.user), normalized.target_id)) {
                 targetModel = normalized.request.user;
             }
             else if (definition.collection) {
                 const connection = yield DBConnection_1.DBConnection.getConnection();
-                targetModel = yield connection.client
-                    .db(null)
+                targetModel = yield DBConnection_1.DBConnection.documentStore(connection)
                     .collection(definition.collection)
                     .findOne({ _id: normalized.target_id });
             }
             const modelId = this.getModelId(targetModel);
-            return (modelId === null || modelId === void 0 ? void 0 : modelId.equals(normalized.target_id)) ? Object.assign(Object.assign({}, normalized), { targetModel }) : null;
+            return this.sameId(modelId, normalized.target_id) ? Object.assign(Object.assign({}, normalized), { targetModel }) : null;
         });
     }
     authorizeTarget(context) {
@@ -234,7 +224,7 @@ class NotificationServiceFacade {
             if (!resolved.request)
                 return resolved;
             const requestUserId = this.getModelId(resolved.request.user);
-            return (requestUserId === null || requestUserId === void 0 ? void 0 : requestUserId.equals(resolved.target_id)) ? resolved : null;
+            return this.sameId(requestUserId, resolved.target_id) ? resolved : null;
         });
     }
     attachTargetModel(notification, targetModel) {
@@ -358,8 +348,7 @@ class NotificationServiceFacade {
             }
             else if (((_a = this.getTargetDefinition(resolved.target)) === null || _a === void 0 ? void 0 : _a.collection) && owner._id) {
                 const connection = yield DBConnection_1.DBConnection.getConnection();
-                yield connection.client
-                    .db(null)
+                yield DBConnection_1.DBConnection.documentStore(connection)
                     .collection(this.getTargetDefinition(resolved.target).collection)
                     .updateOne({ _id: owner._id }, { $set: { [preferencesField]: preferences } });
             }
@@ -633,7 +622,7 @@ class NotificationServiceFacade {
                 return notificationRef;
             }
             const notificationId = this.getNotificationReferenceId(notificationRef);
-            if (notificationId && notificationId.length === 24 && mongodb_1.ObjectId.isValid(notificationId)) {
+            if (notificationId !== null) {
                 const loadNotification = yield Notification_1.Notification.where("_id", "=", yield Notification_1.Notification.objectId(notificationId)).first();
                 if (loadNotification) {
                     return loadNotification;
@@ -645,13 +634,12 @@ class NotificationServiceFacade {
     setQueueJobFailureStatus(notificationRef, error) {
         return __awaiter(this, void 0, void 0, function* () {
             const notificationId = this.getNotificationReferenceId(notificationRef);
-            if (!notificationId) {
+            if (notificationId === null) {
                 throw new Error("Invalid notification reference provided: " + (notificationRef === null || notificationRef === void 0 ? void 0 : notificationRef.toString()));
             }
             const connection = yield DBConnection_1.DBConnection.getConnection();
             const completedAt = new Date();
-            const result = yield connection.client
-                .db(null)
+            const result = yield DBConnection_1.DBConnection.documentStore(connection)
                 .collection(new Notification_1.Notification().__table)
                 .updateOne({ _id: yield Notification_1.Notification.objectId(notificationId) }, {
                 $set: {
@@ -668,9 +656,9 @@ class NotificationServiceFacade {
             return result.matchedCount > 0;
         });
     }
-    markAsRead(notification) {
+    markAsRead(notificationRef) {
         return __awaiter(this, void 0, void 0, function* () {
-            notification = yield this.getNotification(notification);
+            const notification = yield this.getNotification(notificationRef);
             if (notification.read_status === "read" && notification.view_status === "viewed") {
                 return notification;
             }
@@ -690,9 +678,9 @@ class NotificationServiceFacade {
             return notification;
         });
     }
-    markAsViewed(notification) {
+    markAsViewed(notificationRef) {
         return __awaiter(this, void 0, void 0, function* () {
-            notification = yield this.getNotification(notification);
+            const notification = yield this.getNotification(notificationRef);
             if (notification.view_status === "viewed") {
                 return notification;
             }
@@ -711,8 +699,7 @@ class NotificationServiceFacade {
         return __awaiter(this, void 0, void 0, function* () {
             const connection = yield DBConnection_1.DBConnection.getConnection();
             const now = new Date();
-            yield connection.client
-                .db(null)
+            yield DBConnection_1.DBConnection.documentStore(connection)
                 .collection(new Notification_1.Notification().__table)
                 .updateMany(Object.assign(Object.assign({}, (yield this.getLoadMatch(context))), { $or: [{ read_status: "unread" }, { view_status: "unviewed" }] }), [
                 {
@@ -729,8 +716,7 @@ class NotificationServiceFacade {
     markAllAsViewed(context) {
         return __awaiter(this, void 0, void 0, function* () {
             const connection = yield DBConnection_1.DBConnection.getConnection();
-            yield connection.client
-                .db(null)
+            yield DBConnection_1.DBConnection.documentStore(connection)
                 .collection(new Notification_1.Notification().__table)
                 .updateMany(Object.assign(Object.assign({}, (yield this.getLoadMatch(context))), { view_status: "unviewed" }), {
                 $set: {
@@ -744,7 +730,7 @@ class NotificationServiceFacade {
         return __awaiter(this, void 0, void 0, function* () {
             const notificationId = notificationRef instanceof Notification_1.Notification ? notificationRef._id : notificationRef;
             const objectId = this.normalizeObjectId(notificationId);
-            if (!objectId)
+            if (objectId === null)
                 return null;
             const notifications = yield Notification_1.Notification.aggregate([
                 {
@@ -782,9 +768,9 @@ class NotificationServiceFacade {
             return yield this.countByStatus(context, { view_status: "unviewed" });
         });
     }
-    updateNotification(notification, updateData) {
+    updateNotification(notificationRef, updateData) {
         return __awaiter(this, void 0, void 0, function* () {
-            notification = yield this.getNotification(notification);
+            const notification = yield this.getNotification(notificationRef);
             if (updateData.payload) {
                 notification.payload = Object.assign(Object.assign({}, notification.payload), updateData.payload);
             }
@@ -807,10 +793,10 @@ class NotificationServiceFacade {
             return notification;
         });
     }
-    setChangingStatus(notification, status, error) {
+    setChangingStatus(notificationRef, status, error) {
         var _a;
         return __awaiter(this, void 0, void 0, function* () {
-            notification = yield this.getNotification(notification);
+            const notification = yield this.getNotification(notificationRef);
             if (notification.mode !== "changing") {
                 throw new Error(`Notification '${(_a = notification._id) === null || _a === void 0 ? void 0 : _a.toString()}' is not in changing mode.`);
             }
