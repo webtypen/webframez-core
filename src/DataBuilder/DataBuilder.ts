@@ -31,12 +31,59 @@ export type DataBuilderOptionMapping = {
 
 export type DataBuilderOptionsMapping = DataBuilderOptionMapping | DataBuilderOptionMapping[];
 
+export type DataBuilderFormFieldDefinition = {
+    field: string;
+    width?: string | number;
+    placement?: "content" | "actions";
+    hidden?: string | boolean;
+    disabled?: string | boolean;
+    fields?: DataBuilderFormDefinition[];
+    [key: string]: any;
+};
+
+export type DataBuilderFormTabDefinition = {
+    key: string;
+    title: string;
+    icon?: string;
+    disabled?: boolean;
+    fields: DataBuilderFormDefinition[];
+};
+
+export type DataBuilderFormTabsDefinition = {
+    type: "tabs";
+    label?: string;
+    width?: string | number;
+    appearance?: "card" | "plain";
+    tabs: DataBuilderFormTabDefinition[];
+};
+
+export type DataBuilderFormLayoutDefinition = {
+    type: string;
+    width?: string | number;
+    children?: DataBuilderFormDefinition[];
+    [key: string]: any;
+};
+
+export type DataBuilderFormDefinition =
+    | DataBuilderFormFieldDefinition
+    | DataBuilderFormTabsDefinition
+    | DataBuilderFormLayoutDefinition;
+
+export type DataBuilderForm = {
+    fields:
+        | DataBuilderFormDefinition[]
+        | ((req: Request) => DataBuilderFormDefinition[] | Promise<DataBuilderFormDefinition[]>);
+    [key: string]: any;
+};
+
 export type DataBuilderType = {
     key: string;
     singular: string;
     plural: string;
     schema: DataBuilderSchema;
-    forms?: { [key: string]: any };
+    forms?:
+        | { [key: string]: DataBuilderForm }
+        | ((req: Request) => { [key: string]: DataBuilderForm } | Promise<{ [key: string]: DataBuilderForm }>);
     unmapped?: boolean;
 };
 

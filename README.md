@@ -570,6 +570,25 @@ builder.registerType({
 });
 ```
 
+Forms may group their complete layout in tabs. Tab fields still address the same
+root data object; tabs only change presentation. `appearance: "plain"` avoids an
+additional card around a full-form tab layout.
+
+```ts
+forms: {
+  main: {
+    fields: [{
+      type: "tabs",
+      appearance: "plain",
+      tabs: [
+        { key: "general", title: "General", icon: "settings", fields: [{ field: "email" }] },
+        { key: "defaults", title: "Defaults", icon: "database", fields: [{ field: "default_values" }] }
+      ]
+    }]
+  }
+}
+```
+
 `option` fields can use static `options: [{ value, label }]` or a client-side
 `optionsMapping`. The mapping can be a single object or an array of objects with
 `{ from: string; value: string; label: string; valuePrefix?: string; labelPrefix?: string }`. Multiple
