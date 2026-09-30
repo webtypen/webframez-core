@@ -99,11 +99,11 @@ class ApiScopeRegistryFacade {
                 return await this.handleHttpFunction(registration, FunctionClass, req, res);
             };
 
-            this.registerRouteMethod(func.requestMethod, path, handler);
+            this.registerRouteMethod(func.requestMethod, path, handler, scope.routeMiddleware);
         }
     }
 
-    private registerRouteMethod(method: ApiFunctionRequestMethod, path: string, handler: any) {
+    private registerRouteMethod(method: ApiFunctionRequestMethod, path: string, handler: any, middleware: string[]) {
         if (!method) {
             return;
         }
@@ -114,7 +114,7 @@ class ApiScopeRegistryFacade {
             throw new Error(`ApiFunction request method "${method}" is not supported by Route`);
         }
 
-        routeMethod.bind(Route)(path, handler);
+        routeMethod.bind(Route)(path, handler, { middleware });
     }
 
     private async handleHttpFunction(

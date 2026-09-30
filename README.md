@@ -370,6 +370,11 @@ Example: `GET /api/backoffice/current-user`.
 
 The scope middleware runs before the function. Its return value is passed to the function as `apiRequest.context`. Calling `abort(message, status)` stops execution and returns an error response with that status.
 
+For HTTP middleware that must also run on automatic `OPTIONS` responses, set
+`routeMiddleware = ["cors"]` on the scope. These names refer to middleware in the
+application kernel. They run before the route handler; scope `middleware()` still
+runs for function calls and provides their authorization/context (including MCP).
+
 ### Group ApiScopes
 
 Use `ApiScopesGroup` to share middleware across multiple scopes:

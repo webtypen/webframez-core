@@ -71,10 +71,10 @@ class ApiScopeRegistryFacade {
             const handler = (req, res) => __awaiter(this, void 0, void 0, function* () {
                 return yield this.handleHttpFunction(registration, FunctionClass, req, res);
             });
-            this.registerRouteMethod(func.requestMethod, path, handler);
+            this.registerRouteMethod(func.requestMethod, path, handler, scope.routeMiddleware);
         }
     }
-    registerRouteMethod(method, path, handler) {
+    registerRouteMethod(method, path, handler, middleware) {
         if (!method) {
             return;
         }
@@ -83,7 +83,7 @@ class ApiScopeRegistryFacade {
         if (!routeMethod || typeof routeMethod !== "function") {
             throw new Error(`ApiFunction request method "${method}" is not supported by Route`);
         }
-        routeMethod.bind(Route_1.Route)(path, handler);
+        routeMethod.bind(Route_1.Route)(path, handler, { middleware });
     }
     handleHttpFunction(registration, FunctionClass, req, res) {
         return __awaiter(this, void 0, void 0, function* () {

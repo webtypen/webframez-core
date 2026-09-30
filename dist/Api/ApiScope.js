@@ -15,6 +15,8 @@ class ApiScope {
         this.key = "unique_scope_key";
         this.apiBasePath = "/api";
         this.mcpEndpoint = null;
+        /** Kernel middleware for HTTP routes, including automatic OPTIONS responses. */
+        this.routeMiddleware = [];
         this.functions = [];
     }
     middleware(_req, _res, _abort) {
