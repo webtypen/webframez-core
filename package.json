@@ -1,6 +1,6 @@
 {
     "name": "@webtypen/webframez-core",
-    "version": "0.3.70",
+    "version": "0.3.71",
     "description": "The core package of the typescript based webframez (web-framework) by webtypen.de",
     "homepage": "https://webtypen.de/",
     "license": "MIT",
@@ -31,7 +31,8 @@
     "scripts": {
         "build": "tsc",
         "build:check": "tsc --noEmit",
-        "dev": "PORT=3210 ts-node ./dev/app.ts"
+        "dev": "PORT=3210 ts-node ./dev/app.ts",
+        "test": "node --test tests/*.test.cjs"
     },
     "devDependencies": {
         "@types/busboy": "^1.5.4",
