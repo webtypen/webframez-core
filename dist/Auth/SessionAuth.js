@@ -13,8 +13,7 @@ exports.SessionAuth = void 0;
 const DBConnection_1 = require("../Database/DBConnection");
 const AuthSecurity_1 = require("./AuthSecurity");
 function publicSession(record) {
-    return { id: record.id, subject: record.subject, issuer: record.issuer, audience: record.audience,
-        environment: record.environment, createdAt: record.createdAt, expiresAt: record.expiresAt, parent: record.parent };
+    return Object.assign(Object.assign({ id: record.id, subject: record.subject, issuer: record.issuer, audience: record.audience, environment: record.environment, createdAt: record.createdAt, expiresAt: record.expiresAt, parent: record.parent }, (record.userAgent !== undefined ? { userAgent: record.userAgent } : {})), (record.lastActiveAt !== undefined ? { lastActiveAt: record.lastActiveAt } : {}));
 }
 function tokenSessionId(token) {
     return typeof token === "string" && /^[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{43}$/.test(token) ? token.split(".")[0] : null;
@@ -120,6 +119,25 @@ class SessionAuth {
                 return null;
             }
             return this.pair(next, access, refresh);
+        });
+    }
+    /** Browser login metadata; arbitrary request data and token hashes are never exposed. */
+    recordLogin(session, userAgent) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const metadata = { userAgent: userAgent.slice(0, 512), lastActiveAt: session.createdAt };
+            yield (yield this.rows()).updateOne(Object.assign(Object.assign({ _id: session.id }, this.scope), { revokedAt: null }), { $set: metadata });
+            Object.assign(session, metadata);
+        });
+    }
+    /** Persist activity with a one-minute throttle; authorization does not depend on this timestamp. */
+    touch(session) {
+        var _a;
+        return __awaiter(this, void 0, void 0, function* () {
+            const now = Date.now();
+            if (((_a = session.lastActiveAt) !== null && _a !== void 0 ? _a : session.createdAt) >= now - 60000)
+                return;
+            yield (yield this.rows()).updateOne(Object.assign(Object.assign({ _id: session.id }, this.scope), { revokedAt: null, expiresAt: { $gt: now } }), { $set: { lastActiveAt: now } });
+            session.lastActiveAt = now;
         });
     }
     revoke(sessionId) {

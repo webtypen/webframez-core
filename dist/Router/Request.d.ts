@@ -1,7 +1,9 @@
 /// <reference types="node" />
+import type { AuthContext } from "../Auth/ModelAuth";
 import { IncomingMessage } from "http";
 export declare class Request {
     [key: string]: any;
+    auth?: AuthContext | null;
     method: string;
     url: string;
     headers: any;

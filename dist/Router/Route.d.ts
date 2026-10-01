@@ -1,4 +1,5 @@
 import { DataBuilderRouteOptions } from "../DataBuilder/DataBuilderRoute";
+import { AuthRouteOptions } from "../Auth/ModelAuth";
 type RouteRegistrationOptions = {
     [key: string]: any;
 };
@@ -28,6 +29,8 @@ export declare class RouteFacade {
     get(path: string, component: any, options?: RouteRegistrationOptions): void;
     /** Register the existing DataBuilder POST protocol with request-local configuration. */
     databuilder(path: string, options?: DataBuilderRouteOptions): void;
+    /** Register CSRF, model login, logout and refresh using the browser auth contract. */
+    auth(prefix: string, options: AuthRouteOptions): void;
     /**
      * Register a POST-Method
      *

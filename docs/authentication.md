@@ -279,3 +279,88 @@ configuration before rolling the new auth flow out to existing applications.
 - [OWASP Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
 - [OWASP CSRF Prevention](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
 - [OAuth Security BCP (RFC 9700)](https://www.rfc-editor.org/rfc/rfc9700.html)
+
+## Standard browser login with `Route.auth`
+
+```ts
+import { Model, ModelAuth, Route } from "@webtypen/webframez-core";
+
+class User extends Model {
+    __table = "users";
+    __hidden = ["password"];
+}
+
+Route.auth("/api/auth", { model: User });
+// GET /api/auth/csrf
+// POST /api/auth/login, /api/auth/logout, /api/auth/refresh
+
+// During registration: user.password = await ModelAuth.hashPassword(password);
+```
+
+Set `auth.origin` or `website.baseUrl` to the canonical public URL (including the
+correct development port); alternatively pass `origin` explicitly. HTTPS is
+required outside localhost/loopback. Origins are never inferred from untrusted
+Host or forwarding headers. Origin mismatches return `invalid_origin`; token
+mismatches return `invalid_csrf`. Browser CSRF protection cannot be disabled:
+`csrfDisabled` accepts only `false`. Non-browser bearer authentication uses a
+separate adapter.
+
+The default model fields are `_id`, `email`, `password` and `is_active`. Identifiers
+are trimmed and lowercased before lookup; store them normalized. Passwords are
+not trimmed. Store a bcrypt hash; existing bcrypt hashes work without migration.
+`fields` configures field names, `verifyPassword` supports other existing hashes,
+and `isUserAllowed` adds account/tenant checks on login and every session access.
+An explicit `false` in `is_active` rejects the account; `fields.active: false`
+disables this field check. Optional `session` options configure storage, scope
+and lifetimes. For `ModelAuth`, access and absolute session lifetimes default to
+30 days; both remain configurable through `session.accessTokenSeconds` and
+`session.sessionSeconds`. The lower-level `SessionAuth` retains its 15-minute
+access-token default.
+
+```ts
+import { createAuthFetch, installAuthForms } from "@webtypen/webframez-core/auth-client";
+
+window.fetch = createAuthFetch({ basePath: "/api/auth" });
+installAuthForms({ basePath: "/api/auth" });
+```
+
+This public entry is browser-only and does not import server modules. It fetches
+CSRF before login, sends `X-CSRF-Token` on same-origin mutations, and inserts
+`_csrf` into native login forms. For a basename, supply the mounted `basePath`.
+`loginPaths` supports aliases; `requiresCsrf` narrows mutation paths;
+`cookieName` supports custom cookie prefixes. For a custom Fetch implementation,
+pass it as the second argument to `createAuthFetch`.
+
+Existing applications can pass `auth: instance` or `auth: () => instance` instead
+of `model`; use a shared `ModelAuth` for middleware and session-management APIs.
+`loginPath` keeps existing URLs, `loginResponse` adds application-specific response
+fields (for example a validated redirect), and `onLogin` / `onAuthenticate` add application-specific callbacks. Browser
+user-agent metadata and last activity are recorded automatically; `trackActivity: false`
+disables tracking. Activity writes are throttled to once per minute. No user object or tokens are serialized by the default routes.
+Route groups retain their middleware and domain restrictions. Login routes must
+be accessible before authentication; apply authentication middleware to protected
+application routes separately.
+
+
+`audience` is a top-level option in both `Route.auth` and `ModelAuth`. It takes
+precedence over the still-supported `session.audience`; the default is the origin.
+Standard error messages are included in English and German (`locale: "de"`);
+`messages` overrides individual entries while retaining the remaining defaults.
+Origin resolution also supports `application.website.baseUrl`, `WEBSITE_URL` and
+`PUBLIC_BASE_URL`; explicit `origin` retains precedence.
+
+```ts
+Route.auth("/api/auth", {
+    model: User,
+    audience: "simplebis-website",
+    locale: "de",
+    session: { collection: "website_auth_sessions" },
+    // Optional overrides:
+    messages: { invalid_login: "Bitte prüfe deine Zugangsdaten." },
+});
+```
+
+Session metadata stays in the existing session collection. `sessions.list(subject)`
+includes `userAgent` and `lastActiveAt` when available, so applications do not need
+a second model/query or callbacks to maintain the session list. Existing records
+without metadata remain valid; last activity falls back to the creation timestamp.

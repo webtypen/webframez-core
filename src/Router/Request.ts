@@ -1,7 +1,9 @@
+import type { AuthContext } from "../Auth/ModelAuth";
 import { IncomingMessage } from "http";
 
 export class Request {
     [key: string]: any;
+    auth?: AuthContext | null;
     method: string = "GET";
     url: string = "";
     headers: any = {};

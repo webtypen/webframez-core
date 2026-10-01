@@ -8,6 +8,8 @@ export type AuthSession = {
     issuer: string;
     audience: string;
     environment: string | null;
+    userAgent?: string;
+    lastActiveAt?: number;
     createdAt: number;
     expiresAt: number;
     parent: { issuer: string; sessionId: string } | null;
@@ -50,7 +52,9 @@ type SessionRecord = AuthSession & {
 
 function publicSession(record: AuthSession): AuthSession {
     return { id: record.id, subject: record.subject, issuer: record.issuer, audience: record.audience,
-        environment: record.environment, createdAt: record.createdAt, expiresAt: record.expiresAt, parent: record.parent };
+        environment: record.environment, createdAt: record.createdAt, expiresAt: record.expiresAt, parent: record.parent,
+        ...(record.userAgent !== undefined ? { userAgent: record.userAgent } : {}),
+        ...(record.lastActiveAt !== undefined ? { lastActiveAt: record.lastActiveAt } : {}) };
 }
 
 function tokenSessionId(token: unknown): string | null {
@@ -148,6 +152,22 @@ export class SessionAuth {
             return null;
         }
         return this.pair(next, access, refresh);
+    }
+
+    /** Browser login metadata; arbitrary request data and token hashes are never exposed. */
+    async recordLogin(session: AuthSession, userAgent: string): Promise<void> {
+        const metadata = { userAgent: userAgent.slice(0, 512), lastActiveAt: session.createdAt };
+        await (await this.rows()).updateOne({ _id: session.id, ...this.scope, revokedAt: null }, { $set: metadata });
+        Object.assign(session, metadata);
+    }
+
+    /** Persist activity with a one-minute throttle; authorization does not depend on this timestamp. */
+    async touch(session: AuthSession): Promise<void> {
+        const now = Date.now();
+        if ((session.lastActiveAt ?? session.createdAt) >= now - 60_000) return;
+        await (await this.rows()).updateOne({ _id: session.id, ...this.scope, revokedAt: null, expiresAt: { $gt: now } },
+            { $set: { lastActiveAt: now } });
+        session.lastActiveAt = now;
     }
 
     async revoke(sessionId: string): Promise<void> {

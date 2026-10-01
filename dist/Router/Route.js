@@ -4,6 +4,7 @@ exports.Route = exports.RouteFacade = void 0;
 const routing_1 = require("../routing");
 const Router_1 = require("./Router");
 const DataBuilderRoute_1 = require("../DataBuilder/DataBuilderRoute");
+const ModelAuth_1 = require("../Auth/ModelAuth");
 class RouteFacade {
     constructor() {
         this.tempGroupPrefix = null;
@@ -68,6 +69,17 @@ class RouteFacade {
     /** Register the existing DataBuilder POST protocol with request-local configuration. */
     databuilder(path, options = {}) {
         this.registerWithGroupContext("POST", path, (0, DataBuilderRoute_1.dataBuilderRoute)(options), { middleware: options.middleware, domains: options.domains });
+    }
+    /** Register CSRF, model login, logout and refresh using the browser auth contract. */
+    auth(prefix, options) {
+        if (!(options === null || options === void 0 ? void 0 : options.auth) && !(options === null || options === void 0 ? void 0 : options.model))
+            throw new Error("Route.auth requires a Model class or auth instance.");
+        const base = prefix.replace(/\/+$/, "");
+        const registration = { middleware: options.middleware, domains: options.domains };
+        this.get(`${base}/csrf`, (0, ModelAuth_1.authRoute)("csrf", options), registration);
+        this.post(options.loginPath || `${base}/login`, (0, ModelAuth_1.authRoute)("login", options), registration);
+        this.post(`${base}/logout`, (0, ModelAuth_1.authRoute)("logout", options), registration);
+        this.post(`${base}/refresh`, (0, ModelAuth_1.authRoute)("refresh", options), registration);
     }
     /**
      * Register a POST-Method

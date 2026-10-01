@@ -5,6 +5,8 @@ export type AuthSession = {
     issuer: string;
     audience: string;
     environment: string | null;
+    userAgent?: string;
+    lastActiveAt?: number;
     createdAt: number;
     expiresAt: number;
     parent: {
@@ -53,6 +55,10 @@ export declare class SessionAuth {
     verifyCsrf(token: string, csrf: string, kind?: "access" | "refresh"): Promise<boolean>;
     /** One winner under concurrency. A previously consumed refresh token revokes its device session. */
     refresh(token: string): Promise<SessionTokenPair | null>;
+    /** Browser login metadata; arbitrary request data and token hashes are never exposed. */
+    recordLogin(session: AuthSession, userAgent: string): Promise<void>;
+    /** Persist activity with a one-minute throttle; authorization does not depend on this timestamp. */
+    touch(session: AuthSession): Promise<void>;
     revoke(sessionId: string): Promise<void>;
     revokeAll(subject: string): Promise<void>;
     list(subject: string): Promise<AuthSession[]>;
