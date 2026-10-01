@@ -1,4 +1,18 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -8,81 +22,76 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DataBuilder = void 0;
-const lodash_1 = __importDefault(require("lodash"));
-const Model_1 = require("../Database/Model");
+exports.DataBuilder = exports.DataBuilderFieldType = void 0;
+const DBConnection_1 = require("../Database/DBConnection");
+const DataBuilderForms_1 = require("./DataBuilderForms");
+const DataBuilderFieldsProcessor_1 = require("./DataBuilderFieldsProcessor");
+const DataBuilderFrontend_1 = require("./DataBuilderFrontend");
+const formScope_1 = require("./formScope");
+__exportStar(require("./DataBuilderTypes"), exports);
+var DataBuilderFieldType_1 = require("./DataBuilderFieldType");
+Object.defineProperty(exports, "DataBuilderFieldType", { enumerable: true, get: function () { return DataBuilderFieldType_1.DataBuilderFieldType; } });
 class DataBuilder {
-    constructor() {
-        this.types = {};
-        this.fieldTypes = {};
+    constructor(connection) {
+        this.connection = connection;
+        this.forms = new DataBuilderForms_1.DataBuilderForms((type) => this.registerType(type));
+        this.fields = new DataBuilderFieldsProcessor_1.DataBuilderFieldsProcessor(connection, this);
+    }
+    objectId(value) {
+        return DBConnection_1.DBConnection.objectId(value, this.connection);
+    }
+    resolveType(req) {
+        return this.forms.resolve(this.getTypeFromRequest(req), req);
     }
     getType(key) {
-        return this.types[key] && this.types[key].key ? this.types[key] : null;
+        return this.forms.get(key);
     }
-    registerType(typeObj) {
-        this.types[typeObj.key] = typeObj;
-        return this;
-    }
-    registerFieldType(key, options) {
-        this.fieldTypes[key] = Object.assign(Object.assign({}, options), { key: key });
+    registerType(type) {
+        this.forms.register(type);
         return this;
     }
     registerModelType(key, model) {
-        if (model &&
-            typeof model.__schema === "object" &&
-            model.__schema.fields &&
-            (Object.keys(model.__schema.fields).length > 0 || typeof model.__schema.fields === "function")) {
-            this.registerType({
-                key: key,
-                singular: model.__singular,
-                plural: model.__plural,
-                schema: Object.assign(Object.assign({}, model.__schema), { collection: model.__schema.collection ? model.__schema.collection : model.__table ? model.__table : key }),
-                forms: model.__forms,
-            });
-        }
+        this.forms.registerModel(key, model);
+        return this;
+    }
+    registerFieldType(key, options) {
+        this.fields.registerFieldType(key, options);
+        return this;
+    }
+    registerValidationType(rule) {
+        this.fields.registerValidationType(rule);
         return this;
     }
     getFieldType(key) {
-        return this.fieldTypes[key] && this.fieldTypes[key].key ? this.fieldTypes[key] : null;
+        return this.fields.getFieldType(key);
+    }
+    getFieldTypeInstance(key) {
+        return this.fields.getFieldTypeInstance(key);
     }
     getFieldTypesFrontend() {
-        const fieldtypes = {};
-        for (let key in this.fieldTypes) {
-            fieldtypes[key] = {
-                key: key,
-                type: this.fieldTypes[key].type,
-            };
-        }
-        return fieldtypes;
+        return this.fields.getFieldTypesFrontend();
     }
     getFieldsFrontend(fields, payload) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const out = {};
-            for (let key in fields) {
-                if (false && fields[key].type === "object") {
-                    // out[key] =
-                    //     typeof fields[key].schema === "object" && Object.keys(fields[key].schema).length > 0
-                    //         ? { ...(await this.getFieldsFrontend(fields[key].schema, payload)) }
-                    //         : fields[key];
-                }
-                else {
-                    out[key] =
-                        typeof fields[key].schema === "object" && Object.keys(fields[key].schema).length > 0
-                            ? Object.assign(Object.assign({}, fields[key]), { schema: yield this.getFieldsFrontend(fields[key].schema, payload) }) : fields[key];
-                }
-                if (out[key].type === "option" && typeof fields[key].options === "function") {
-                    out[key].options = yield fields[key].options(payload);
-                }
-                if (out[key].disabled && typeof out[key].disabled === "function") {
-                    out[key].disabled = yield out[key].disabled(payload);
-                }
-            }
-            return out;
-        });
+        return (0, DataBuilderFrontend_1.fieldsForFrontend)(fields, payload, (children, childPayload) => this.getFieldsFrontend(children, childPayload));
+    }
+    typeForFrontend(type, req, structured = false) {
+        return (0, DataBuilderFrontend_1.typeForFrontend)(type, req, structured);
+    }
+    validateFields(db, type, fields, req, errors, path, structured = false) {
+        return this.fields.validateFields(db, type, fields, req, errors, path, structured);
+    }
+    handleUnique(db, req, key, value, field, type) {
+        return this.fields.handleUnique(db, req, key, value, field, type);
+    }
+    applyFields(fields, element, data, payload, path, structured = false, request) {
+        return this.fields.applyFields(fields, element, data, payload, path, structured, request);
+    }
+    getField(req, type, path) {
+        return this.fields.getField(req, type, path);
+    }
+    removeArrayIndicators(path) {
+        return this.fields.removeArrayIndicators(path);
     }
     getTypeFromRequest(req) {
         const type = req.body && req.body.__builder_type
@@ -95,254 +104,14 @@ class DataBuilder {
         }
         return type;
     }
-    validateFields(db, type, fields, req, errors, path) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!errors) {
-                errors = {};
-            }
-            if (!fields || typeof fields !== "object") {
-                return errors;
-            }
-            for (let key in fields) {
-                const fieldPath = (path ? path + "." : "") + key;
-                const value = lodash_1.default.get(req.body.data, fieldPath);
-                // Check-Required
-                if (fields[key].required) {
-                    let check = true;
-                    if (typeof fields[key].required === "function") {
-                        check = yield fields[key].required(req.body.data);
-                    }
-                    if (check) {
-                        if (value === null ||
-                            value === false ||
-                            value === undefined ||
-                            (Array.isArray(value) && value.length < 1) ||
-                            (!Array.isArray(value) && value.toString().trim() === "")) {
-                            errors[fieldPath] = "Dieses Feld muss ausgefüllt werden.";
-                            continue;
-                        }
-                    }
-                }
-                // Check-Unique
-                if (value !== null && value !== false && value !== undefined && fields[key].unique) {
-                    let isUnique = false;
-                    if (typeof fields[key].unique === "function") {
-                        isUnique = yield fields[key].unique(req.body.data, req);
-                    }
-                    else if (typeof fields[key].unique === "object") {
-                        isUnique = yield this.handleUnique(db, req, key, value, fields[key], type);
-                    }
-                    if (!isUnique) {
-                        errors[fieldPath] = "Es gibt bereits einen anderen Datensatz mit diesem Wert.";
-                        continue;
-                    }
-                }
-                if (typeof fields[key].schema === "object") {
-                    if (fields[key].type === "array") {
-                        if (value && value.length > 0) {
-                            for (let i in value) {
-                                const entryPath = fieldPath + "[" + i + "]";
-                                errors = yield this.validateFields(db, type, fields[key].schema, req, errors, entryPath);
-                            }
-                        }
-                    }
-                    else if (fields[key].type === "object") {
-                        errors = yield this.validateFields(db, type, fields[key].schema, req, errors, fieldPath);
-                    }
-                }
-                if (fields[key].validation && fields[key].validation.trim() !== "") {
-                    // @ToDo
-                }
-            }
-            return errors;
-        });
-    }
-    handleUnique(db, req, key, value, field, type) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const match = Object.assign({ [key]: value }, (typeof field.unique.match === "function"
-                ? yield field.unique.match(req)
-                : typeof field.unique.match === "object"
-                    ? field.unique.match
-                    : {}));
-            const check = yield db
-                .collection(typeof field.unique.collection === "string" && field.unique.collection.trim() !== ""
-                ? field.unique.collection
-                : type.schema.collection)
-                .aggregate([
-                { $match: match },
-                ...(typeof field.unique.aggregation === "function"
-                    ? yield field.aggregation(req)
-                    : field.aggregation && Array.isArray(field.aggregation)
-                        ? field.aggregation
-                        : []),
-            ])
-                .toArray();
-            if (!check || check.length < 1) {
-                return true;
-            }
-            if (!req.body.__builder_id || req.body.__builder_id === "new") {
-                return false;
-            }
-            for (let el of check) {
-                if (el && el._id && el._id.toString() !== req.body.__builder_id) {
-                    return false;
-                }
-            }
-            return true;
-        });
-    }
-    typeForFrontend(type, req) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const newData = {};
-            for (let key in type) {
-                if (key === "forms") {
-                    newData.forms = {};
-                    if (typeof type.forms === "function") {
-                        newData.forms = yield type.forms(req);
-                        if (newData === null || newData === void 0 ? void 0 : newData.forms) {
-                            for (let form in newData.forms) {
-                                if (typeof newData.forms[form].pageActions === "function") {
-                                    newData.forms[form].pageActions = yield newData.forms[form].pageActions(req);
-                                }
-                                if (typeof newData.forms[form].fields === "function") {
-                                    newData.forms[form].fields = yield newData.forms[form].fields(req);
-                                }
-                                if (typeof newData.forms[form].backLink === "function") {
-                                    newData.forms[form].backLink = yield newData.forms[form].backLink(req);
-                                }
-                            }
-                        }
-                    }
-                    for (let form in type.forms) {
-                        if (!type.forms[form] || !type.forms[form].fields) {
-                            continue;
-                        }
-                        newData.forms[form] = {};
-                        if (typeof type.forms[form].pageActions === "function") {
-                            newData.forms[form].pageActions = yield type.forms[form].pageActions(req);
-                        }
-                        else if (type.forms[form].pageActions) {
-                            newData.forms[form].pageActions = JSON.parse(JSON.stringify(type.forms[form].pageActions));
-                        }
-                        if (typeof type.forms[form].backLink === "function") {
-                            newData.forms[form].backLink = yield type.forms[form].backLink(req);
-                        }
-                        if (typeof type.forms[form].fields === "function") {
-                            newData.forms[form].fields = yield type.forms[form].fields(req);
-                        }
-                        else if (type.forms[form].fields) {
-                            newData.forms[form].fields = JSON.parse(JSON.stringify(type.forms[form].fields));
-                        }
-                        if (!newData.forms[form].fields || newData.forms[form].fields.length < 1) {
-                            continue;
-                        }
-                        newData.forms[form].allowDeletion =
-                            (typeof type.forms[form].allowDeletion === "boolean" && type.forms[form].allowDeletion) ||
-                                (typeof type.forms[form].allowDeletion === "function" && (yield type.forms[form].allowDeletion(req)))
-                                ? true
-                                : false;
-                    }
-                }
-                else {
-                    newData[key] = type[key];
-                }
-            }
-            return newData;
-        });
-    }
     loadType(req) {
         return __awaiter(this, void 0, void 0, function* () {
-            const type = this.getTypeFromRequest(req);
-            const data = Object.assign(Object.assign({}, (yield this.typeForFrontend(type, req))), { fieldtypes: this.getFieldTypesFrontend(), new_data_handler: type.schema && type.schema.newDataHandler && typeof type.schema.newDataHandler === "function" ? true : false });
+            const { type, structured } = yield this.resolveType(req);
+            const data = Object.assign(Object.assign({}, (yield this.typeForFrontend(type, req, structured))), { fieldtypes: this.getFieldTypesFrontend(), new_data_handler: type.schema && type.schema.newDataHandler && typeof type.schema.newDataHandler === "function" ? true : false });
             return {
                 status: "success",
-                data: Object.assign(Object.assign({}, data), { schema: Object.assign(Object.assign({}, (data.schema ? data.schema : {})), { fields: yield this.getFieldsFrontend(type.schema
-                            ? typeof type.schema.fields === "function"
-                                ? yield type.schema.fields(req)
-                                : type.schema.fields
-                            : typeof type.fields === "function"
-                                ? yield type.fields(req)
-                                : type.fields, req) }) }),
+                data: Object.assign(Object.assign({}, data), { schema: Object.assign(Object.assign({}, (data.schema ? data.schema : {})), { fields: yield this.getFieldsFrontend(type.schema ? (typeof type.schema.fields === "function" ? yield type.schema.fields(req) : type.schema.fields) : {}, req) }) }),
             };
-        });
-    }
-    applyFields(fields, element, data, payload, path) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (typeof fields !== "object" || !fields) {
-                return element;
-            }
-            for (let key in fields) {
-                if (!fields[key] || fields[key].unmapped) {
-                    continue;
-                }
-                const fieldPath = (path ? path + "." : "") + key;
-                const value = lodash_1.default.get(data, fieldPath);
-                const customType = this.getFieldType(fields[key].type);
-                if (typeof fields[key].schema === "object" && fields[key].type === "array") {
-                    lodash_1.default.set(element, fieldPath, []);
-                    if (value && value.length > 0) {
-                        for (let i in value) {
-                            const entryPath = fieldPath + "[" + i + "]";
-                            this.applyFields(fields[key].schema, element, data, payload, entryPath);
-                        }
-                    }
-                    if (customType && typeof customType.onSave === "function") {
-                        lodash_1.default.set(element, fieldPath, yield customType.onSave(lodash_1.default.get(element, fieldPath), Object.assign(Object.assign({}, payload), fields[key].payload)));
-                    }
-                }
-                else {
-                    let elementVal = null;
-                    if (fields[key].type === "ObjectId") {
-                        if (value !== undefined && value !== null && value !== "") {
-                            elementVal = yield Model_1.Model.objectId(value);
-                        }
-                        else {
-                            elementVal = yield Model_1.Model.objectId();
-                        }
-                    }
-                    else if (value !== undefined &&
-                        value !== null &&
-                        !(typeof value === "string" && value.trim() === "") &&
-                        !(typeof value === "number" && value.toString().trim() === "")) {
-                        // Custom field onSave
-                        if (customType && typeof customType.onSave === "function") {
-                            elementVal = yield customType.onSave(value, Object.assign(Object.assign({}, payload), fields[key].payload));
-                        }
-                        // Float or currency fields
-                        else if (fields[key].type === "currency" || fields[key].type === "float") {
-                            elementVal = parseFloat(value.toString().replace(",", "."));
-                        }
-                        // Integer field
-                        else if (fields[key].type === "integer") {
-                            elementVal = parseInt(value);
-                        }
-                        // Integer datetime
-                        else if (fields[key].type === "datetime") {
-                            if (typeof value === "string") {
-                                const [datePart, timePart] = value.trim().split(" ");
-                                if (!datePart || datePart.trim() === "") {
-                                    elementVal = value;
-                                }
-                                else if (!datePart.includes("-") && datePart.match(/^\d{1,2}:\d{2}$/)) {
-                                    elementVal = null;
-                                }
-                                else {
-                                    elementVal = datePart.trim() + " " + (timePart && timePart.includes(":") ? timePart.trim() : "00:00");
-                                }
-                            }
-                            else {
-                                elementVal = null;
-                            }
-                        }
-                        // Standard
-                        else {
-                            elementVal = value;
-                        }
-                    }
-                    lodash_1.default.set(element, fieldPath, elementVal);
-                }
-            }
-            return element;
         });
     }
     getAggregation(type, req) {
@@ -352,10 +121,25 @@ class DataBuilder {
                     $match: {
                         [type.schema.primaryKey ? type.schema.primaryKey : "_id"]: type.schema.primaryKeyPlain
                             ? req.body.__builder_id
-                            : yield Model_1.Model.objectId(req.body.__builder_id),
+                            : yield this.objectId(req.body.__builder_id),
                     },
                 },
             ];
+        });
+    }
+    loadElement(db, type, req) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const collection = type.schema.collection;
+            const aggregation = yield this.getAggregation(type, req);
+            const result = yield db
+                .collection(collection)
+                .aggregate(typeof type.schema.getAggregation === "function" ? yield type.schema.getAggregation(aggregation, req) : aggregation, collection)
+                .toArray();
+            const element = result === null || result === void 0 ? void 0 : result[0];
+            if (!(element === null || element === void 0 ? void 0 : element[type.schema.primaryKey || "_id"])) {
+                throw new Error("Element '" + req.body.__builder_id + "' not found ...");
+            }
+            return element;
         });
     }
     save(db, req) {
@@ -363,15 +147,17 @@ class DataBuilder {
             if (!req || !req.body || typeof req.body !== "object") {
                 throw new Error("Missing request-body ...");
             }
-            if (typeof req.body.data !== "object") {
+            if (!req.body.data || typeof req.body.data !== "object" || Array.isArray(req.body.data)) {
                 throw new Error("Missing request-data ...");
             }
-            const type = this.getTypeFromRequest(req.body);
+            const { type, structured } = yield this.resolveType(req);
             if (!type || !type.schema || !type.schema.fields) {
                 throw new Error("Missing schema fields ...");
             }
             const schemaFields = typeof type.schema.fields === "function" ? yield type.schema.fields(req) : type.schema.fields;
-            const errors = yield this.validateFields(db, type, schemaFields, req);
+            const errors = Object.assign({}, (yield this.validateFields(db, type, schemaFields, req, undefined, undefined, structured)));
+            if (structured)
+                (0, formScope_1.unexpectedFormFields)(schemaFields, req.body.data, errors, "", type.schema.primaryKey || "_id");
             if (errors && Object.keys(errors).length > 0) {
                 return {
                     status: "error",
@@ -380,27 +166,17 @@ class DataBuilder {
             }
             if (type.unmapped) {
                 const appendData = {};
-                try {
-                    if (typeof type.schema.beforeSave === "function") {
-                        const result = yield type.schema.beforeSave(req.body.data, req);
-                        if (result && result.__append_data) {
-                            Object.assign(appendData, result.__append_data);
-                        }
+                if (typeof type.schema.beforeSave === "function") {
+                    const result = yield type.schema.beforeSave(req.body.data, req);
+                    if (result && result.__append_data) {
+                        Object.assign(appendData, result.__append_data);
                     }
                 }
-                catch (e) {
-                    throw e;
-                }
-                try {
-                    if (typeof type.schema.afterSave === "function") {
-                        const result = yield type.schema.afterSave(req.body.data, req);
-                        if (result && result.__append_data) {
-                            Object.assign(appendData, result.__append_data);
-                        }
+                if (typeof type.schema.afterSave === "function") {
+                    const result = yield type.schema.afterSave(req.body.data, req);
+                    if (result && result.__append_data) {
+                        Object.assign(appendData, result.__append_data);
                     }
-                }
-                catch (e) {
-                    throw e;
                 }
                 let redirect = undefined;
                 const forms = typeof type.forms === "function" ? yield type.forms(req) : type.forms;
@@ -426,45 +202,31 @@ class DataBuilder {
                 if (type.schema.primaryKey && type.schema.primaryKey.trim() !== "" && type.schema.primaryKey !== "_id") {
                     element[type.schema.primaryKey] = type.schema.primaryKeyPlain
                         ? req.body.__builder_id
-                        : yield Model_1.Model.objectId(req.body.builder_id);
+                        : yield this.objectId(req.body.builder_id);
                 }
                 element.__builder = {
                     created_at: new Date(),
                 };
             }
             else {
-                const result = yield db
-                    .collection(collection)
-                    .aggregate(type.schema && typeof type.schema.getAggregation === "function"
-                    ? yield type.schema.getAggregation(yield this.getAggregation(type, req), req)
-                    : yield this.getAggregation(type, req), collection)
-                    .toArray();
-                if (!result || !result[0] || !result[0][type.schema.primaryKey ? type.schema.primaryKey : "_id"]) {
-                    throw new Error("Element '" + req.body.__builder_id + "' not found ...");
-                }
-                element = result[0];
-                updateId = result[0][type.schema.primaryKey ? type.schema.primaryKey : "_id"];
+                element = yield this.loadElement(db, type, req);
+                updateId = element[type.schema.primaryKey || "_id"];
             }
-            element = yield this.applyFields(schemaFields, element, req.body.data, req.body.payload);
+            element = yield this.applyFields(schemaFields, element, req.body.data, req.body.payload, undefined, structured, req);
             if (!element.__builder) {
                 element.__builder = {};
             }
             element.__builder.version = type.schema.version;
             element.__builder.collection = type.schema.collection;
             element.__builder.updated_at = new Date();
-            try {
-                if (typeof type.schema.beforeSave === "function") {
-                    yield type.schema.beforeSave(element, req);
-                }
-            }
-            catch (e) {
-                throw e;
+            if (typeof type.schema.beforeSave === "function") {
+                yield type.schema.beforeSave(element, req);
             }
             let changedId = null;
             if (updateId) {
                 delete element[type.schema.primaryKey ? type.schema.primaryKey : "_id"];
                 const status = yield db.collection(collection).updateOne({
-                    _id: type.schema.primaryKeyPlain ? updateId.toString() : yield Model_1.Model.objectId(updateId),
+                    _id: type.schema.primaryKeyPlain ? updateId.toString() : yield this.objectId(updateId),
                 }, { $set: Object.assign({}, element) });
                 if (status && status.matchedCount) {
                     changedId = updateId;
@@ -484,13 +246,8 @@ class DataBuilder {
                         : changedId;
                 }
             }
-            try {
-                if (typeof type.schema.afterSave === "function") {
-                    yield type.schema.afterSave(element, req);
-                }
-            }
-            catch (e) {
-                throw e;
+            if (typeof type.schema.afterSave === "function") {
+                yield type.schema.afterSave(element, req);
             }
             let redirect = undefined;
             const forms = typeof type.forms === "function" ? yield type.forms(req) : type.forms;
@@ -514,7 +271,7 @@ class DataBuilder {
             if (typeof req.body.data !== "object") {
                 throw new Error("Missing id ...");
             }
-            const type = this.getTypeFromRequest(req.body);
+            const { type } = yield this.resolveType(req);
             if (!type || !type.schema || !type.schema.fields) {
                 throw new Error("Missing schema fields ...");
             }
@@ -531,39 +288,20 @@ class DataBuilder {
                 throw new Error("Cannot delete a new object ...");
             }
             else {
-                const result = yield db
-                    .collection(collection)
-                    .aggregate(type.schema && typeof type.schema.getAggregation === "function"
-                    ? yield type.schema.getAggregation(yield this.getAggregation(type, req), req)
-                    : yield this.getAggregation(type, req), collection)
-                    .toArray();
-                if (!result || !result[0] || !result[0][type.schema.primaryKey ? type.schema.primaryKey : "_id"]) {
-                    throw new Error("Element '" + req.body.__builder_id + "' not found ...");
-                }
-                element = result[0];
+                element = yield this.loadElement(db, type, req);
             }
             if (!element || !element._id) {
                 throw new Error("Element '" + req.body.__builder_id + "' not found ...");
             }
-            try {
-                if (typeof type.schema.beforeDelete === "function") {
-                    yield type.schema.beforeDelete(element, req);
-                }
-            }
-            catch (e) {
-                throw e;
+            if (typeof type.schema.beforeDelete === "function") {
+                yield type.schema.beforeDelete(element, req);
             }
             if (typeof type.schema.deleteHandler === "function")
                 yield type.schema.deleteHandler(element, req);
             else
                 yield db.collection(collection).deleteOne({ _id: element._id });
-            try {
-                if (typeof type.schema.afterDelete === "function") {
-                    yield type.schema.afterDelete(element, req);
-                }
-            }
-            catch (e) {
-                throw e;
+            if (typeof type.schema.afterDelete === "function") {
+                yield type.schema.afterDelete(element, req);
             }
             let redirect = undefined;
             const forms = typeof type.forms === "function" ? yield type.forms(req) : type.forms;
@@ -582,56 +320,29 @@ class DataBuilder {
             };
         });
     }
-    getField(req, type, path) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!path || path.trim() === "") {
-                return null;
-            }
-            const schemaFields = typeof type.schema.fields === "function" ? yield type.schema.fields(req) : type.schema.fields;
-            const field = lodash_1.default.get(schemaFields, this.removeArrayIndicators(path));
-            return field && field.type ? field : null;
-        });
-    }
-    removeArrayIndicators(str) {
-        return str.replace(/\[\d+\]/g, ".schema");
-    }
     details(db, req) {
         return __awaiter(this, void 0, void 0, function* () {
             if (!req.body.__builder_id || req.body.__builder_id.toString().trim() === "") {
                 throw new Error("Missing id ...");
             }
-            const type = this.getTypeFromRequest(req);
+            const { type, structured } = yield this.resolveType(req);
             if (!type || !type.schema || !type.schema.fields) {
                 throw new Error("Missing schema fields ...");
             }
             const collection = type.schema && type.schema.collection ? type.schema.collection : undefined;
             if (!collection)
                 throw new Error("Missing schema collection ...");
-            let element = null;
-            try {
-                element = yield db
-                    .collection(collection)
-                    .aggregate(type.schema && typeof type.schema.getAggregation === "function"
-                    ? yield type.schema.getAggregation(yield this.getAggregation(type, req), req)
-                    : yield this.getAggregation(type, req), collection)
-                    .toArray();
-            }
-            catch (e) {
-                console.error(e);
-                throw e;
-            }
-            if (!element || !element[0] || !element[0][type.schema.primaryKey ? type.schema.primaryKey : "_id"]) {
-                throw new Error("Element '" + req.body.__builder_id + "' not found ...");
-            }
+            const element = yield this.loadElement(db, type, req);
             return {
                 status: "success",
-                data: element[0],
+                data: structured
+                    ? Object.assign(Object.assign({}, (0, formScope_1.projectFormData)(type.schema.fields, element)), { [type.schema.primaryKey || "_id"]: element[type.schema.primaryKey || "_id"] }) : element,
             };
         });
     }
     detailsNewData(db, req) {
         return __awaiter(this, void 0, void 0, function* () {
-            const type = this.getTypeFromRequest(req);
+            const { type, structured } = yield this.resolveType(req);
             if (!type || !type.schema || !type.schema.fields) {
                 throw new Error("Missing schema fields ...");
             }
@@ -650,18 +361,18 @@ class DataBuilder {
             }
             return {
                 status: "success",
-                data: data,
+                data: structured ? (0, formScope_1.projectFormData)(type.schema.fields, data) : data,
             };
         });
     }
     apiAutoComplete(req) {
         return __awaiter(this, void 0, void 0, function* () {
-            const type = this.getTypeFromRequest(req);
+            const { type } = yield this.resolveType(req);
             const field = req.body.__builder_field ? yield this.getField(req, type, req.body.__builder_field) : null;
             if (!field) {
                 throw new Error("Invalid autocomplete field ...");
             }
-            const fieldType = this.getFieldType(field.type);
+            const fieldType = this.getFieldTypeInstance(field.type);
             if (!fieldType || !fieldType.key || fieldType.type !== "api-autocomplete" || !fieldType.onSearch) {
                 throw new Error("Invalid autocomplete field type '" + field.type + "' ...");
             }

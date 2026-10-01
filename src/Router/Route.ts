@@ -1,7 +1,9 @@
 import { appPath, appRelativePath } from "../routing";
 import { Router } from "./Router";
+import { dataBuilderRoute, DataBuilderRouteOptions } from "../DataBuilder/DataBuilderRoute";
 
 type RouteRegistrationOptions = { [key: string]: any };
+
 type RouteRegistrationHandler = (
     method: string,
     path: string,
@@ -91,6 +93,11 @@ export class RouteFacade {
      */
     get(path: string, component: any, options?: RouteRegistrationOptions) {
         this.registerWithGroupContext("GET", path, component, options);
+    }
+
+    /** Register the existing DataBuilder POST protocol with request-local configuration. */
+    databuilder(path: string, options: DataBuilderRouteOptions = {}) {
+        this.registerWithGroupContext("POST", path, dataBuilderRoute(options), { middleware: options.middleware, domains: options.domains });
     }
 
     /**

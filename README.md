@@ -9,6 +9,7 @@ This README reflects the current API in this repository and focuses on:
 - DataBuilder
 - Console Commands
 - Queue and Jobs
+- Session, browser and cross-instance authentication
 
 ## Requirements
 
@@ -20,6 +21,16 @@ This README reflects the current API in this repository and focuses on:
 ```bash
 npm i @webtypen/webframez-core
 ```
+
+## Authentication
+
+New integrations can use `SessionAuth` for hashed, revocable device sessions,
+`WebAuth` for host-only browser cookies and CSRF protection, and
+`SsoAuthority` / `SsoClient` for first-party cross-instance login with single-use
+codes, PKCE and central session introspection. These APIs are opt-in; existing
+`UserAuth` consumers keep their current behavior.
+
+See [Authentication: setup, security model and migration](docs/authentication.md).
 
 ## Database drivers (from 0.3.69)
 
@@ -68,6 +79,7 @@ Die Regeln beschreiben unter anderem:
 - Nutzung von Model.objectId(...) statt eigener ObjectId-Resolver
 - bevorzugte Nutzung der vorhandenen Helper wie StringFunctions, NumericFunctions und DateFunctions
 - Verwendung der Webframez-Abstraktionen fuer Request, Response, Middleware, Storage, Datatables und Routes
+- sinnvolle Leerzeilen nach Imports, zwischen Eigenschaften und Methoden sowie zwischen Methoden
 
 Wichtig: AGENTS.md-Dateien haben keine universell standardisierte Import-Funktion. Die praktikable Variante ist deshalb, die Regeldatei aus dem Paket in der AGENTS.md des eigenen Projekts explizit zu referenzieren und projektspezifische Regeln lokal zu ergaenzen.
 
@@ -87,6 +99,7 @@ Insbesondere gilt:
 - fuer ObjectId-Konvertierungen Model.objectId(...) oder die passende Model-Instanzmethode verwenden
 - vorhandene Webframez-Helper und Facades bevorzugen statt neue Utilities oder Resolver anzulegen
 - fuer HTTP-, Routing-, Middleware-, Storage- und Datatable-Code die Webframez-APIs und Konventionen beibehalten
+- die Leerzeilenregeln aus dem Abschnitt "Code-Formatierung und Leerzeilen" einhalten
 
 Projektspezifische Ergaenzung:
 - dieses Projekt verwendet fuer Admin-Routen zusaetzlich die Middleware "admin-auth"
@@ -908,3 +921,7 @@ a penguin glyph fallback). Set `accessibilityLabel` only when the icon adds mean
 not already present in adjacent text. Optional `size` is a positive number.
 Content is rendered as text and icons, never HTML. Plain navigation labels retain
 the text representation; their separate `icon` property controls navigation icons.
+
+## DataBuilder model forms
+
+DataBuilder supports `@Field()`, parameterized `@Validates()`, server-side `ModelForm` classes and `Route.databuilder()` while retaining the v1 request protocol and legacy controller registrations. See [DataBuilder documentation](docs/databuilder.md).

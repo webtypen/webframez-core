@@ -1,3 +1,4 @@
+import { DataBuilderRouteOptions } from "../DataBuilder/DataBuilderRoute";
 type RouteRegistrationOptions = {
     [key: string]: any;
 };
@@ -25,6 +26,8 @@ export declare class RouteFacade {
      * @param options
      */
     get(path: string, component: any, options?: RouteRegistrationOptions): void;
+    /** Register the existing DataBuilder POST protocol with request-local configuration. */
+    databuilder(path: string, options?: DataBuilderRouteOptions): void;
     /**
      * Register a POST-Method
      *

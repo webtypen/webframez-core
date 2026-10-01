@@ -67,3 +67,12 @@ export type { InlineTextDefinition, InlineTextIcon } from "./Presentation/Inline
 export * from "./Queue/Queue";
 
 export * from "./routing";
+
+export * from "./DataBuilder/DataBuilderFieldType";
+export * from "./DataBuilder/DataBuilderValidationType";
+export * from "./DataBuilder/Fields";
+export * from "./DataBuilder/Validations";
+export { ModelForm, ModelFormContext, ModelFormConstructor } from "./DataBuilder/ModelForm";
+export { Field, Validates, Forms, DataBuilderFieldOptions } from "./DataBuilder/decorators";
+export { DataBuilderRouteOptions } from "./DataBuilder/DataBuilderRoute";
+export { LegacyFieldTypeAdapter } from "./DataBuilder/LegacyFieldTypeAdapter";

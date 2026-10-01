@@ -11,7 +11,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DataBuilderController = void 0;
 const Controller_1 = require("../Controller/Controller");
-const DBConnection_1 = require("../Database/DBConnection");
+const DataBuilderRoute_1 = require("./DataBuilderRoute");
 const DataBuilder_1 = require("./DataBuilder");
 class DataBuilderController extends Controller_1.Controller {
     constructor(builder) {
@@ -20,29 +20,7 @@ class DataBuilderController extends Controller_1.Controller {
     }
     restApi(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            const db = yield DBConnection_1.DBConnection.getConnection();
-            if (req.body.__builder_rest_api === "api-autocomplete") {
-                return res.send(yield this.builder.apiAutoComplete(req));
-            }
-            else if (req.body.__builder_rest_api === "details") {
-                return res.send(yield this.builder.details(DBConnection_1.DBConnection.documentStore(db), req));
-            }
-            else if (req.body.__builder_rest_api === "details-newdata") {
-                return res.send(yield this.builder.detailsNewData(DBConnection_1.DBConnection.documentStore(db), req));
-            }
-            else if (req.body.__builder_rest_api === "save") {
-                return res.send(yield this.builder.save(DBConnection_1.DBConnection.documentStore(db), req));
-            }
-            else if (req.body.__builder_rest_api === "delete") {
-                return res.send(yield this.builder.delete(DBConnection_1.DBConnection.documentStore(db), req));
-            }
-            else if (req.body.__builder_rest_api === "type") {
-                return res.send(yield this.builder.loadType(req));
-            }
-            return res.status(404).send({
-                status: "error",
-                message: "Api-Endpoint not found ...",
-            });
+            return (0, DataBuilderRoute_1.serveDataBuilder)(this.builder, req, res);
         });
     }
 }

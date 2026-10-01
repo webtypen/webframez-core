@@ -1,185 +1,106 @@
 import type { DocumentDatabase } from "../Database/DatabaseAdapter";
-import lodash from "lodash";
 import { Request } from "../Router/Request";
-import { Model } from "../Database/Model";
+import { DBConnection } from "../Database/DBConnection";
+import { DataBuilderFieldType, DataBuilderFieldTypeInstance } from "./DataBuilderFieldType";
+import { DataBuilderValidationType } from "./DataBuilderValidationType";
+import { DataBuilderForms } from "./DataBuilderForms";
+import { DataBuilderFieldsProcessor } from "./DataBuilderFieldsProcessor";
+import { fieldsForFrontend, typeForFrontend } from "./DataBuilderFrontend";
+import { projectFormData, unexpectedFormFields } from "./formScope";
+import type { DataBuilderType, DataBuilderFields, DataBuilderErrors } from "./DataBuilderTypes";
 
-export type DataBuilderSchema = {
-    version: string;
-    collection?: string;
-    primaryKey?: string;
-    primaryKeyPlain?: boolean;
-    beforeSave?: any;
-    afterSave?: any;
-    beforeDelete?: any;
-    afterDelete?: any;
-    /** Override persistence for nested/model-backed records; authorization and hooks still run. */
-    deleteHandler?: (element: any, req: Request) => Promise<void>;
-    getAggregation?: any;
-    events?: { [key: string]: any };
-    fields: { [key: string]: any };
-    newDataHandler?: Function;
-    canDelete?: any;
-};
-
-export type DataBuilderOptionMapping = {
-    from: string;
-    value: string;
-    label: string;
-    valuePrefix?: string;
-    labelPrefix?: string;
-};
-
-export type DataBuilderOptionsMapping = DataBuilderOptionMapping | DataBuilderOptionMapping[];
-
-export type DataBuilderFormFieldDefinition = {
-    field: string;
-    width?: string | number;
-    placement?: "content" | "actions";
-    hidden?: string | boolean;
-    disabled?: string | boolean;
-    fields?: DataBuilderFormDefinition[];
-    [key: string]: any;
-};
-
-export type DataBuilderFormTabDefinition = {
-    key: string;
-    title: string;
-    icon?: string;
-    disabled?: boolean;
-    fields: DataBuilderFormDefinition[];
-};
-
-export type DataBuilderFormTabsDefinition = {
-    type: "tabs";
-    label?: string;
-    width?: string | number;
-    appearance?: "card" | "plain";
-    tabs: DataBuilderFormTabDefinition[];
-};
-
-export type DataBuilderFormLayoutDefinition = {
-    type: string;
-    width?: string | number;
-    children?: DataBuilderFormDefinition[];
-    [key: string]: any;
-};
-
-export type DataBuilderFormDefinition =
-    | DataBuilderFormFieldDefinition
-    | DataBuilderFormTabsDefinition
-    | DataBuilderFormLayoutDefinition;
-
-export type DataBuilderForm = {
-    fields:
-        | DataBuilderFormDefinition[]
-        | ((req: Request) => DataBuilderFormDefinition[] | Promise<DataBuilderFormDefinition[]>);
-    [key: string]: any;
-};
-
-export type DataBuilderType = {
-    key: string;
-    singular: string;
-    plural: string;
-    schema: DataBuilderSchema;
-    forms?:
-        | { [key: string]: DataBuilderForm }
-        | ((req: Request) => { [key: string]: DataBuilderForm } | Promise<{ [key: string]: DataBuilderForm }>);
-    unmapped?: boolean;
-};
-
-export type DataBuilderFieldType =
-    | {
-          key: string;
-          type: "api-autocomplete";
-          onSave: (value: any, payload?: any) => void;
-          onSearch: (query: string, req: Request) => void;
-      }
-    | {
-          key: string;
-          type: "object";
-          onSave: (value: any, payload?: any) => void;
-          onSearch?: never;
-      };
+export * from "./DataBuilderTypes";
+export { DataBuilderFieldType } from "./DataBuilderFieldType";
 
 export class DataBuilder {
-    private types: { [key: string]: DataBuilderType } = {};
-    private fieldTypes: { [key: string]: DataBuilderFieldType } = {};
+    private readonly forms = new DataBuilderForms((type) => this.registerType(type));
+    private readonly fields: DataBuilderFieldsProcessor;
+
+    constructor(private readonly connection?: string) {
+        this.fields = new DataBuilderFieldsProcessor(connection, this);
+    }
+
+    private objectId(value?: any) {
+        return DBConnection.objectId(value, this.connection);
+    }
+
+    private resolveType(req: Request) {
+        return this.forms.resolve(this.getTypeFromRequest(req), req);
+    }
 
     getType(key: string) {
-        return this.types[key] && this.types[key].key ? this.types[key] : null;
+        return this.forms.get(key);
     }
 
-    registerType(typeObj: DataBuilderType) {
-        this.types[typeObj.key] = typeObj;
-        return this;
-    }
-
-    registerFieldType(key: string, options?: any) {
-        this.fieldTypes[key] = { ...options, key: key };
+    registerType(type: DataBuilderType) {
+        this.forms.register(type);
         return this;
     }
 
     registerModelType(key: string, model: any) {
-        if (
-            model &&
-            typeof model.__schema === "object" &&
-            model.__schema.fields &&
-            (Object.keys(model.__schema.fields).length > 0 || typeof model.__schema.fields === "function")
-        ) {
-            this.registerType({
-                key: key,
-                singular: model.__singular,
-                plural: model.__plural,
-                schema: {
-                    ...model.__schema,
-                    collection: model.__schema.collection ? model.__schema.collection : model.__table ? model.__table : key,
-                },
-                forms: model.__forms,
-            });
-        }
+        this.forms.registerModel(key, model);
         return this;
     }
 
-    getFieldType(key: string) {
-        return this.fieldTypes[key] && this.fieldTypes[key].key ? this.fieldTypes[key] : null;
+    registerFieldType(
+        key: string | DataBuilderFieldType | DataBuilderFieldTypeInstance | (new () => DataBuilderFieldTypeInstance),
+        options?: any,
+    ) {
+        this.fields.registerFieldType(key, options);
+        return this;
+    }
+
+    registerValidationType(rule: DataBuilderValidationType | (new () => DataBuilderValidationType)) {
+        this.fields.registerValidationType(rule);
+        return this;
+    }
+
+    getFieldType(key: string): DataBuilderFieldType | null {
+        return this.fields.getFieldType(key);
+    }
+
+    getFieldTypeInstance(key: string): DataBuilderFieldTypeInstance | null {
+        return this.fields.getFieldTypeInstance(key);
     }
 
     getFieldTypesFrontend() {
-        const fieldtypes: any = {};
-        for (let key in this.fieldTypes) {
-            fieldtypes[key] = {
-                key: key,
-                type: this.fieldTypes[key].type,
-            };
-        }
-
-        return fieldtypes;
+        return this.fields.getFieldTypesFrontend();
     }
 
-    async getFieldsFrontend(fields: any, payload?: any) {
-        const out: any = {};
-        for (let key in fields) {
-            if (false && fields[key].type === "object") {
-                // out[key] =
-                //     typeof fields[key].schema === "object" && Object.keys(fields[key].schema).length > 0
-                //         ? { ...(await this.getFieldsFrontend(fields[key].schema, payload)) }
-                //         : fields[key];
-            } else {
-                out[key] =
-                    typeof fields[key].schema === "object" && Object.keys(fields[key].schema).length > 0
-                        ? { ...fields[key], schema: await this.getFieldsFrontend(fields[key].schema, payload) }
-                        : fields[key];
-            }
+    getFieldsFrontend(fields: DataBuilderFields, payload?: any): Promise<DataBuilderFields> {
+        return fieldsForFrontend(fields, payload, (children, childPayload) => this.getFieldsFrontend(children, childPayload));
+    }
 
-            if (out[key].type === "option" && typeof fields[key].options === "function") {
-                out[key].options = await fields[key].options(payload);
-            }
+    typeForFrontend(type: DataBuilderType, req: Request, structured = false) {
+        return typeForFrontend(type, req, structured);
+    }
 
-            if (out[key].disabled && typeof out[key].disabled === "function") {
-                out[key].disabled = await out[key].disabled(payload);
-            }
-        }
-        return out;
+    validateFields(
+        db: DocumentDatabase,
+        type: DataBuilderType,
+        fields: DataBuilderFields,
+        req: Request,
+        errors?: DataBuilderErrors,
+        path?: string,
+        structured = false,
+    ): Promise<DataBuilderErrors> {
+        return this.fields.validateFields(db, type, fields, req, errors, path, structured);
+    }
+
+    handleUnique(db: DocumentDatabase, req: Request, key: string, value: any, field: any, type: DataBuilderType) {
+        return this.fields.handleUnique(db, req, key, value, field, type);
+    }
+
+    applyFields(fields: DataBuilderFields, element: any, data: any, payload: any, path?: string, structured = false, request?: Request) {
+        return this.fields.applyFields(fields, element, data, payload, path, structured, request);
+    }
+
+    getField(req: Request, type: DataBuilderType, path: string) {
+        return this.fields.getField(req, type, path);
+    }
+
+    removeArrayIndicators(path: string) {
+        return this.fields.removeArrayIndicators(path);
     }
 
     getTypeFromRequest(req: any) {
@@ -197,184 +118,11 @@ export class DataBuilder {
         return type;
     }
 
-    async validateFields(db: DocumentDatabase, type: any, fields: any, req: Request, errors?: any, path?: string) {
-        if (!errors) {
-            errors = {};
-        }
-
-        if (!fields || typeof fields !== "object") {
-            return errors;
-        }
-
-        for (let key in fields) {
-            const fieldPath = (path ? path + "." : "") + key;
-            const value = lodash.get(req.body.data, fieldPath);
-
-            // Check-Required
-            if (fields[key].required) {
-                let check = true;
-                if (typeof fields[key].required === "function") {
-                    check = await fields[key].required(req.body.data);
-                }
-
-                if (check) {
-                    if (
-                        value === null ||
-                        value === false ||
-                        value === undefined ||
-                        (Array.isArray(value) && value.length < 1) ||
-                        (!Array.isArray(value) && value.toString().trim() === "")
-                    ) {
-                        errors[fieldPath] = "Dieses Feld muss ausgefüllt werden.";
-                        continue;
-                    }
-                }
-            }
-
-            // Check-Unique
-            if (value !== null && value !== false && value !== undefined && fields[key].unique) {
-                let isUnique = false;
-                if (typeof fields[key].unique === "function") {
-                    isUnique = await fields[key].unique(req.body.data, req);
-                } else if (typeof fields[key].unique === "object") {
-                    isUnique = await this.handleUnique(db, req, key, value, fields[key], type);
-                }
-
-                if (!isUnique) {
-                    errors[fieldPath] = "Es gibt bereits einen anderen Datensatz mit diesem Wert.";
-                    continue;
-                }
-            }
-
-            if (typeof fields[key].schema === "object") {
-                if (fields[key].type === "array") {
-                    if (value && value.length > 0) {
-                        for (let i in value) {
-                            const entryPath = fieldPath + "[" + i + "]";
-                            errors = await this.validateFields(db, type, fields[key].schema, req, errors, entryPath);
-                        }
-                    }
-                } else if (fields[key].type === "object") {
-                    errors = await this.validateFields(db, type, fields[key].schema, req, errors, fieldPath);
-                }
-            }
-
-            if (fields[key].validation && fields[key].validation.trim() !== "") {
-                // @ToDo
-            }
-        }
-
-        return errors;
-    }
-
-    async handleUnique(db: DocumentDatabase, req: any, key: string, value: any, field: any, type: any) {
-        const match: any = {
-            [key]: value,
-            ...(typeof field.unique.match === "function"
-                ? await field.unique.match(req)
-                : typeof field.unique.match === "object"
-                  ? field.unique.match
-                  : {}),
-        };
-        const check = await db
-            .collection(
-                typeof field.unique.collection === "string" && field.unique.collection.trim() !== ""
-                    ? field.unique.collection
-                    : type.schema.collection,
-            )
-            .aggregate([
-                { $match: match },
-                ...(typeof field.unique.aggregation === "function"
-                    ? await field.aggregation(req)
-                    : field.aggregation && Array.isArray(field.aggregation)
-                      ? field.aggregation
-                      : []),
-            ])
-            .toArray();
-
-        if (!check || check.length < 1) {
-            return true;
-        }
-
-        if (!req.body.__builder_id || req.body.__builder_id === "new") {
-            return false;
-        }
-
-        for (let el of check) {
-            if (el && el._id && el._id.toString() !== req.body.__builder_id) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    async typeForFrontend(type: any, req: any) {
-        const newData: any = {};
-        for (let key in type) {
-            if (key === "forms") {
-                newData.forms = {};
-                if (typeof type.forms === "function") {
-                    newData.forms = await type.forms(req);
-
-                    if (newData?.forms) {
-                        for (let form in newData.forms) {
-                            if (typeof newData.forms[form].pageActions === "function") {
-                                newData.forms[form].pageActions = await newData.forms[form].pageActions(req);
-                            }
-                            if (typeof newData.forms[form].fields === "function") {
-                                newData.forms[form].fields = await newData.forms[form].fields(req);
-                            }
-                            if (typeof newData.forms[form].backLink === "function") {
-                                newData.forms[form].backLink = await newData.forms[form].backLink(req);
-                            }
-                        }
-                    }
-                }
-
-                for (let form in type.forms) {
-                    if (!type.forms[form] || !type.forms[form].fields) {
-                        continue;
-                    }
-
-                    newData.forms[form] = {};
-                    if (typeof type.forms[form].pageActions === "function") {
-                        newData.forms[form].pageActions = await type.forms[form].pageActions(req);
-                    } else if (type.forms[form].pageActions) {
-                        newData.forms[form].pageActions = JSON.parse(JSON.stringify(type.forms[form].pageActions));
-                    }
-
-                    if (typeof type.forms[form].backLink === "function") {
-                        newData.forms[form].backLink = await type.forms[form].backLink(req);
-                    }
-
-                    if (typeof type.forms[form].fields === "function") {
-                        newData.forms[form].fields = await type.forms[form].fields(req);
-                    } else if (type.forms[form].fields) {
-                        newData.forms[form].fields = JSON.parse(JSON.stringify(type.forms[form].fields));
-                    }
-
-                    if (!newData.forms[form].fields || newData.forms[form].fields.length < 1) {
-                        continue;
-                    }
-
-                    newData.forms[form].allowDeletion =
-                        (typeof type.forms[form].allowDeletion === "boolean" && type.forms[form].allowDeletion) ||
-                        (typeof type.forms[form].allowDeletion === "function" && (await type.forms[form].allowDeletion(req)))
-                            ? true
-                            : false;
-                }
-            } else {
-                newData[key] = type[key];
-            }
-        }
-        return newData;
-    }
-
     async loadType(req: Request) {
-        const type: any = this.getTypeFromRequest(req);
+        const { type, structured } = await this.resolveType(req);
 
         const data = {
-            ...(await this.typeForFrontend(type, req)),
+            ...(await this.typeForFrontend(type, req, structured)),
             fieldtypes: this.getFieldTypesFrontend(),
             new_data_handler: type.schema && type.schema.newDataHandler && typeof type.schema.newDataHandler === "function" ? true : false,
         };
@@ -385,13 +133,7 @@ export class DataBuilder {
                 schema: {
                     ...(data.schema ? data.schema : {}),
                     fields: await this.getFieldsFrontend(
-                        type.schema
-                            ? typeof type.schema.fields === "function"
-                                ? await type.schema.fields(req)
-                                : type.schema.fields
-                            : typeof type.fields === "function"
-                              ? await type.fields(req)
-                              : type.fields,
+                        type.schema ? (typeof type.schema.fields === "function" ? await type.schema.fields(req) : type.schema.fields) : {},
                         req,
                     ),
                 },
@@ -399,122 +141,54 @@ export class DataBuilder {
         };
     }
 
-    async applyFields(fields: any, element: any, data: any, payload: any, path?: string) {
-        if (typeof fields !== "object" || !fields) {
-            return element;
-        }
-
-        for (let key in fields) {
-            if (!fields[key] || fields[key].unmapped) {
-                continue;
-            }
-
-            const fieldPath = (path ? path + "." : "") + key;
-            const value = lodash.get(data, fieldPath);
-            const customType = this.getFieldType(fields[key].type);
-
-            if (typeof fields[key].schema === "object" && fields[key].type === "array") {
-                lodash.set(element, fieldPath, []);
-                if (value && value.length > 0) {
-                    for (let i in value) {
-                        const entryPath = fieldPath + "[" + i + "]";
-                        this.applyFields(fields[key].schema, element, data, payload, entryPath);
-                    }
-                }
-
-                if (customType && typeof customType.onSave === "function") {
-                    lodash.set(
-                        element,
-                        fieldPath,
-                        await customType.onSave(lodash.get(element, fieldPath), { ...payload, ...fields[key].payload }),
-                    );
-                }
-            } else {
-                let elementVal = null;
-                if (fields[key].type === "ObjectId") {
-                    if (value !== undefined && value !== null && value !== "") {
-                        elementVal = await Model.objectId(value);
-                    } else {
-                        elementVal = await Model.objectId();
-                    }
-                } else if (
-                    value !== undefined &&
-                    value !== null &&
-                    !(typeof value === "string" && value.trim() === "") &&
-                    !(typeof value === "number" && value.toString().trim() === "")
-                ) {
-                    // Custom field onSave
-                    if (customType && typeof customType.onSave === "function") {
-                        elementVal = await customType.onSave(value, { ...payload, ...fields[key].payload });
-                    }
-
-                    // Float or currency fields
-                    else if (fields[key].type === "currency" || fields[key].type === "float") {
-                        elementVal = parseFloat(value.toString().replace(",", "."));
-                    }
-
-                    // Integer field
-                    else if (fields[key].type === "integer") {
-                        elementVal = parseInt(value);
-                    }
-
-                    // Integer datetime
-                    else if (fields[key].type === "datetime") {
-                        if (typeof value === "string") {
-                            const [datePart, timePart] = value.trim().split(" ");
-                            if (!datePart || datePart.trim() === "") {
-                                elementVal = value;
-                            } else if (!datePart.includes("-") && datePart.match(/^\d{1,2}:\d{2}$/)) {
-                                elementVal = null;
-                            } else {
-                                elementVal = datePart.trim() + " " + (timePart && timePart.includes(":") ? timePart.trim() : "00:00");
-                            }
-                        } else {
-                            elementVal = null;
-                        }
-                    }
-
-                    // Standard
-                    else {
-                        elementVal = value;
-                    }
-                }
-
-                lodash.set(element, fieldPath, elementVal);
-            }
-        }
-
-        return element;
-    }
-
-    async getAggregation(type: any, req: Request) {
+    async getAggregation(type: DataBuilderType, req: Request) {
         return [
             {
                 $match: {
                     [type.schema.primaryKey ? type.schema.primaryKey : "_id"]: type.schema.primaryKeyPlain
                         ? req.body.__builder_id
-                        : await Model.objectId(req.body.__builder_id),
+                        : await this.objectId(req.body.__builder_id),
                 },
             },
         ];
     }
 
-    async save(db: DocumentDatabase, req: any) {
+    private async loadElement(db: DocumentDatabase, type: DataBuilderType, req: Request) {
+        const collection = type.schema.collection!;
+        const aggregation = await this.getAggregation(type, req);
+        const result = await db
+            .collection(collection)
+            .aggregate(
+                typeof type.schema.getAggregation === "function" ? await type.schema.getAggregation(aggregation, req) : aggregation,
+                collection,
+            )
+            .toArray();
+        const element = result?.[0];
+        if (!element?.[type.schema.primaryKey || "_id"]) {
+            throw new Error("Element '" + req.body.__builder_id + "' not found ...");
+        }
+        return element;
+    }
+
+    async save(db: DocumentDatabase, req: Request) {
         if (!req || !req.body || typeof req.body !== "object") {
             throw new Error("Missing request-body ...");
         }
 
-        if (typeof req.body.data !== "object") {
+        if (!req.body.data || typeof req.body.data !== "object" || Array.isArray(req.body.data)) {
             throw new Error("Missing request-data ...");
         }
 
-        const type = this.getTypeFromRequest(req.body);
+        const { type, structured } = await this.resolveType(req);
         if (!type || !type.schema || !type.schema.fields) {
             throw new Error("Missing schema fields ...");
         }
 
         const schemaFields = typeof type.schema.fields === "function" ? await type.schema.fields(req) : type.schema.fields;
-        const errors: any = await this.validateFields(db, type, schemaFields, req);
+        const errors: DataBuilderErrors = {
+            ...(await this.validateFields(db, type, schemaFields, req, undefined, undefined, structured)),
+        };
+        if (structured) unexpectedFormFields(schemaFields, req.body.data, errors, "", type.schema.primaryKey || "_id");
         if (errors && Object.keys(errors).length > 0) {
             return {
                 status: "error",
@@ -524,26 +198,18 @@ export class DataBuilder {
 
         if (type.unmapped) {
             const appendData: any = {};
-            try {
-                if (typeof type.schema.beforeSave === "function") {
-                    const result = await type.schema.beforeSave(req.body.data, req);
-                    if (result && result.__append_data) {
-                        Object.assign(appendData, result.__append_data);
-                    }
+            if (typeof type.schema.beforeSave === "function") {
+                const result = await type.schema.beforeSave(req.body.data, req);
+                if (result && result.__append_data) {
+                    Object.assign(appendData, result.__append_data);
                 }
-            } catch (e: any) {
-                throw e;
             }
 
-            try {
-                if (typeof type.schema.afterSave === "function") {
-                    const result = await type.schema.afterSave(req.body.data, req);
-                    if (result && result.__append_data) {
-                        Object.assign(appendData, result.__append_data);
-                    }
+            if (typeof type.schema.afterSave === "function") {
+                const result = await type.schema.afterSave(req.body.data, req);
+                if (result && result.__append_data) {
+                    Object.assign(appendData, result.__append_data);
                 }
-            } catch (e: any) {
-                throw e;
             }
 
             let redirect: any = undefined;
@@ -578,31 +244,18 @@ export class DataBuilder {
             if (type.schema.primaryKey && type.schema.primaryKey.trim() !== "" && type.schema.primaryKey !== "_id") {
                 element[type.schema.primaryKey] = type.schema.primaryKeyPlain
                     ? req.body.__builder_id
-                    : await Model.objectId(req.body.builder_id);
+                    : await this.objectId(req.body.builder_id);
             }
 
             element.__builder = {
                 created_at: new Date(),
             };
         } else {
-            const result = await db
-                .collection(collection)
-                .aggregate(
-                    type.schema && typeof type.schema.getAggregation === "function"
-                        ? await type.schema.getAggregation(await this.getAggregation(type, req), req)
-                        : await this.getAggregation(type, req),
-                    collection,
-                )
-                .toArray();
-
-            if (!result || !result[0] || !result[0][type.schema.primaryKey ? type.schema.primaryKey : "_id"]) {
-                throw new Error("Element '" + req.body.__builder_id + "' not found ...");
-            }
-            element = result[0];
-            updateId = result[0][type.schema.primaryKey ? type.schema.primaryKey : "_id"];
+            element = await this.loadElement(db, type, req);
+            updateId = element[type.schema.primaryKey || "_id"];
         }
 
-        element = await this.applyFields(schemaFields, element, req.body.data, req.body.payload);
+        element = await this.applyFields(schemaFields, element, req.body.data, req.body.payload, undefined, structured, req);
         if (!element.__builder) {
             element.__builder = {};
         }
@@ -610,12 +263,8 @@ export class DataBuilder {
         element.__builder.collection = type.schema.collection;
         element.__builder.updated_at = new Date();
 
-        try {
-            if (typeof type.schema.beforeSave === "function") {
-                await type.schema.beforeSave(element, req);
-            }
-        } catch (e: any) {
-            throw e;
+        if (typeof type.schema.beforeSave === "function") {
+            await type.schema.beforeSave(element, req);
         }
 
         let changedId: any = null;
@@ -624,7 +273,7 @@ export class DataBuilder {
 
             const status = await db.collection(collection).updateOne(
                 {
-                    _id: type.schema.primaryKeyPlain ? updateId.toString() : await Model.objectId(updateId),
+                    _id: type.schema.primaryKeyPlain ? updateId.toString() : await this.objectId(updateId),
                 },
                 { $set: { ...element } },
             );
@@ -646,12 +295,8 @@ export class DataBuilder {
             }
         }
 
-        try {
-            if (typeof type.schema.afterSave === "function") {
-                await type.schema.afterSave(element, req);
-            }
-        } catch (e: any) {
-            throw e;
+        if (typeof type.schema.afterSave === "function") {
+            await type.schema.afterSave(element, req);
         }
 
         let redirect: any = undefined;
@@ -669,7 +314,7 @@ export class DataBuilder {
         };
     }
 
-    async delete(db: DocumentDatabase, req: any) {
+    async delete(db: DocumentDatabase, req: Request) {
         if (!req || !req.body || typeof req.body !== "object" || !req.body.__builder_id || req.body.__builder_id.toString().trim() === "") {
             throw new Error("Missing id ...");
         }
@@ -678,7 +323,7 @@ export class DataBuilder {
             throw new Error("Missing id ...");
         }
 
-        const type = this.getTypeFromRequest(req.body);
+        const { type } = await this.resolveType(req);
         if (!type || !type.schema || !type.schema.fields) {
             throw new Error("Missing schema fields ...");
         }
@@ -697,43 +342,22 @@ export class DataBuilder {
         if (req.body.__builder_id === "new") {
             throw new Error("Cannot delete a new object ...");
         } else {
-            const result = await db
-                .collection(collection)
-                .aggregate(
-                    type.schema && typeof type.schema.getAggregation === "function"
-                        ? await type.schema.getAggregation(await this.getAggregation(type, req), req)
-                        : await this.getAggregation(type, req),
-                    collection,
-                )
-                .toArray();
-
-            if (!result || !result[0] || !result[0][type.schema.primaryKey ? type.schema.primaryKey : "_id"]) {
-                throw new Error("Element '" + req.body.__builder_id + "' not found ...");
-            }
-            element = result[0];
+            element = await this.loadElement(db, type, req);
         }
 
         if (!element || !element._id) {
             throw new Error("Element '" + req.body.__builder_id + "' not found ...");
         }
 
-        try {
-            if (typeof type.schema.beforeDelete === "function") {
-                await type.schema.beforeDelete(element, req);
-            }
-        } catch (e: any) {
-            throw e;
+        if (typeof type.schema.beforeDelete === "function") {
+            await type.schema.beforeDelete(element, req);
         }
 
         if (typeof type.schema.deleteHandler === "function") await type.schema.deleteHandler(element, req);
         else await db.collection(collection).deleteOne({ _id: element._id });
 
-        try {
-            if (typeof type.schema.afterDelete === "function") {
-                await type.schema.afterDelete(element, req);
-            }
-        } catch (e: any) {
-            throw e;
+        if (typeof type.schema.afterDelete === "function") {
+            await type.schema.afterDelete(element, req);
         }
 
         let redirect: any = undefined;
@@ -753,60 +377,33 @@ export class DataBuilder {
         };
     }
 
-    async getField(req: Request, type: DataBuilderType, path: string) {
-        if (!path || path.trim() === "") {
-            return null;
-        }
-
-        const schemaFields = typeof type.schema.fields === "function" ? await type.schema.fields(req) : type.schema.fields;
-        const field = lodash.get(schemaFields, this.removeArrayIndicators(path));
-        return field && field.type ? field : null;
-    }
-
-    removeArrayIndicators(str: string) {
-        return str.replace(/\[\d+\]/g, ".schema");
-    }
-
-    async details(db: DocumentDatabase, req: any) {
+    async details(db: DocumentDatabase, req: Request) {
         if (!req.body.__builder_id || req.body.__builder_id.toString().trim() === "") {
             throw new Error("Missing id ...");
         }
 
-        const type = this.getTypeFromRequest(req);
+        const { type, structured } = await this.resolveType(req);
         if (!type || !type.schema || !type.schema.fields) {
             throw new Error("Missing schema fields ...");
         }
 
         const collection = type.schema && type.schema.collection ? type.schema.collection : undefined;
         if (!collection) throw new Error("Missing schema collection ...");
-        let element: any = null;
-        try {
-            element = await db
-                .collection(collection)
-                .aggregate(
-                    type.schema && typeof type.schema.getAggregation === "function"
-                        ? await type.schema.getAggregation(await this.getAggregation(type, req), req)
-                        : await this.getAggregation(type, req),
-                    collection,
-                )
-                .toArray();
-        } catch (e: any) {
-            console.error(e);
-            throw e;
-        }
-
-        if (!element || !element[0] || !element[0][type.schema.primaryKey ? type.schema.primaryKey : "_id"]) {
-            throw new Error("Element '" + req.body.__builder_id + "' not found ...");
-        }
+        const element = await this.loadElement(db, type, req);
 
         return {
             status: "success",
-            data: element[0],
+            data: structured
+                ? {
+                      ...projectFormData(type.schema.fields as DataBuilderFields, element),
+                      [type.schema.primaryKey || "_id"]: element[type.schema.primaryKey || "_id"],
+                  }
+                : element,
         };
     }
 
-    async detailsNewData(db: DocumentDatabase, req: any) {
-        const type = this.getTypeFromRequest(req);
+    async detailsNewData(db: DocumentDatabase, req: Request) {
+        const { type, structured } = await this.resolveType(req);
         if (!type || !type.schema || !type.schema.fields) {
             throw new Error("Missing schema fields ...");
         }
@@ -828,18 +425,18 @@ export class DataBuilder {
 
         return {
             status: "success",
-            data: data,
+            data: structured ? projectFormData(type.schema.fields as DataBuilderFields, data) : data,
         };
     }
 
-    async apiAutoComplete(req: any) {
-        const type = this.getTypeFromRequest(req);
+    async apiAutoComplete(req: Request) {
+        const { type } = await this.resolveType(req);
         const field = req.body.__builder_field ? await this.getField(req, type, req.body.__builder_field) : null;
         if (!field) {
             throw new Error("Invalid autocomplete field ...");
         }
 
-        const fieldType = this.getFieldType(field.type);
+        const fieldType = this.getFieldTypeInstance(field.type);
         if (!fieldType || !fieldType.key || fieldType.type !== "api-autocomplete" || !fieldType.onSearch) {
             throw new Error("Invalid autocomplete field type '" + field.type + "' ...");
         }

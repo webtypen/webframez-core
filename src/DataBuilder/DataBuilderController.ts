@@ -1,5 +1,5 @@
 import { Controller } from "../Controller/Controller";
-import { DBConnection } from "../Database/DBConnection";
+import { serveDataBuilder } from "./DataBuilderRoute";
 import { Request } from "../Router/Request";
 import { Response } from "../Router/Response";
 import { DataBuilder } from "./DataBuilder";
@@ -13,24 +13,6 @@ export class DataBuilderController extends Controller {
     }
 
     async restApi(req: Request, res: Response) {
-        const db = await DBConnection.getConnection();
-        if (req.body.__builder_rest_api === "api-autocomplete") {
-            return res.send(await this.builder.apiAutoComplete(req));
-        } else if (req.body.__builder_rest_api === "details") {
-            return res.send(await this.builder.details(DBConnection.documentStore(db), req));
-        } else if (req.body.__builder_rest_api === "details-newdata") {
-            return res.send(await this.builder.detailsNewData(DBConnection.documentStore(db), req));
-        } else if (req.body.__builder_rest_api === "save") {
-            return res.send(await this.builder.save(DBConnection.documentStore(db), req));
-        } else if (req.body.__builder_rest_api === "delete") {
-            return res.send(await this.builder.delete(DBConnection.documentStore(db), req));
-        } else if (req.body.__builder_rest_api === "type") {
-            return res.send(await this.builder.loadType(req));
-        }
-
-        return res.status(404).send({
-            status: "error",
-            message: "Api-Endpoint not found ...",
-        });
+        return serveDataBuilder(this.builder, req, res);
     }
 }

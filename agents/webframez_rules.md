@@ -15,6 +15,59 @@ Codex soll in Webframez-Projekten bevorzugt bestehende Framework-Abstraktionen n
 5. Neue Abstraktionen nur dann erzeugen, wenn die Framework-API die Anforderung nachweislich nicht abbildet.
 6. Controller-, Route-, Middleware-, Datatable- und Storage-Loesungen sollen idiomatisch fuer Webframez sein und nicht wie portierter Express-Code aussehen.
 
+## Code-Formatierung und Leerzeilen
+
+Diese Regeln gelten fuer neuen und bearbeiteten TypeScript-/JavaScript-Code im Core und in Webframez-Projekten. Verwende sinnvolle Leerzeilen, damit zusammengehoerige Bloecke erkennbar bleiben:
+
+1. Nach dem letzten Import folgt genau eine Leerzeile vor der ersten Deklaration bzw. ihrem zugehoerigen Kommentar oder Decorator.
+2. In Klassen folgt genau eine Leerzeile zwischen einem Block von Eigenschaften und dem ersten Konstruktor, Getter, Setter oder der ersten Methode.
+3. Zwischen einzelnen Konstruktoren, Methoden, Gettern und Settern steht genau eine Leerzeile. Zusammengehoerige TypeScript-Overload-Signaturen bleiben mit ihrer Implementierung als Gruppe zusammen.
+4. Zwischen eigenstaendigen Top-Level-Klassen, Funktionen, Interfaces und Typdefinitionen steht genau eine Leerzeile. Zugehoerige Kommentare und Decorators bleiben direkt an der Deklaration.
+5. Zusammengehoerige Eigenschaften, etwa `key` und `type`, bleiben ohne zusaetzliche Leerzeilen zusammen. Innerhalb von Methoden trennen Leerzeilen fachlich unterschiedliche Schritte; nicht jede einzelne Anweisung wird abgesetzt.
+6. Leerzeilen enthalten keine Leerzeichen oder Tabs. Keine mehrfachen Leerzeilen zur kuenstlichen Streckung verwenden. Vorhandene Einrueckungs- und Formatter-Vorgaben beibehalten.
+7. Die Abstaende beim Schreiben bzw. Bearbeiten direkt einhalten und vor Abschluss pruefen. Ein Formatter ersetzt diese Regel nicht, wenn er die erforderlichen Leerzeilen nicht selbst einfuegt. Unbeteiligte Dateien nicht allein fuer eine flaechenweite Formatierung umschreiben.
+
+Beispiel fuer den Abstand nach Imports:
+
+```ts
+import { FloatFieldType } from "./FloatFieldType";
+
+export class CurrencyFieldType extends FloatFieldType {
+    key = "currency";
+    type = "currency";
+}
+```
+
+Beispiel fuer Eigenschaften und Methoden:
+
+```ts
+import { DataBuilderFieldType, DataBuilderFieldContext, DataBuilderValidationContext } from "../DataBuilderFieldType";
+
+export class ObjectFieldType extends DataBuilderFieldType {
+    key = "object";
+    type = "object";
+
+    missingValue(context: DataBuilderFieldContext): any {
+        return context.structured && context.field.schema ? this.convert({}, context) : null;
+    }
+
+    async validate(value: any, context: DataBuilderValidationContext) {
+        const error = await super.validate(value, context);
+        if (error) return error;
+        return context.structured && !this.isMissing(value) && (typeof value !== "object" || Array.isArray(value))
+            ? "Bitte ein Objekt angeben."
+            : null;
+    }
+
+    async convert(value: any, context: DataBuilderFieldContext) {
+        if (context.structured && context.field.schema) {
+            return context.applyChildren(context.field.schema, { ...(context.currentValue || {}) }, context.path);
+        }
+        return value;
+    }
+}
+```
+
 ## Imports
 
 Bevorzuge immer dieses Muster:

@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Route = exports.RouteFacade = void 0;
 const routing_1 = require("../routing");
 const Router_1 = require("./Router");
+const DataBuilderRoute_1 = require("../DataBuilder/DataBuilderRoute");
 class RouteFacade {
     constructor() {
         this.tempGroupPrefix = null;
@@ -63,6 +64,10 @@ class RouteFacade {
      */
     get(path, component, options) {
         this.registerWithGroupContext("GET", path, component, options);
+    }
+    /** Register the existing DataBuilder POST protocol with request-local configuration. */
+    databuilder(path, options = {}) {
+        this.registerWithGroupContext("POST", path, (0, DataBuilderRoute_1.dataBuilderRoute)(options), { middleware: options.middleware, domains: options.domains });
     }
     /**
      * Register a POST-Method

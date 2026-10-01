@@ -17,3 +17,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 __exportStar(require("./AuthTypes"), exports);
 __exportStar(require("./UserAuth"), exports);
 __exportStar(require("./UserPermissions"), exports);
+__exportStar(require("./SessionAuth"), exports);
+__exportStar(require("./WebAuth"), exports);
+__exportStar(require("./SingleSignOn"), exports);

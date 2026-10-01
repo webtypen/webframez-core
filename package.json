@@ -1,6 +1,6 @@
 {
     "name": "@webtypen/webframez-core",
-    "version": "0.3.71",
+    "version": "0.3.72",
     "description": "The core package of the typescript based webframez (web-framework) by webtypen.de",
     "homepage": "https://webtypen.de/",
     "license": "MIT",
@@ -25,6 +25,8 @@
         "bin",
         "README.md",
         "agents",
+        "docs/authentication.md",
+        "docs/databuilder.md",
         "routing.js",
         "routing.d.ts"
     ],

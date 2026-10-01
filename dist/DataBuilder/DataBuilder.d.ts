@@ -1,140 +1,64 @@
 import type { DocumentDatabase } from "../Database/DatabaseAdapter";
 import { Request } from "../Router/Request";
-export type DataBuilderSchema = {
-    version: string;
-    collection?: string;
-    primaryKey?: string;
-    primaryKeyPlain?: boolean;
-    beforeSave?: any;
-    afterSave?: any;
-    beforeDelete?: any;
-    afterDelete?: any;
-    /** Override persistence for nested/model-backed records; authorization and hooks still run. */
-    deleteHandler?: (element: any, req: Request) => Promise<void>;
-    getAggregation?: any;
-    events?: {
-        [key: string]: any;
-    };
-    fields: {
-        [key: string]: any;
-    };
-    newDataHandler?: Function;
-    canDelete?: any;
-};
-export type DataBuilderOptionMapping = {
-    from: string;
-    value: string;
-    label: string;
-    valuePrefix?: string;
-    labelPrefix?: string;
-};
-export type DataBuilderOptionsMapping = DataBuilderOptionMapping | DataBuilderOptionMapping[];
-export type DataBuilderFormFieldDefinition = {
-    field: string;
-    width?: string | number;
-    placement?: "content" | "actions";
-    hidden?: string | boolean;
-    disabled?: string | boolean;
-    fields?: DataBuilderFormDefinition[];
-    [key: string]: any;
-};
-export type DataBuilderFormTabDefinition = {
-    key: string;
-    title: string;
-    icon?: string;
-    disabled?: boolean;
-    fields: DataBuilderFormDefinition[];
-};
-export type DataBuilderFormTabsDefinition = {
-    type: "tabs";
-    label?: string;
-    width?: string | number;
-    appearance?: "card" | "plain";
-    tabs: DataBuilderFormTabDefinition[];
-};
-export type DataBuilderFormLayoutDefinition = {
-    type: string;
-    width?: string | number;
-    children?: DataBuilderFormDefinition[];
-    [key: string]: any;
-};
-export type DataBuilderFormDefinition = DataBuilderFormFieldDefinition | DataBuilderFormTabsDefinition | DataBuilderFormLayoutDefinition;
-export type DataBuilderForm = {
-    fields: DataBuilderFormDefinition[] | ((req: Request) => DataBuilderFormDefinition[] | Promise<DataBuilderFormDefinition[]>);
-    [key: string]: any;
-};
-export type DataBuilderType = {
-    key: string;
-    singular: string;
-    plural: string;
-    schema: DataBuilderSchema;
-    forms?: {
-        [key: string]: DataBuilderForm;
-    } | ((req: Request) => {
-        [key: string]: DataBuilderForm;
-    } | Promise<{
-        [key: string]: DataBuilderForm;
-    }>);
-    unmapped?: boolean;
-};
-export type DataBuilderFieldType = {
-    key: string;
-    type: "api-autocomplete";
-    onSave: (value: any, payload?: any) => void;
-    onSearch: (query: string, req: Request) => void;
-} | {
-    key: string;
-    type: "object";
-    onSave: (value: any, payload?: any) => void;
-    onSearch?: never;
-};
+import { DataBuilderFieldType, DataBuilderFieldTypeInstance } from "./DataBuilderFieldType";
+import { DataBuilderValidationType } from "./DataBuilderValidationType";
+import type { DataBuilderType, DataBuilderFields, DataBuilderErrors } from "./DataBuilderTypes";
+export * from "./DataBuilderTypes";
+export { DataBuilderFieldType } from "./DataBuilderFieldType";
 export declare class DataBuilder {
-    private types;
-    private fieldTypes;
+    private readonly connection?;
+    private readonly forms;
+    private readonly fields;
+    constructor(connection?: string | undefined);
+    private objectId;
+    private resolveType;
     getType(key: string): DataBuilderType | null;
-    registerType(typeObj: DataBuilderType): this;
-    registerFieldType(key: string, options?: any): this;
+    registerType(type: DataBuilderType): this;
     registerModelType(key: string, model: any): this;
+    registerFieldType(key: string | DataBuilderFieldType | DataBuilderFieldTypeInstance | (new () => DataBuilderFieldTypeInstance), options?: any): this;
+    registerValidationType(rule: DataBuilderValidationType | (new () => DataBuilderValidationType)): this;
     getFieldType(key: string): DataBuilderFieldType | null;
+    getFieldTypeInstance(key: string): DataBuilderFieldTypeInstance | null;
     getFieldTypesFrontend(): any;
-    getFieldsFrontend(fields: any, payload?: any): Promise<any>;
+    getFieldsFrontend(fields: DataBuilderFields, payload?: any): Promise<DataBuilderFields>;
+    typeForFrontend(type: DataBuilderType, req: Request, structured?: boolean): Promise<any>;
+    validateFields(db: DocumentDatabase, type: DataBuilderType, fields: DataBuilderFields, req: Request, errors?: DataBuilderErrors, path?: string, structured?: boolean): Promise<DataBuilderErrors>;
+    handleUnique(db: DocumentDatabase, req: Request, key: string, value: any, field: any, type: DataBuilderType): Promise<boolean>;
+    applyFields(fields: DataBuilderFields, element: any, data: any, payload: any, path?: string, structured?: boolean, request?: Request): Promise<any>;
+    getField(req: Request, type: DataBuilderType, path: string): Promise<any>;
+    removeArrayIndicators(path: string): string;
     getTypeFromRequest(req: any): DataBuilderType;
-    validateFields(db: DocumentDatabase, type: any, fields: any, req: Request, errors?: any, path?: string): Promise<any>;
-    handleUnique(db: DocumentDatabase, req: any, key: string, value: any, field: any, type: any): Promise<boolean>;
-    typeForFrontend(type: any, req: any): Promise<any>;
     loadType(req: Request): Promise<{
         status: string;
         data: any;
     }>;
-    applyFields(fields: any, element: any, data: any, payload: any, path?: string): Promise<any>;
-    getAggregation(type: any, req: Request): Promise<{
+    getAggregation(type: DataBuilderType, req: Request): Promise<{
         $match: {
-            [x: number]: any;
+            [x: string]: any;
         };
     }[]>;
-    save(db: DocumentDatabase, req: any): Promise<{
+    private loadElement;
+    save(db: DocumentDatabase, req: Request): Promise<{
         status: string;
-        errors: any;
+        errors: DataBuilderErrors;
         data?: undefined;
     } | {
         status: string;
         data: any;
         errors?: undefined;
     }>;
-    delete(db: DocumentDatabase, req: any): Promise<{
+    delete(db: DocumentDatabase, req: Request): Promise<{
         status: string;
         data: {
             _id: any;
             redirect: any;
         };
     }>;
-    getField(req: Request, type: DataBuilderType, path: string): Promise<any>;
-    removeArrayIndicators(str: string): string;
-    details(db: DocumentDatabase, req: any): Promise<{
+    details(db: DocumentDatabase, req: Request): Promise<{
         status: string;
         data: any;
     }>;
-    detailsNewData(db: DocumentDatabase, req: any): Promise<{
+    detailsNewData(db: DocumentDatabase, req: Request): Promise<{
         status: string;
         message: string;
         data?: undefined;
@@ -143,8 +67,8 @@ export declare class DataBuilder {
         data: any;
         message?: undefined;
     }>;
-    apiAutoComplete(req: any): Promise<{
+    apiAutoComplete(req: Request): Promise<{
         status: string;
-        data: void;
+        data: any;
     }>;
 }
