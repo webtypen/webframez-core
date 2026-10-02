@@ -30,6 +30,8 @@ export type SessionAuthOptions = {
     audience: string;
     scope?: string;
     environment?: string;
+    /** Allow server-selected environments per session instead of one fixed environment. */
+    allowDynamicEnvironment?: boolean;
     connection?: string;
     collection?: string;
     accessTokenSeconds?: number;
@@ -58,7 +60,7 @@ export declare class SessionAuth {
     private liveFilter;
     private allowed;
     private pair;
-    create(subject: string, parent?: AuthSession["parent"]): Promise<CreatedAuthSession>;
+    create(subject: string, parent?: AuthSession["parent"], environment?: string): Promise<CreatedAuthSession>;
     authenticate(token: string): Promise<AuthSession | null>;
     /** Trusted-server introspection; never expose this method as an unauthenticated endpoint. */
     inspect(sessionId: string): Promise<AuthSession | null>;

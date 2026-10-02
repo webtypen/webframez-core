@@ -1,6 +1,6 @@
 {
     "name": "@webtypen/webframez-core",
-    "version": "0.3.77",
+    "version": "0.3.78",
     "description": "The core package of the typescript based webframez (web-framework) by webtypen.de",
     "homepage": "https://webtypen.de/",
     "license": "MIT",
@@ -30,7 +30,9 @@
         "routing.js",
         "routing.d.ts",
         "auth-client.js",
-        "auth-client.d.ts"
+        "auth-client.d.ts",
+        "bearer-auth-client.js",
+        "bearer-auth-client.d.ts"
     ],
     "scripts": {
         "build": "tsc",

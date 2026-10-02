@@ -9,3 +9,7 @@ export * from "./ModelAuth";
 
 export * from "./Auth";
 export * from "./PasswordReset";
+
+export * from "./AuthMembership";
+
+export * from "./AuthHandoff";

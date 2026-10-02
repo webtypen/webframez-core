@@ -17,6 +17,7 @@ function mergeOptions(base: Partial<AuthScopeOptions>, config: Partial<AuthScope
         session: { ...base.session, ...config.session },
         passwordReset: config.passwordReset === false ? false : config.passwordReset === undefined && base.passwordReset === false ? false
             : { ...(base.passwordReset || {}), ...(config.passwordReset || {}) },
+        memberships: { ...base.memberships, ...config.memberships },
         messages: { ...base.messages, ...config.messages } };
 }
 

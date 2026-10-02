@@ -8,6 +8,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ModelAuth = exports.AuthScope = exports.AuthLoginError = void 0;
 const bcryptjs_1 = require("bcryptjs");
@@ -15,6 +26,7 @@ const routing_1 = require("../routing");
 const Config_1 = require("../Config");
 const Request_1 = require("../Router/Request");
 const Auth_1 = require("./Auth");
+const AuthMembership_1 = require("./AuthMembership");
 const PasswordReset_1 = require("./PasswordReset");
 const AuthSecurity_1 = require("./AuthSecurity");
 const SessionAuth_1 = require("./SessionAuth");
@@ -79,14 +91,21 @@ class AuthScope extends WebAuth_1.WebAuth {
         const sessions = new SessionAuth_1.SessionAuth(Object.assign(Object.assign({ accessTokenSeconds: 15 * 60, sessionSeconds: 30 * 86400, idleTimeoutSeconds: 7 * 86400 }, modelOptions.session), { issuer: origin, scope: key, audience: (_d = (_b = modelOptions.audience) !== null && _b !== void 0 ? _b : (_c = modelOptions.session) === null || _c === void 0 ? void 0 : _c.audience) !== null && _d !== void 0 ? _d : origin, connection: ((_e = modelOptions.session) === null || _e === void 0 ? void 0 : _e.connection) || new model().__connection, isSessionAllowed: (session) => __awaiter(this, void 0, void 0, function* () {
                 const id = fields.primaryKey === "_id" ? yield model.objectId(session.subject, { noExceptions: true }) : session.subject;
                 const user = id !== null && id !== undefined ? yield model.where(fields.primaryKey, "=", id).first() : null;
-                if (!(yield allowed(user)))
+                if (!(yield allowed(user)) || (modelOptions.isSessionAllowed && !(yield modelOptions.isSessionAllowed(session, user))))
                     return false;
                 sessionUsers.set(session, user);
                 return true;
             }) }));
         super(sessions, Object.assign(Object.assign({}, modelOptions), { origin, cookiePrefix: (_f = modelOptions.cookiePrefix) !== null && _f !== void 0 ? _f : (key === "main" ? undefined : `${origin.startsWith("https:") ? "__Host-wf_" : "wf_dev_"}${key}_`), allowInsecureLocalhost: (_g = modelOptions.allowInsecureLocalhost) !== null && _g !== void 0 ? _g : true }));
         this.modelOptions = modelOptions;
+        this.memberships = new Map();
+        this.contexts = new WeakSet();
         this.authPaths = { basePath: "/api/auth", loginPath: "/api/auth/login" };
+        for (const [name, options] of Object.entries(modelOptions.memberships || {})) {
+            if (!/^[A-Za-z0-9_-]+$/.test(name))
+                throw new Error("Invalid auth membership key.");
+            this.memberships.set(name, new AuthMembership_1.AuthMembership(options));
+        }
         this.key = key;
         this.sessionUsers = sessionUsers;
         this.model = model;
@@ -191,6 +210,82 @@ class AuthScope extends WebAuth_1.WebAuth {
                 yield this.modelOptions.afterLogout(req, user, this);
         });
     }
+    /** Trusted SSO/server entry point; the subject must already be verified by the caller. */
+    establishBearerSession(req, subject, parent = null, environment) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this.modelOptions.transport !== "bearer")
+                throw new Error("Bearer transport is not enabled for this auth scope.");
+            const id = this.fields.primaryKey === "_id" ? yield this.model.objectId(subject, { noExceptions: true }) : subject;
+            const user = id == null ? null : yield this.model.where(this.fields.primaryKey, "=", id).first();
+            if (!user || (this.fields.active !== false && user[this.fields.active] === false)
+                || (this.modelOptions.isUserAllowed && !(yield this.modelOptions.isUserAllowed(user)))) {
+                throw new AuthLoginError("inactive_user", 403, this.message("inactive_user"));
+            }
+            if (this.modelOptions.beforeLogin) {
+                try {
+                    yield this.modelOptions.beforeLogin(req, user, this);
+                }
+                catch (error) {
+                    throw new AuthHookError("login_blocked", error);
+                }
+            }
+            const pair = yield this.sessions.create(subject, parent, environment);
+            if (this.modelOptions.trackActivity !== false)
+                yield this.sessions.recordLogin(pair.session, (0, AuthSecurity_1.authHeader)(req, "user-agent"));
+            if (this.modelOptions.onLogin)
+                yield this.modelOptions.onLogin(pair.session, req);
+            if (this.modelOptions.afterLogin)
+                yield this.modelOptions.afterLogin(req, user, this);
+            const { csrf_token } = pair, tokens = __rest(pair, ["csrf_token"]);
+            return tokens;
+        });
+    }
+    logoutBearer(req) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (req.method !== "POST")
+                throw new WebAuth_1.WebAuthError(403, "Logout requires POST.");
+            const auth = yield this.resolveBearer(req);
+            if (!auth)
+                throw new AuthLoginError("unauthorized", 401, this.message("unauthorized"));
+            if (this.modelOptions.beforeLogout) {
+                try {
+                    yield this.modelOptions.beforeLogout(req, auth.user, this);
+                }
+                catch (error) {
+                    throw new AuthHookError("logout_blocked", error);
+                }
+            }
+            yield this.sessions.revoke(auth.session.id);
+            if (this.modelOptions.afterLogout)
+                yield this.modelOptions.afterLogout(req, auth.user, this);
+        });
+    }
+    /** Explicit Authorization credentials require no cookie CSRF and are never read from query parameters. */
+    resolveBearer(req, res) {
+        var _a;
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this.modelOptions.transport !== "bearer")
+                throw new Error("Bearer transport is not enabled for this auth scope.");
+            res === null || res === void 0 ? void 0 : res.header("Cache-Control", "no-store");
+            Object.defineProperty(req, "auth", { value: null, writable: true, configurable: true, enumerable: false });
+            const header = (0, AuthSecurity_1.authHeader)(req, "authorization");
+            const token = (_a = /^Bearer ([A-Za-z0-9_-]{1,128}\.[A-Za-z0-9_-]{43})$/i.exec(header)) === null || _a === void 0 ? void 0 : _a[1];
+            if (!token)
+                return null;
+            const session = yield this.sessions.authenticate(token);
+            const user = session && this.sessionUsers.get(session);
+            if (!session || !user)
+                return null;
+            if (this.modelOptions.trackActivity !== false)
+                yield this.sessions.touch(session);
+            const auth = { user, session };
+            this.contexts.add(auth);
+            if (this.modelOptions.onAuthenticate)
+                yield this.modelOptions.onAuthenticate(auth, req);
+            req.auth = auth;
+            return auth;
+        });
+    }
     /** Resolve a fresh validated session and its model; never trusts a client-supplied req.auth. */
     resolve(req, res) {
         const _super = Object.create(null, {
@@ -198,6 +293,8 @@ class AuthScope extends WebAuth_1.WebAuth {
             resume: { get: () => super.resume }
         });
         return __awaiter(this, void 0, void 0, function* () {
+            if (this.modelOptions.transport === "bearer")
+                return this.resolveBearer(req, res);
             res === null || res === void 0 ? void 0 : res.header("Cache-Control", "no-store");
             Object.defineProperty(req, "auth", { value: null, writable: true, configurable: true, enumerable: false });
             const session = (yield _super.authenticate.call(this, req)) || (res ? yield _super.resume.call(this, req, res) : null);
@@ -209,10 +306,42 @@ class AuthScope extends WebAuth_1.WebAuth {
             if (this.modelOptions.trackActivity !== false)
                 yield this.sessions.touch(session);
             const auth = { user, session };
+            this.contexts.add(auth);
             if (this.modelOptions.onAuthenticate)
                 yield this.modelOptions.onAuthenticate(auth, req);
             req.auth = auth;
             return auth;
+        });
+    }
+    /** For integrations whose authenticated User was established by another trusted transport. */
+    findMembership(name, user, resource) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const resolver = this.memberships.get(name);
+            if (!resolver)
+                throw new Error(`Auth membership "${name}" is not configured.`);
+            return resolver.find(user, resource);
+        });
+    }
+    /** Attaches a fresh membership only to a context authenticated by this scope. */
+    authorizeMembership(req, name, resource) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const auth = req.auth;
+            if (!auth || !this.contexts.has(auth))
+                return null;
+            if (auth.memberships)
+                delete auth.memberships[name];
+            const resolver = this.memberships.get(name);
+            if (!resolver)
+                throw new Error(`Auth membership "${name}" is not configured.`);
+            if (!resolver.matchesEnvironment(resource, auth.session.environment))
+                return null;
+            const membership = yield resolver.find(auth.user, resource);
+            if (!membership)
+                return null;
+            if (!auth.memberships)
+                auth.memberships = Object.create(null);
+            auth.memberships[name] = { resource, membership };
+            return membership;
         });
     }
     resolveCookies(cookies) {
@@ -261,10 +390,29 @@ class AuthScope extends WebAuth_1.WebAuth {
         });
     }
     handle(operation, req, res, loginResponse) {
-        var _a, _b;
+        var _a, _b, _c;
         return __awaiter(this, void 0, void 0, function* () {
             res.header("Cache-Control", "no-store");
             try {
+                if (this.modelOptions.transport === "bearer") {
+                    if (operation === "csrf")
+                        return res.status(405).send({ status: "error", code: "unsupported_operation" });
+                    if (req.method !== "POST")
+                        throw new WebAuth_1.WebAuthError(403, "Authentication requires POST.");
+                    if (operation === "logout") {
+                        yield this.logoutBearer(req);
+                        return res.send({ status: "success" });
+                    }
+                    if (operation === "refresh") {
+                        const token = (_a = req.body) === null || _a === void 0 ? void 0 : _a.refresh_token;
+                        const pair = typeof token === "string" ? yield this.sessions.refresh(token) : null;
+                        if (!pair)
+                            throw new AuthLoginError("unauthorized", 401, this.message("unauthorized"));
+                        return res.send(Object.assign({ status: "success" }, pair));
+                    }
+                    const pair = yield this.establishBearerSession(req, yield this.verifyCredentials(req));
+                    return res.send(Object.assign(Object.assign(Object.assign({}, (loginResponse ? yield loginResponse(req, pair.session) : {})), { status: "success" }), pair));
+                }
                 if (operation === "csrf")
                     return res.send({ csrf: this.bootstrap(req, res) });
                 if (operation === "logout") {
@@ -284,7 +432,7 @@ class AuthScope extends WebAuth_1.WebAuth {
                 if (!(error instanceof WebAuth_1.WebAuthError))
                     console.error(error);
                 return res.status(error instanceof WebAuth_1.WebAuthError ? error.status : 500).send({ status: "error", code,
-                    message: error instanceof AuthHookError ? (_b = (_a = this.modelOptions.messages) === null || _a === void 0 ? void 0 : _a[code]) !== null && _b !== void 0 ? _b : error.message : this.message(code) });
+                    message: error instanceof AuthHookError ? (_c = (_b = this.modelOptions.messages) === null || _b === void 0 ? void 0 : _b[code]) !== null && _c !== void 0 ? _c : error.message : this.message(code) });
             }
         });
     }

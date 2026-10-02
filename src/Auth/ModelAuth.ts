@@ -5,12 +5,13 @@ import { Model } from "../Database/Model";
 import { Request } from "../Router/Request";
 import type { Response } from "../Router/Response";
 import { Auth } from "./Auth";
+import { AuthMembership, AuthMembershipContext, AuthMembershipOptions } from "./AuthMembership";
 import { PasswordReset, PasswordResetOptions } from "./PasswordReset";
 import { authHeader } from "./AuthSecurity";
 import { SessionAuth, AuthSession, SessionAuthOptions } from "./SessionAuth";
 import { WebAuth, WebAuthError, WebAuthOptions } from "./WebAuth";
 
-export type AuthContext<TUser extends Model = Model> = { user: TUser; session: AuthSession };
+export type AuthContext<TUser extends Model = Model> = { user: TUser; session: AuthSession; memberships?: Record<string, AuthMembershipContext> };
 
 export type AuthSnapshot<TUser = Record<string, unknown>> = { user: TUser; session: AuthSession };
 
@@ -24,6 +25,8 @@ export class AuthLoginError extends WebAuthError {
 
 export type ModelAuthOptions = Partial<WebAuthOptions> & {
     model: typeof Model;
+    /** Bearer scopes return opaque tokens and never use ambient authentication cookies. */
+    transport?: "cookie" | "bearer";
     key?: string;
     /** Takes precedence over session.audience; defaults to the configured origin. */
     audience?: string;
@@ -35,6 +38,8 @@ export type ModelAuthOptions = Partial<WebAuthOptions> & {
     session?: Partial<Omit<SessionAuthOptions, "issuer" | "isSessionAllowed">>;
     csrfDisabled?: false;
     verifyPassword?: (password: string, storedHash: string) => boolean | Promise<boolean>;
+    memberships?: Record<string, AuthMembershipOptions>;
+    isSessionAllowed?: (session: AuthSession, user: Model) => boolean | Promise<boolean>;
     isUserAllowed?: (user: Model) => boolean | Promise<boolean>;
     beforeLogin?: AuthActionHook;
     afterLogin?: AuthActionHook;
@@ -98,6 +103,8 @@ export class AuthScope extends WebAuth {
     readonly key: string;
     readonly passwordReset: PasswordReset | null;
     private readonly model: typeof Model;
+    private readonly memberships = new Map<string, AuthMembership>();
+    private readonly contexts = new WeakSet<AuthContext>();
     private authPaths = { basePath: "/api/auth", loginPath: "/api/auth/login" };
     private readonly sessionUsers: WeakMap<AuthSession, Model>;
     private readonly fields: { identifier: string; password: string; active: string | false; primaryKey: string };
@@ -121,13 +128,17 @@ export class AuthScope extends WebAuth {
             isSessionAllowed: async session => {
                 const id = fields.primaryKey === "_id" ? await model.objectId(session.subject, { noExceptions: true }) : session.subject;
                 const user = id !== null && id !== undefined ? await model.where(fields.primaryKey, "=", id).first() : null;
-                if (!await allowed(user)) return false;
+                if (!await allowed(user) || (modelOptions.isSessionAllowed && !await modelOptions.isSessionAllowed(session, user!))) return false;
                 sessionUsers.set(session, user!);
                 return true;
             } });
         super(sessions, { ...modelOptions, origin,
             cookiePrefix: modelOptions.cookiePrefix ?? (key === "main" ? undefined : `${origin.startsWith("https:") ? "__Host-wf_" : "wf_dev_"}${key}_`),
             allowInsecureLocalhost: modelOptions.allowInsecureLocalhost ?? true });
+        for (const [name, options] of Object.entries(modelOptions.memberships || {})) {
+            if (!/^[A-Za-z0-9_-]+$/.test(name)) throw new Error("Invalid auth membership key.");
+            this.memberships.set(name, new AuthMembership(options));
+        }
         this.key = key;
         this.sessionUsers = sessionUsers;
         this.model = model;
@@ -214,8 +225,61 @@ export class AuthScope extends WebAuth {
         if (this.modelOptions.afterLogout) await this.modelOptions.afterLogout(req, user, this);
     }
 
+    /** Trusted SSO/server entry point; the subject must already be verified by the caller. */
+    async establishBearerSession(req: Request, subject: string, parent: AuthSession["parent"] = null, environment?: string) {
+        if (this.modelOptions.transport !== "bearer") throw new Error("Bearer transport is not enabled for this auth scope.");
+        const id = this.fields.primaryKey === "_id" ? await this.model.objectId(subject, { noExceptions: true }) : subject;
+        const user = id == null ? null : await this.model.where(this.fields.primaryKey, "=", id).first();
+        if (!user || (this.fields.active !== false && user[this.fields.active] === false)
+            || (this.modelOptions.isUserAllowed && !await this.modelOptions.isUserAllowed(user))) {
+            throw new AuthLoginError("inactive_user", 403, this.message("inactive_user"));
+        }
+        if (this.modelOptions.beforeLogin) {
+            try { await this.modelOptions.beforeLogin(req, user, this); }
+            catch (error) { throw new AuthHookError("login_blocked", error); }
+        }
+        const pair = await this.sessions.create(subject, parent, environment);
+        if (this.modelOptions.trackActivity !== false) await this.sessions.recordLogin(pair.session, authHeader(req, "user-agent"));
+        if (this.modelOptions.onLogin) await this.modelOptions.onLogin(pair.session, req);
+        if (this.modelOptions.afterLogin) await this.modelOptions.afterLogin(req, user, this);
+        const { csrf_token, ...tokens } = pair;
+        return tokens;
+    }
+
+    async logoutBearer(req: Request): Promise<void> {
+        if (req.method !== "POST") throw new WebAuthError(403, "Logout requires POST.");
+        const auth = await this.resolveBearer(req);
+        if (!auth) throw new AuthLoginError("unauthorized", 401, this.message("unauthorized"));
+        if (this.modelOptions.beforeLogout) {
+            try { await this.modelOptions.beforeLogout(req, auth.user, this); }
+            catch (error) { throw new AuthHookError("logout_blocked", error); }
+        }
+        await this.sessions.revoke(auth.session.id);
+        if (this.modelOptions.afterLogout) await this.modelOptions.afterLogout(req, auth.user, this);
+    }
+
+    /** Explicit Authorization credentials require no cookie CSRF and are never read from query parameters. */
+    async resolveBearer<TUser extends Model = Model>(req: Request, res?: Response): Promise<AuthContext<TUser> | null> {
+        if (this.modelOptions.transport !== "bearer") throw new Error("Bearer transport is not enabled for this auth scope.");
+        res?.header("Cache-Control", "no-store");
+        Object.defineProperty(req, "auth", { value: null, writable: true, configurable: true, enumerable: false });
+        const header = authHeader(req, "authorization");
+        const token = /^Bearer ([A-Za-z0-9_-]{1,128}\.[A-Za-z0-9_-]{43})$/i.exec(header)?.[1];
+        if (!token) return null;
+        const session = await this.sessions.authenticate(token);
+        const user = session && this.sessionUsers.get(session);
+        if (!session || !user) return null;
+        if (this.modelOptions.trackActivity !== false) await this.sessions.touch(session);
+        const auth = { user, session };
+        this.contexts.add(auth);
+        if (this.modelOptions.onAuthenticate) await this.modelOptions.onAuthenticate(auth, req);
+        req.auth = auth;
+        return auth as AuthContext<TUser>;
+    }
+
     /** Resolve a fresh validated session and its model; never trusts a client-supplied req.auth. */
     async resolve<TUser extends Model = Model>(req: Request, res?: Response): Promise<AuthContext<TUser> | null> {
+        if (this.modelOptions.transport === "bearer") return this.resolveBearer<TUser>(req, res);
         res?.header("Cache-Control", "no-store");
         Object.defineProperty(req, "auth", { value: null, writable: true, configurable: true, enumerable: false });
         const session = await super.authenticate(req) || (res ? await super.resume(req, res) : null);
@@ -224,9 +288,32 @@ export class AuthScope extends WebAuth {
         if (!user) return null;
         if (this.modelOptions.trackActivity !== false) await this.sessions.touch(session);
         const auth = { user, session };
+        this.contexts.add(auth);
         if (this.modelOptions.onAuthenticate) await this.modelOptions.onAuthenticate(auth, req);
         req.auth = auth;
         return auth as AuthContext<TUser>;
+    }
+
+    /** For integrations whose authenticated User was established by another trusted transport. */
+    async findMembership<TMembership extends Model = Model>(name: string, user: Model, resource: Model): Promise<TMembership | null> {
+        const resolver = this.memberships.get(name);
+        if (!resolver) throw new Error(`Auth membership "${name}" is not configured.`);
+        return resolver.find<TMembership>(user, resource);
+    }
+
+    /** Attaches a fresh membership only to a context authenticated by this scope. */
+    async authorizeMembership<TMembership extends Model = Model>(req: Request, name: string, resource: Model): Promise<TMembership | null> {
+        const auth = req.auth as AuthContext | null;
+        if (!auth || !this.contexts.has(auth)) return null;
+        if (auth.memberships) delete auth.memberships[name];
+        const resolver = this.memberships.get(name);
+        if (!resolver) throw new Error(`Auth membership "${name}" is not configured.`);
+        if (!resolver.matchesEnvironment(resource, auth.session.environment)) return null;
+        const membership = await resolver.find<TMembership>(auth.user, resource);
+        if (!membership) return null;
+        if (!auth.memberships) auth.memberships = Object.create(null);
+        auth.memberships![name] = { resource, membership };
+        return membership;
     }
 
     async resolveCookies<TUser extends Model = Model>(cookies: Record<string, string | undefined>): Promise<AuthContext<TUser> | null> {
@@ -272,6 +359,19 @@ export class AuthScope extends WebAuth {
     async handle(operation: AuthOperation, req: Request, res: Response, loginResponse?: AuthRouteOptions["loginResponse"]) {
         res.header("Cache-Control", "no-store");
         try {
+            if (this.modelOptions.transport === "bearer") {
+                if (operation === "csrf") return res.status(405).send({ status: "error", code: "unsupported_operation" });
+                if (req.method !== "POST") throw new WebAuthError(403, "Authentication requires POST.");
+                if (operation === "logout") { await this.logoutBearer(req); return res.send({ status: "success" }); }
+                if (operation === "refresh") {
+                    const token = req.body?.refresh_token;
+                    const pair = typeof token === "string" ? await this.sessions.refresh(token) : null;
+                    if (!pair) throw new AuthLoginError("unauthorized", 401, this.message("unauthorized"));
+                    return res.send({ status: "success", ...pair });
+                }
+                const pair = await this.establishBearerSession(req, await this.verifyCredentials(req));
+                return res.send({ ...(loginResponse ? await loginResponse(req, pair.session) : {}), status: "success", ...pair });
+            }
             if (operation === "csrf") return res.send({ csrf: this.bootstrap(req, res) });
             if (operation === "logout") { await this.logout(req, res); return res.send({ status: "success" }); }
             if (operation === "refresh") { await this.refresh(req, res); return res.send({ status: "success" }); }

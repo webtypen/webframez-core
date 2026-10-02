@@ -1,12 +1,14 @@
 import { Model } from "../Database/Model";
 import { Request } from "../Router/Request";
 import type { Response } from "../Router/Response";
+import { AuthMembershipContext, AuthMembershipOptions } from "./AuthMembership";
 import { PasswordReset, PasswordResetOptions } from "./PasswordReset";
 import { AuthSession, SessionAuthOptions } from "./SessionAuth";
 import { WebAuth, WebAuthError, WebAuthOptions } from "./WebAuth";
 export type AuthContext<TUser extends Model = Model> = {
     user: TUser;
     session: AuthSession;
+    memberships?: Record<string, AuthMembershipContext>;
 };
 export type AuthSnapshot<TUser = Record<string, unknown>> = {
     user: TUser;
@@ -19,6 +21,8 @@ export declare class AuthLoginError extends WebAuthError {
 }
 export type ModelAuthOptions = Partial<WebAuthOptions> & {
     model: typeof Model;
+    /** Bearer scopes return opaque tokens and never use ambient authentication cookies. */
+    transport?: "cookie" | "bearer";
     key?: string;
     /** Takes precedence over session.audience; defaults to the configured origin. */
     audience?: string;
@@ -35,6 +39,8 @@ export type ModelAuthOptions = Partial<WebAuthOptions> & {
     session?: Partial<Omit<SessionAuthOptions, "issuer" | "isSessionAllowed">>;
     csrfDisabled?: false;
     verifyPassword?: (password: string, storedHash: string) => boolean | Promise<boolean>;
+    memberships?: Record<string, AuthMembershipOptions>;
+    isSessionAllowed?: (session: AuthSession, user: Model) => boolean | Promise<boolean>;
     isUserAllowed?: (user: Model) => boolean | Promise<boolean>;
     beforeLogin?: AuthActionHook;
     afterLogin?: AuthActionHook;
@@ -60,6 +66,8 @@ export declare class AuthScope extends WebAuth {
     readonly key: string;
     readonly passwordReset: PasswordReset | null;
     private readonly model;
+    private readonly memberships;
+    private readonly contexts;
     private authPaths;
     private readonly sessionUsers;
     private readonly fields;
@@ -77,8 +85,23 @@ export declare class AuthScope extends WebAuth {
     verifyCredentials(req: Request): Promise<string>;
     login(req: Request, res: Response, verifyCredentials?: () => Promise<string | null>): Promise<AuthSession>;
     logout(req: Request, res: Response): Promise<void>;
+    /** Trusted SSO/server entry point; the subject must already be verified by the caller. */
+    establishBearerSession(req: Request, subject: string, parent?: AuthSession["parent"], environment?: string): Promise<{
+        auth_token: string;
+        refresh_token: string;
+        auth_expires_at: number;
+        refresh_expires_at: number;
+        session: AuthSession;
+    }>;
+    logoutBearer(req: Request): Promise<void>;
+    /** Explicit Authorization credentials require no cookie CSRF and are never read from query parameters. */
+    resolveBearer<TUser extends Model = Model>(req: Request, res?: Response): Promise<AuthContext<TUser> | null>;
     /** Resolve a fresh validated session and its model; never trusts a client-supplied req.auth. */
     resolve<TUser extends Model = Model>(req: Request, res?: Response): Promise<AuthContext<TUser> | null>;
+    /** For integrations whose authenticated User was established by another trusted transport. */
+    findMembership<TMembership extends Model = Model>(name: string, user: Model, resource: Model): Promise<TMembership | null>;
+    /** Attaches a fresh membership only to a context authenticated by this scope. */
+    authorizeMembership<TMembership extends Model = Model>(req: Request, name: string, resource: Model): Promise<TMembership | null>;
     resolveCookies<TUser extends Model = Model>(cookies: Record<string, string | undefined>): Promise<AuthContext<TUser> | null>;
     /** Only explicit public fields are sent to browsers; Model instances remain on the server. */
     snapshot(auth: AuthContext | null | undefined): AuthSnapshot | null;

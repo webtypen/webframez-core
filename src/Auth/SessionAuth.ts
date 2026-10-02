@@ -31,6 +31,8 @@ export type SessionAuthOptions = {
     audience: string;
     scope?: string;
     environment?: string;
+    /** Allow server-selected environments per session instead of one fixed environment. */
+    allowDynamicEnvironment?: boolean;
     connection?: string;
     collection?: string;
     accessTokenSeconds?: number;
@@ -70,14 +72,15 @@ function tokenSessionId(token: unknown): string | null {
 
 /** Revocable, hashed, independently addressable device sessions. Legacy UserAuth is unaffected. */
 export class SessionAuth {
-    private readonly scope: { issuer: string; audience: string; scope: string; environment: string | null };
+    private readonly scope: { issuer: string; audience: string; scope: string; environment?: string | null };
     private readonly accessSeconds: number;
     private readonly sessionSeconds: number;
     private readonly idleSeconds: number | false;
 
     constructor(private readonly options: SessionAuthOptions) {
         this.scope = { issuer: authText(options.issuer, "issuer"), audience: authText(options.audience, "audience"), scope: authText(options.scope ?? "main", "scope"),
-            environment: options.environment === undefined ? null : authText(options.environment, "environment") };
+            ...(options.allowDynamicEnvironment && options.environment === undefined ? {}
+                : { environment: options.environment === undefined ? null : authText(options.environment, "environment") }) };
         this.accessSeconds = authLifetime(options.accessTokenSeconds, 15 * 60);
         this.sessionSeconds = authLifetime(options.sessionSeconds, 30 * 86400);
         this.idleSeconds = options.idleTimeoutSeconds === undefined || options.idleTimeoutSeconds === false ? false : authLifetime(options.idleTimeoutSeconds, 7 * 86400);
@@ -120,12 +123,15 @@ export class SessionAuth {
             refresh_expires_at: Math.min(record.expiresAt, record.createdAt + this.sessionSeconds * 1000), session: publicSession(record) };
     }
 
-    async create(subject: string, parent: AuthSession["parent"] = null): Promise<CreatedAuthSession> {
+    async create(subject: string, parent: AuthSession["parent"] = null, environment?: string): Promise<CreatedAuthSession> {
         authText(subject, "subject");
+        if (environment !== undefined && (!this.options.allowDynamicEnvironment || this.options.environment !== undefined)) {
+            throw new Error("Dynamic session environments are not enabled.");
+        }
         if (parent) { authText(parent.issuer, "parent issuer"); authText(parent.sessionId, "parent session"); }
         const now = Date.now(), id = this.ids().create();
         const access = `${id}.${randomAuthToken()}`, refresh = `${id}.${randomAuthToken()}`, csrf = randomAuthToken();
-        const record: SessionRecord = { _id: id, _subject: this.ids().create(subject), ...this.scope, parent: parent ? { ...parent } : null,
+        const record: SessionRecord = { _id: id, _subject: this.ids().create(subject), ...this.scope, environment: environment === undefined ? this.scope.environment ?? null : authText(environment, "environment"), parent: parent ? { ...parent } : null,
             createdAt: now, lastActiveAt: now, expiresAt: now + this.sessionSeconds * 1000,
             accessExpiresAt: now + Math.min(this.accessSeconds, this.sessionSeconds) * 1000,
             accessHash: hashAuthToken(access), refreshHash: hashAuthToken(refresh), csrfHash: hashAuthToken(csrf),

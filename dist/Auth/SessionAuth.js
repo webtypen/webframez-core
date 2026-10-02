@@ -23,8 +23,8 @@ class SessionAuth {
     constructor(options) {
         var _a;
         this.options = options;
-        this.scope = { issuer: (0, AuthSecurity_1.authText)(options.issuer, "issuer"), audience: (0, AuthSecurity_1.authText)(options.audience, "audience"), scope: (0, AuthSecurity_1.authText)((_a = options.scope) !== null && _a !== void 0 ? _a : "main", "scope"),
-            environment: options.environment === undefined ? null : (0, AuthSecurity_1.authText)(options.environment, "environment") };
+        this.scope = Object.assign({ issuer: (0, AuthSecurity_1.authText)(options.issuer, "issuer"), audience: (0, AuthSecurity_1.authText)(options.audience, "audience"), scope: (0, AuthSecurity_1.authText)((_a = options.scope) !== null && _a !== void 0 ? _a : "main", "scope") }, (options.allowDynamicEnvironment && options.environment === undefined ? {}
+            : { environment: options.environment === undefined ? null : (0, AuthSecurity_1.authText)(options.environment, "environment") }));
         this.accessSeconds = (0, AuthSecurity_1.authLifetime)(options.accessTokenSeconds, 15 * 60);
         this.sessionSeconds = (0, AuthSecurity_1.authLifetime)(options.sessionSeconds, 30 * 86400);
         this.idleSeconds = options.idleTimeoutSeconds === undefined || options.idleTimeoutSeconds === false ? false : (0, AuthSecurity_1.authLifetime)(options.idleTimeoutSeconds, 7 * 86400);
@@ -66,16 +66,20 @@ class SessionAuth {
         return { auth_token: access, refresh_token: refresh, auth_expires_at: record.accessExpiresAt,
             refresh_expires_at: Math.min(record.expiresAt, record.createdAt + this.sessionSeconds * 1000), session: publicSession(record) };
     }
-    create(subject, parent = null) {
+    create(subject, parent = null, environment) {
+        var _a;
         return __awaiter(this, void 0, void 0, function* () {
             (0, AuthSecurity_1.authText)(subject, "subject");
+            if (environment !== undefined && (!this.options.allowDynamicEnvironment || this.options.environment !== undefined)) {
+                throw new Error("Dynamic session environments are not enabled.");
+            }
             if (parent) {
                 (0, AuthSecurity_1.authText)(parent.issuer, "parent issuer");
                 (0, AuthSecurity_1.authText)(parent.sessionId, "parent session");
             }
             const now = Date.now(), id = this.ids().create();
             const access = `${id}.${(0, AuthSecurity_1.randomAuthToken)()}`, refresh = `${id}.${(0, AuthSecurity_1.randomAuthToken)()}`, csrf = (0, AuthSecurity_1.randomAuthToken)();
-            const record = Object.assign(Object.assign({ _id: id, _subject: this.ids().create(subject) }, this.scope), { parent: parent ? Object.assign({}, parent) : null, createdAt: now, lastActiveAt: now, expiresAt: now + this.sessionSeconds * 1000, accessExpiresAt: now + Math.min(this.accessSeconds, this.sessionSeconds) * 1000, accessHash: (0, AuthSecurity_1.hashAuthToken)(access), refreshHash: (0, AuthSecurity_1.hashAuthToken)(refresh), csrfHash: (0, AuthSecurity_1.hashAuthToken)(csrf), usedRefreshHashes: [], revokedAt: null });
+            const record = Object.assign(Object.assign({ _id: id, _subject: this.ids().create(subject) }, this.scope), { environment: environment === undefined ? (_a = this.scope.environment) !== null && _a !== void 0 ? _a : null : (0, AuthSecurity_1.authText)(environment, "environment"), parent: parent ? Object.assign({}, parent) : null, createdAt: now, lastActiveAt: now, expiresAt: now + this.sessionSeconds * 1000, accessExpiresAt: now + Math.min(this.accessSeconds, this.sessionSeconds) * 1000, accessHash: (0, AuthSecurity_1.hashAuthToken)(access), refreshHash: (0, AuthSecurity_1.hashAuthToken)(refresh), csrfHash: (0, AuthSecurity_1.hashAuthToken)(csrf), usedRefreshHashes: [], revokedAt: null });
             if (!(yield this.allowed(record)))
                 throw new Error("Session is not allowed.");
             yield (yield this.rows()).insertOne(record);

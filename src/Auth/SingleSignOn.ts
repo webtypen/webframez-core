@@ -108,7 +108,7 @@ export class SsoAuthority {
         await (await this.rows()).insertOne({ _id: hashAuthToken(code), issuer: this.issuer,
             audience: client.id, subject: session.subject, environment: request.environment,
             authoritySessionId: session.id, redirectUri: request.redirectUri, challenge: request.codeChallenge,
-            expiresAt: Math.min(Date.now() + 60000, session.expiresAt), consumedAt: null });
+            expiresAt: Math.min(Date.now() + 60000, session.expiresAt), purgeAt: new Date(Date.now() + 60000), consumedAt: null });
         const redirect = new URL(request.redirectUri);
         redirect.searchParams.set("code", code); redirect.searchParams.set("state", request.state); redirect.searchParams.set("iss", this.issuer);
         return redirect.href;
@@ -140,6 +140,7 @@ export class SsoAuthority {
         const client = await this.authenticatedClient(clientId, clientSecret);
         const session = client ? await this.options.sessions.inspect(sessionId) : null;
         if (!client || !session || !await this.options.authorize(session, client, environment)) return null;
+        await this.options.sessions.touch(session);
         return { issuer: this.issuer, audience: client.id, subject: session.subject, environment,
             authoritySessionId: session.id, expiresAt: session.expiresAt };
     }
@@ -217,7 +218,7 @@ export class SsoClient {
         authText(environment, "environment");
         const state = randomAuthToken(), binding = randomAuthToken(), verifier = randomAuthToken();
         await (await this.rows()).insertOne({ _id: hashAuthToken(state), issuer: this.issuer, clientId: this.options.clientId,
-            bindingHash: hashAuthToken(binding), verifier, environment, expiresAt: Date.now() + 300000, consumedAt: null });
+            bindingHash: hashAuthToken(binding), verifier, environment, expiresAt: Date.now() + 300000, purgeAt: new Date(Date.now() + 300000), consumedAt: null });
         this.cookies.write(res, "sso", binding, 300);
         res.header("Referrer-Policy", "no-referrer");
         const url = new URL(this.authorization.href);

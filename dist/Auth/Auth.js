@@ -15,7 +15,7 @@ const Model_1 = require("../Database/Model");
 const ModelAuth_1 = require("./ModelAuth");
 function mergeOptions(base, config) {
     return Object.assign(Object.assign(Object.assign({ model: Model_1.Model }, base), config), { fields: Object.assign(Object.assign({}, base.fields), config.fields), session: Object.assign(Object.assign({}, base.session), config.session), passwordReset: config.passwordReset === false ? false : config.passwordReset === undefined && base.passwordReset === false ? false
-            : Object.assign(Object.assign({}, (base.passwordReset || {})), (config.passwordReset || {})), messages: Object.assign(Object.assign({}, base.messages), config.messages) });
+            : Object.assign(Object.assign({}, (base.passwordReset || {})), (config.passwordReset || {})), memberships: Object.assign(Object.assign({}, base.memberships), config.memberships), messages: Object.assign(Object.assign({}, base.messages), config.messages) });
 }
 /** Application-wide registry of named browser-authentication scopes. */
 class AuthFacade {

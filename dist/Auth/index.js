@@ -23,3 +23,5 @@ __exportStar(require("./SingleSignOn"), exports);
 __exportStar(require("./ModelAuth"), exports);
 __exportStar(require("./Auth"), exports);
 __exportStar(require("./PasswordReset"), exports);
+__exportStar(require("./AuthMembership"), exports);
+__exportStar(require("./AuthHandoff"), exports);

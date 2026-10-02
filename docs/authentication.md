@@ -495,3 +495,70 @@ when serializing entire models. Auth snapshots always exclude these fields.
 user automatically. Existing application plaintext reset links are intentionally
 not accepted; users must request a new link after migration. Reset pages should
 use `Referrer-Policy: no-referrer` and avoid response caching.
+
+## Declarative memberships
+
+Authentication identifies the user; memberships authorize access to a server-loaded resource.
+Configure named membership models on a scope:
+
+```ts
+const scope = Auth.registerScope("manager", {
+    model: User,
+    memberships: {
+        environment: {
+            model: EnvironmentUser,
+            bindings: [{
+                user: { foreignKey: "_user", localKeys: ["_id"] },
+                resource: { foreignKey: "_env", localKeys: ["_id"] },
+            }],
+            conditions: [{ field: "is_deleted", operator: "!=", value: true }],
+        },
+    },
+});
+
+await scope.resolve(req, res);
+const membership = await scope.authorizeMembership(req, "environment", environment);
+if (!membership) return res.status(403).send({ code: "forbidden" });
+// Actual server-side Models; excluded from browser snapshots:
+req.auth.memberships.environment.membership;
+req.auth.memberships.environment.resource;
+```
+
+Every authorization performs a fresh lookup. Missing IDs and unvalidated request contexts
+fail closed. `userConditions` and `resourceConditions` optionally constrain model status.
+`sessionEnvironmentKey` optionally binds resource authorization to a federated session environment.
+Multiple `bindings` support legacy schemas; `localKeys` can accept local and synchronized
+resource references. Set `user.firstAvailable: true` to prefer the first available user
+reference rather than matching all aliases. `findMembership(name, user, resource)` is the
+trusted-server adapter for integrations that already authenticate through another transport.
+It does not authenticate the supplied user or create a request auth context.
+
+## Bearer scopes for separate API origins
+
+Cookie scopes remain the default. An explicitly configured `transport: "bearer"` scope
+uses opaque, hashed Core access/refresh credentials through Authorization instead of cookies.
+`Route.auth()` returns `auth_token`, `refresh_token` and their expiry timestamps. Refresh
+requires POST with `refresh_token`; logout requires POST with the access Authorization header.
+Cookie/query credentials are never accepted by `scope.resolve()` in bearer mode. Cookie CSRF
+behavior remains unchanged; bearer endpoints do not use ambient browser credentials.
+
+Use the lightweight `@webtypen/webframez-core/bearer-auth-client` entry point's
+`createBearerAuthFetch()` with application-owned `configuration`, `load`, `save` and `clear`
+callbacks. Configure only trusted API targets and store credentials separately per instance.
+It renews expired access credentials, shares refresh requests within a client, uses Web Locks
+across browser tabs when available, and retries explicit unauthorized responses once.
+It clears credentials after an ambiguous network failure instead of replaying a rotating secret.
+Without Web Locks, cross-tab coordination must be provided by the host application.
+
+`establishBearerSession(req, subject, parent?, environment?)` is a trusted server entry point
+following verified SSO; never expose a caller-supplied subject as public login input. Lifecycle
+hooks apply. Set `session.allowDynamicEnvironment: true` to bind individual sessions to a
+server-selected environment; fixed/default session environment behavior stays unchanged.
+`isSessionAllowed(session, user)` can validate a parent SSO session and fails closed on denial.
+
+`AuthHandoff` delivers a short-lived one-use code to a separate frontend after the API callback.
+Its payload is encrypted with AES-GCM, its code is hashed, and redemption is atomic. Neither
+access nor refresh credentials need appear in navigation URLs. Configure a strong server secret
+and an instance-specific audience. Create TTL indexes on `auth_handoffs.purgeAt`,
+`auth_sso_transactions.purgeAt` and `auth_sso_codes.purgeAt`, or schedule their cleanup methods.
+SSO introspection records successful central session activity, respecting its absolute expiry.
