@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LambdaApplication = void 0;
+const Auth_1 = require("./Auth/Auth");
 const Config_1 = require("./Config");
 const DatatableRegistry_1 = require("./Datatable/DatatableRegistry");
 const QueueJobsRegisty_1 = require("./Queue/QueueJobsRegisty");
@@ -26,6 +27,7 @@ class LambdaApplication {
                 Config_1.Config.register(key, options.config[key]);
             }
         }
+        Auth_1.Auth.init();
         if (options && options.errorHandler) {
             if (Array.isArray(options.errorHandler)) {
                 ErrorHandler_1.ErrorHandler.setHandlers(options.errorHandler);

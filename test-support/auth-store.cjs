@@ -15,7 +15,7 @@ function matches(row, filter) {
 
 function database() {
  const tables=new Map();
- return {tables, collection(name){
+ return {tables, idAdapter: { create: value => value == null ? require("node:crypto").randomBytes(12).toString("hex") : String(value), normalize: value => typeof value === "string" && value ? value : null, isValid: value => typeof value === "string" && !!value, equals: (a, b) => String(a) === String(b) }, collection(name){
   if(!tables.has(name))tables.set(name,new Map());const records=tables.get(name);
   function select(filter){return [...records.values()].filter(row=>matches(row,filter))}
   function update(row, change){Object.assign(row,clone(change.$set||{}));return row}

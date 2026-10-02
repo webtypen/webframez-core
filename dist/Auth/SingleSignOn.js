@@ -57,6 +57,10 @@ function readSsoClientCredentials(req) {
 exports.readSsoClientCredentials = readSsoClientCredentials;
 function challenge(verifier) { return (0, crypto_1.createHash)("sha256").update(verifier).digest("base64url"); }
 function verifierValid(value) { return typeof value === "string" && /^[A-Za-z0-9._~-]{43,128}$/.test(value); }
+function sessionIdValid(value) {
+    return typeof value === "string" && (/^[a-fA-F0-9]{24}$/.test(value) || /^[0-9]{1,20}$/.test(value)
+        || /^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$/.test(value) || opaqueValid(value));
+}
 function opaqueValid(value) { return typeof value === "string" && /^[A-Za-z0-9_-]{43}$/.test(value); }
 function redirectAllowed(value, allowLocal = false) {
     const url = (0, AuthSecurity_1.authUrl)(value, allowLocal);
@@ -245,7 +249,7 @@ class SsoClient {
     identity(value, environment) {
         if (!value || value.issuer !== this.issuer || value.audience !== this.options.clientId || value.environment !== environment ||
             typeof value.subject !== "string" || !value.subject.length || value.subject.length > 512 ||
-            !opaqueValid(value.authoritySessionId) || !Number.isFinite(value.expiresAt) || value.expiresAt <= Date.now())
+            !sessionIdValid(value.authoritySessionId) || !Number.isFinite(value.expiresAt) || value.expiresAt <= Date.now())
             return null;
         return { issuer: value.issuer, audience: value.audience, subject: value.subject, environment: value.environment,
             authoritySessionId: value.authoritySessionId, expiresAt: value.expiresAt };
@@ -272,7 +276,7 @@ class SsoClient {
     }
     introspect(sessionId, environment) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (!opaqueValid(sessionId))
+            if (!sessionIdValid(sessionId))
                 return null;
             (0, AuthSecurity_1.authText)(environment, "environment");
             const response = yield postBackchannel(this.introspection, this.options.clientId, this.options.clientSecret, { session_id: sessionId, environment });

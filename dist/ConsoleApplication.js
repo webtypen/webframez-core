@@ -10,6 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConsoleApplication = void 0;
+const Auth_1 = require("./Auth/Auth");
 /// <reference types="node" />
 const Config_1 = require("./Config");
 const ConsoleOutputHelper_1 = require("./Commands/ConsoleOutputHelper");
@@ -63,6 +64,7 @@ class ConsoleApplication {
                 Config_1.Config.register(key, options.config[key]);
             }
         }
+        Auth_1.Auth.init();
         NotificationService_1.NotificationService.init();
         if (options && options.errorHandler) {
             if (Array.isArray(options.errorHandler)) {

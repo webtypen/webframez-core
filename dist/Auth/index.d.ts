@@ -5,3 +5,4 @@ export * from "./SessionAuth";
 export * from "./WebAuth";
 export * from "./SingleSignOn";
 export * from "./ModelAuth";
+export * from "./Auth";

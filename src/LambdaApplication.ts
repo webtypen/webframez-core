@@ -1,3 +1,4 @@
+import { Auth } from "./Auth/Auth";
 import { Config } from "./Config";
 import { DatatableRegistry } from "./Datatable/DatatableRegistry";
 import { QueueJobsRegisty } from "./Queue/QueueJobsRegisty";
@@ -25,6 +26,8 @@ export class LambdaApplication {
                 Config.register(key, options.config[key]);
             }
         }
+
+        Auth.init();
 
         if (options && options.errorHandler) {
             if (Array.isArray(options.errorHandler)) {

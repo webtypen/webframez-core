@@ -5,7 +5,7 @@ const crypto=require('node:crypto');
 (async()=>{
  const driver=new SQLiteDriver();driver.setConfig({path:':memory:',cache:false});const connection=await driver.connect();
  try {
- const db=driver.documentStore(connection);const sessions=new SessionAuth({issuer:'https://id.example/',audience:'website',database:async()=>db,isSessionAllowed:async()=>true});
+ const db=driver.documentStore(connection);const sessions=new SessionAuth({issuer:'https://id.example/',audience:'website',idAdapter:driver.idAdapter,database:async()=>db,isSessionAllowed:async()=>true});
  const a=await sessions.create('user'),b=await sessions.create('user');
  assert.equal((await sessions.list('user')).length,2);assert.ok(await sessions.authenticate(a.auth_token));
  const refresh=await Promise.all(Array.from({length:8},()=>sessions.refresh(a.refresh_token)));

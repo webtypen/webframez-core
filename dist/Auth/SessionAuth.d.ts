@@ -1,9 +1,10 @@
-import type { DocumentDatabase } from "../Database/DatabaseAdapter";
+import type { DatabaseIdAdapter, DocumentDatabase } from "../Database/DatabaseAdapter";
 export type AuthSession = {
     id: string;
     subject: string;
     issuer: string;
     audience: string;
+    scope: string;
     environment: string | null;
     userAgent?: string;
     lastActiveAt?: number;
@@ -27,6 +28,7 @@ export type CreatedAuthSession = SessionTokenPair & {
 export type SessionAuthOptions = {
     issuer: string;
     audience: string;
+    scope?: string;
     environment?: string;
     connection?: string;
     collection?: string;
@@ -37,6 +39,8 @@ export type SessionAuthOptions = {
     isSessionAllowed: (session: AuthSession) => boolean | Promise<boolean>;
     /** Dependency injection for a document-capable driver. Atomic findOneAndUpdate is required. */
     database?: () => Promise<DocumentDatabase>;
+    /** ID handling for an injected document store; otherwise the selected driver owns IDs. */
+    idAdapter?: DatabaseIdAdapter;
 };
 /** Revocable, hashed, independently addressable device sessions. Legacy UserAuth is unaffected. */
 export declare class SessionAuth {
@@ -45,6 +49,8 @@ export declare class SessionAuth {
     private readonly accessSeconds;
     private readonly sessionSeconds;
     constructor(options: SessionAuthOptions);
+    private ids;
+    private sessionId;
     private rows;
     private allowed;
     private pair;

@@ -53,6 +53,11 @@ function challenge(verifier: string) { return createHash("sha256").update(verifi
 
 function verifierValid(value: string) { return typeof value === "string" && /^[A-Za-z0-9._~-]{43,128}$/.test(value); }
 
+function sessionIdValid(value: string) {
+    return typeof value === "string" && (/^[a-fA-F0-9]{24}$/.test(value) || /^[0-9]{1,20}$/.test(value)
+        || /^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$/.test(value) || opaqueValid(value));
+}
+
 function opaqueValid(value: string) { return typeof value === "string" && /^[A-Za-z0-9_-]{43}$/.test(value); }
 
 function redirectAllowed(value: string, allowLocal = false) {
@@ -224,7 +229,7 @@ export class SsoClient {
     private identity(value: any, environment: string): SsoIdentity | null {
         if (!value || value.issuer !== this.issuer || value.audience !== this.options.clientId || value.environment !== environment ||
             typeof value.subject !== "string" || !value.subject.length || value.subject.length > 512 ||
-            !opaqueValid(value.authoritySessionId) || !Number.isFinite(value.expiresAt) || value.expiresAt <= Date.now()) return null;
+            !sessionIdValid(value.authoritySessionId) || !Number.isFinite(value.expiresAt) || value.expiresAt <= Date.now()) return null;
         return { issuer: value.issuer, audience: value.audience, subject: value.subject, environment: value.environment,
             authoritySessionId: value.authoritySessionId, expiresAt: value.expiresAt };
     }
@@ -247,7 +252,7 @@ export class SsoClient {
     }
 
     async introspect(sessionId: string, environment: string): Promise<SsoIdentity | null> {
-        if (!opaqueValid(sessionId)) return null;
+        if (!sessionIdValid(sessionId)) return null;
         authText(environment, "environment");
         const response = await postBackchannel(this.introspection, this.options.clientId, this.options.clientSecret,
             { session_id: sessionId, environment });

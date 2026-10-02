@@ -30,7 +30,7 @@ export declare class RouteFacade {
     /** Register the existing DataBuilder POST protocol with request-local configuration. */
     databuilder(path: string, options?: DataBuilderRouteOptions): void;
     /** Register CSRF, model login, logout and refresh using the browser auth contract. */
-    auth(prefix: string, options: AuthRouteOptions): void;
+    auth(prefix: string, options?: AuthRouteOptions): void;
     /**
      * Register a POST-Method
      *

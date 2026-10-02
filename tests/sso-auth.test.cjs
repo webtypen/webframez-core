@@ -5,9 +5,9 @@ const random=()=>crypto.randomBytes(32).toString('base64url'),pkce=v=>crypto.cre
 
 async function fixture(){
  const db=database(),credentials=createSsoClientCredentials();let allowed=true;
- const sessions=new SessionAuth({issuer:'https://id.example/',audience:'website',database:async()=>db,isSessionAllowed:async()=>true});
+ const sessions=new SessionAuth({issuer:'https://id.example/',audience:'website',idAdapter:db.idAdapter,database:async()=>db,isSessionAllowed:async()=>true});
  const registration={id:credentials.id,secretHash:credentials.secretHash,redirectUris:['https://instance.example/callback']};
- const authority=new SsoAuthority({issuer:'https://id.example/',sessions,database:async()=>db,getClient:async id=>id===registration.id?registration:null,authorize:async(s,c,e)=>allowed&&s.subject==='user'&&e==='hall'});
+ const authority=new SsoAuthority({issuer:'https://id.example/',sessions,idAdapter:db.idAdapter,database:async()=>db,getClient:async id=>id===registration.id?registration:null,authorize:async(s,c,e)=>allowed&&s.subject==='user'&&e==='hall'});
  const login=await sessions.create('user'),verifier=random();
  const request={clientId:credentials.id,redirectUri:registration.redirectUris[0],environment:'hall',state:random(),codeChallenge:pkce(verifier),codeChallengeMethod:'S256'};
  const exchange=code=>({clientId:credentials.id,clientSecret:credentials.secret,redirectUri:request.redirectUri,environment:'hall',code,codeVerifier:verifier});
@@ -45,10 +45,10 @@ test('SSO client binds state to initiating browser, performs PKCE backchannel an
  });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));
  const issuer=`http://127.0.0.1:${server.address().port}/`;
- const sessions=new SessionAuth({issuer,audience:'website',database:async()=>db,isSessionAllowed:async()=>true});
+ const sessions=new SessionAuth({issuer,audience:'website',idAdapter:db.idAdapter,database:async()=>db,isSessionAllowed:async()=>true});
  const registration={id:credentials.id,secretHash:credentials.secretHash,redirectUris:['http://localhost:3000/callback']};
- authority=new SsoAuthority({issuer,sessions,database:async()=>db,allowInsecureLocalhost:true,getClient:async id=>id===registration.id?registration:null,authorize:async(s,c,e)=>e==='hall'});
- const client=new SsoClient({issuer,origin:'http://localhost:3000',allowInsecureLocalhost:true,clientId:credentials.id,clientSecret:credentials.secret,redirectUri:registration.redirectUris[0],authorizationEndpoint:issuer+'authorize',tokenEndpoint:issuer+'token',introspectionEndpoint:issuer+'introspect',database:async()=>db});
+ authority=new SsoAuthority({issuer,sessions,idAdapter:db.idAdapter,database:async()=>db,allowInsecureLocalhost:true,getClient:async id=>id===registration.id?registration:null,authorize:async(s,c,e)=>e==='hall'});
+ const client=new SsoClient({issuer,origin:'http://localhost:3000',allowInsecureLocalhost:true,clientId:credentials.id,clientSecret:credentials.secret,redirectUri:registration.redirectUris[0],authorizationEndpoint:issuer+'authorize',tokenEndpoint:issuer+'token',introspectionEndpoint:issuer+'introspect',idAdapter:db.idAdapter,database:async()=>db});
  const login=await sessions.create('user'),res=new Response(),begin=new URL(await client.begin(res,'hall'));
  const redirect=new URL(await authority.authorize(login.auth_token,{clientId:begin.searchParams.get('client_id'),redirectUri:begin.searchParams.get('redirect_uri'),environment:begin.searchParams.get('environment'),state:begin.searchParams.get('state'),codeChallenge:begin.searchParams.get('code_challenge'),codeChallengeMethod:begin.searchParams.get('code_challenge_method')}));
  const query=Object.fromEntries(redirect.searchParams),cookie=res.headers['Set-Cookie'][0].split(';')[0];
@@ -58,7 +58,7 @@ test('SSO client binds state to initiating browser, performs PKCE backchannel an
  assert.equal(await client.complete(req({...query,iss:'https://evil.example/'}),new Response()),null);
  const identity=await client.complete(req(),new Response());assert.equal(identity.subject,'user');assert.equal(identity.environment,'hall');
  assert.equal(await client.complete(req(),new Response()),null);
- const local=new SessionAuth({issuer:'http://localhost:3000/',audience:credentials.id,environment:'hall',database:async()=>db,isSessionAllowed:async s=>!!s.parent&&!!await client.introspect(s.parent.sessionId,s.environment)});
+ const local=new SessionAuth({issuer:'http://localhost:3000/',audience:credentials.id,environment:'hall',idAdapter:db.idAdapter,database:async()=>db,isSessionAllowed:async s=>!!s.parent&&!!await client.introspect(s.parent.sessionId,s.environment)});
  const session=await local.create(identity.subject,{issuer:identity.issuer,sessionId:identity.authoritySessionId});assert.ok(await local.authenticate(session.auth_token));
  await sessions.revoke(login.session.id);assert.equal(await local.authenticate(session.auth_token),null);assert.equal(await local.refresh(session.refresh_token),null);
 });
@@ -72,7 +72,7 @@ test('callback rejects expired transactions, mismatched backchannel identities a
  const server=http.createServer((req,res)=>{res.statusCode=status;res.setHeader('Location','https://evil.example');res.end(typeof responseBody==='string'?responseBody:JSON.stringify(responseBody))});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));
  const issuer=`http://127.0.0.1:${server.address().port}/`;
- const client=new SsoClient({issuer,origin:'http://localhost:3000',allowInsecureLocalhost:true,clientId:credentials.id,clientSecret:credentials.secret,redirectUri:'http://localhost:3000/callback',authorizationEndpoint:issuer+'authorize',tokenEndpoint:issuer+'token',introspectionEndpoint:issuer+'introspect',database:async()=>db});
+ const client=new SsoClient({issuer,origin:'http://localhost:3000',allowInsecureLocalhost:true,clientId:credentials.id,clientSecret:credentials.secret,redirectUri:'http://localhost:3000/callback',authorizationEndpoint:issuer+'authorize',tokenEndpoint:issuer+'token',introspectionEndpoint:issuer+'introspect',idAdapter:db.idAdapter,database:async()=>db});
  async function callback(){const res=new Response(),url=new URL(await client.begin(res,'hall'));return Object.assign(new Request(),{query:{state:url.searchParams.get('state'),code:random(),iss:issuer},headers:{cookie:res.headers['Set-Cookie'][0].split(';')[0]}})}
  const valid={issuer,audience:credentials.id,subject:'user',environment:'hall',authoritySessionId:random(),expiresAt:Date.now()+10000};
  for(const change of [{issuer:'https://evil.example/'},{audience:'other'},{environment:'other'},{expiresAt:Date.now()-1},{subject:''},{authoritySessionId:'bad'}]){responseBody={...valid,...change};assert.equal(await client.complete(await callback(),new Response()),null)}

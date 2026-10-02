@@ -1,7 +1,8 @@
 import { appPath, appRelativePath } from "../routing";
 import { Router } from "./Router";
 import { dataBuilderRoute, DataBuilderRouteOptions } from "../DataBuilder/DataBuilderRoute";
-import { authRoute, AuthRouteOptions } from "../Auth/ModelAuth";
+import { AuthRouteOptions } from "../Auth/ModelAuth";
+import { Auth, authRoute } from "../Auth/Auth";
 
 type RouteRegistrationOptions = { [key: string]: any };
 
@@ -102,8 +103,12 @@ export class RouteFacade {
     }
 
     /** Register CSRF, model login, logout and refresh using the browser auth contract. */
-    auth(prefix: string, options: AuthRouteOptions) {
-        if (!options?.auth && !options?.model) throw new Error("Route.auth requires a Model class or auth instance.");
+    auth(prefix: string, options: AuthRouteOptions = {}) {
+        const { auth = "main", loginPath, loginResponse, middleware, domains, ...overrides } = options;
+        if (typeof auth !== "string" || !/^[A-Za-z0-9_-]+$/.test(auth)) throw new Error("Route.auth expects an auth scope key.");
+        if (Object.keys(overrides).length) {
+            Auth.registerScope(auth, overrides);
+        }
         const base = prefix.replace(/\/+$/, "");
         const registration = { middleware: options.middleware, domains: options.domains };
         this.get(`${base}/csrf`, authRoute("csrf", options), registration);

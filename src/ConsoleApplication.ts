@@ -1,3 +1,4 @@
+import { Auth } from "./Auth/Auth";
 /// <reference types="node" />
 import { Config } from "./Config";
 import { ConsoleOutputHelper } from "./Commands/ConsoleOutputHelper";
@@ -55,6 +56,7 @@ export class ConsoleApplication {
                 Config.register(key, options.config[key]);
             }
         }
+        Auth.init();
         NotificationService.init();
 
         if (options && options.errorHandler) {

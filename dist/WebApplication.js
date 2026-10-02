@@ -13,6 +13,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WebApplication = void 0;
+const Auth_1 = require("./Auth/Auth");
 /// <reference types="node" />
 const http_1 = __importDefault(require("http"));
 const Config_1 = require("./Config");
@@ -47,6 +48,7 @@ class WebApplication {
                 Config_1.Config.register(key, options.config[key]);
             }
         }
+        Auth_1.Auth.init();
         NotificationService_1.NotificationService.init();
         if (options && options.errorHandler) {
             if (Array.isArray(options.errorHandler)) {

@@ -283,7 +283,7 @@ configuration before rolling the new auth flow out to existing applications.
 ## Standard browser login with `Route.auth`
 
 ```ts
-import { Model, ModelAuth, Route } from "@webtypen/webframez-core";
+import { Model, AuthScope, Route } from "@webtypen/webframez-core";
 
 class User extends Model {
     __table = "users";
@@ -294,7 +294,7 @@ Route.auth("/api/auth", { model: User });
 // GET /api/auth/csrf
 // POST /api/auth/login, /api/auth/logout, /api/auth/refresh
 
-// During registration: user.password = await ModelAuth.hashPassword(password);
+// During registration: user.password = await AuthScope.hashPassword(password);
 ```
 
 Set `auth.origin` or `website.baseUrl` to the canonical public URL (including the
@@ -312,7 +312,7 @@ not trimmed. Store a bcrypt hash; existing bcrypt hashes work without migration.
 and `isUserAllowed` adds account/tenant checks on login and every session access.
 An explicit `false` in `is_active` rejects the account; `fields.active: false`
 disables this field check. Optional `session` options configure storage, scope
-and lifetimes. For `ModelAuth`, access and absolute session lifetimes default to
+and lifetimes. For `AuthScope`, access and absolute session lifetimes default to
 30 days; both remain configurable through `session.accessTokenSeconds` and
 `session.sessionSeconds`. The lower-level `SessionAuth` retains its 15-minute
 access-token default.
@@ -331,8 +331,9 @@ CSRF before login, sends `X-CSRF-Token` on same-origin mutations, and inserts
 `cookieName` supports custom cookie prefixes. For a custom Fetch implementation,
 pass it as the second argument to `createAuthFetch`.
 
-Existing applications can pass `auth: instance` or `auth: () => instance` instead
-of `model`; use a shared `ModelAuth` for middleware and session-management APIs.
+`Route.auth` selects a shared registered scope with `auth: "main"` (the default).
+Model and other scope options passed to `Route.auth` configure that scope in the
+same `Auth` registry, including partial nested overrides.
 `loginPath` keeps existing URLs, `loginResponse` adds application-specific response
 fields (for example a validated redirect), and `onLogin` / `onAuthenticate` add application-specific callbacks. Browser
 user-agent metadata and last activity are recorded automatically; `trackActivity: false`
@@ -342,7 +343,7 @@ be accessible before authentication; apply authentication middleware to protecte
 application routes separately.
 
 
-`audience` is a top-level option in both `Route.auth` and `ModelAuth`. It takes
+`audience` is a top-level option in both `Route.auth` and `AuthScope`. It takes
 precedence over the still-supported `session.audience`; the default is the origin.
 Standard error messages are included in English and German (`locale: "de"`);
 `messages` overrides individual entries while retaining the remaining defaults.
@@ -354,7 +355,7 @@ Route.auth("/api/auth", {
     model: User,
     audience: "simplebis-website",
     locale: "de",
-    session: { collection: "website_auth_sessions" },
+    auth: "main",
     // Optional overrides:
     messages: { invalid_login: "Bitte prüfe deine Zugangsdaten." },
 });
@@ -364,3 +365,66 @@ Session metadata stays in the existing session collection. `sessions.list(subjec
 includes `userAgent` and `lastActiveAt` when available, so applications do not need
 a second model/query or callbacks to maintain the session list. Existing records
 without metadata remain valid; last activity falls back to the creation timestamp.
+
+
+## Named auth scopes and lifecycle hooks
+
+```ts
+import { Auth, Config, Route } from "@webtypen/webframez-core";
+
+Config.register("auth", {
+    scopes: {
+        main: { model: User, audience: "website", locale: "de" },
+        admin: { model: AdminUser, audience: "administration" },
+    },
+});
+Route.auth("/api/auth", {
+    auth: "main",
+    beforeLogin: async (req, user, scope) => {
+        if (!await canLogIn(user, req)) throw new Error("Login denied by policy.");
+    },
+    afterLogin: async (req, user, scope) => { /* Login has completed. */ },
+    beforeLogout: async (req, user, scope) => { /* Throw to prevent logout. */ },
+    afterLogout: async (req, user, scope) => { /* Session revoked and cookies cleared. */ },
+});
+
+Auth.scope(); // same singleton scope as Auth.scope("main")
+Auth.scope("admin");
+Auth.registerScope("staff", { model: StaffUser });
+```
+
+Applications pass the auth configuration to the regular boot `config` object.
+Web, console and Lambda boot initialize the registry after registering Config.
+An automatic `main` scope exists unless `auth.main: false`; define its model in
+`auth.scopes.main` or in `Route.auth({ model: User })` before using login. Configured
+scopes and scopes registered at runtime remain available when automatic main is
+disabled. Unknown keys fail explicitly. `auth.defaults` supplies shared options.
+Registering an existing key updates its scope; routes resolve the current registry
+entry on each request. `ModelAuth` remains a compatibility alias of `AuthScope`.
+
+Each record in the default `auth_sessions` collection contains `scope`. Scope,
+issuer, audience and environment are checked for all session operations. Named
+scopes use separate cookie prefixes by default; configure the browser auth client
+with the selected scope's CSRF cookie name when using a non-main scope.
+The selected driver's ID adapter creates `_id` and converts `_subject`; MongoDB
+stores both as BSON ObjectId. Stored records contain no extra `id` or `subject`.
+Public session metadata still exposes string `id` and `subject` for transport.
+Injected document stores must provide `session.idAdapter` as well as `database`.
+
+The four hooks receive `(req, user, scope)` and await async callbacks. Login hooks
+receive the verified user, never a browser-supplied subject. CSRF and origin checks
+happen first. Exceptions in `beforeLogin` return `login_blocked`, and exceptions
+in `beforeLogout` return `logout_blocked`; the response includes the exception's
+message and a 403 status (or a thrown WebAuthError's status). No session/cookie
+mutation or after-hook occurs on a rejected before-hook. After-hooks run after the
+operation completes; their failures do not undo an already completed operation.
+Existing `onLogin(session, req)` and `onAuthenticate(auth, req)` callbacks remain
+supported. Individual `messages` entries can override before-hook error messages.
+
+When migrating old MongoDB sessions, convert the former opaque `_id` to ObjectId
+using the first 24 hex characters of SHA-256 of the former ID. Convert `subject`
+to `_subject`, remove duplicate `id`/`subject`, and set the correct `scope`. Keep
+hashes and expiry unchanged. SessionAuth recognizes the former token prefixes,
+so converted sessions retain their existing cookies. Applications should run
+an explicit migration while stopping auth writes, rather than changing schemas
+implicitly during a request.

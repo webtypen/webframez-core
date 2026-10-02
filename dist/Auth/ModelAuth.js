@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.authRoute = exports.ModelAuth = exports.AuthLoginError = void 0;
+exports.ModelAuth = exports.AuthScope = exports.AuthLoginError = void 0;
 const bcryptjs_1 = require("bcryptjs");
 const Config_1 = require("../Config");
 const Request_1 = require("../Router/Request");
@@ -23,6 +23,11 @@ class AuthLoginError extends WebAuth_1.WebAuthError {
     }
 }
 exports.AuthLoginError = AuthLoginError;
+class AuthHookError extends AuthLoginError {
+    constructor(code, error) {
+        super(code, error instanceof WebAuth_1.WebAuthError ? error.status : 403, error instanceof Error ? error.message : typeof error === "string" ? error : "Authentication action was blocked.");
+    }
+}
 const defaultMessages = {
     en: {
         missing_login: "Please provide your login and password.",
@@ -32,6 +37,8 @@ const defaultMessages = {
         invalid_csrf: "Please reload the page and try logging in again.",
         unauthorized: "Please log in.",
         server_error: "Authentication could not be processed.",
+        login_blocked: "Login was blocked.",
+        logout_blocked: "Logout was blocked.",
     },
     de: {
         missing_login: "Bitte gib E-Mail-Adresse und Passwort an.",
@@ -41,19 +48,24 @@ const defaultMessages = {
         invalid_csrf: "Der Login konnte gerade nicht verarbeitet werden. Bitte lade die Seite neu.",
         unauthorized: "Bitte melde dich an.",
         server_error: "Die Anmeldung konnte gerade nicht verarbeitet werden.",
+        login_blocked: "Die Anmeldung wurde abgelehnt.",
+        logout_blocked: "Die Abmeldung wurde abgelehnt.",
     },
 };
 // Verify a dummy password hash for unknown accounts as well.
 let dummyHash;
 /** Model-backed browser authentication with secure default routes and revocable sessions. */
-class ModelAuth extends WebAuth_1.WebAuth {
+class AuthScope extends WebAuth_1.WebAuth {
     constructor(modelOptions) {
-        var _a, _b, _c, _d, _e;
+        var _a, _b, _c, _d, _e, _f, _g;
         if (modelOptions.csrfDisabled)
             throw new Error("Browser auth routes require CSRF protection.");
         if (!modelOptions.model)
             throw new Error("Route.auth requires a Model class.");
         const origin = new URL(modelOptions.origin || Config_1.Config.get("auth.origin") || Config_1.Config.get("website.baseUrl") || Config_1.Config.get("application.website.baseUrl") || process.env.WEBSITE_URL || process.env.PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 3035}`).origin;
+        const key = (_a = modelOptions.key) !== null && _a !== void 0 ? _a : "main";
+        if (!/^[A-Za-z0-9_-]+$/.test(key))
+            throw new Error("Invalid auth scope key.");
         const model = modelOptions.model;
         const fields = Object.assign({ identifier: "email", password: "password", active: "is_active", primaryKey: new model().__primaryKey || "_id" }, modelOptions.fields);
         const allowed = (user) => __awaiter(this, void 0, void 0, function* () {
@@ -61,7 +73,7 @@ class ModelAuth extends WebAuth_1.WebAuth {
                 && (!modelOptions.isUserAllowed || (yield modelOptions.isUserAllowed(user))));
         });
         const sessionUsers = new WeakMap();
-        const sessions = new SessionAuth_1.SessionAuth(Object.assign(Object.assign({ accessTokenSeconds: 30 * 86400, sessionSeconds: 30 * 86400 }, modelOptions.session), { issuer: origin, audience: (_c = (_a = modelOptions.audience) !== null && _a !== void 0 ? _a : (_b = modelOptions.session) === null || _b === void 0 ? void 0 : _b.audience) !== null && _c !== void 0 ? _c : origin, connection: ((_d = modelOptions.session) === null || _d === void 0 ? void 0 : _d.connection) || new model().__connection, isSessionAllowed: (session) => __awaiter(this, void 0, void 0, function* () {
+        const sessions = new SessionAuth_1.SessionAuth(Object.assign(Object.assign({ accessTokenSeconds: 30 * 86400, sessionSeconds: 30 * 86400 }, modelOptions.session), { issuer: origin, scope: key, audience: (_d = (_b = modelOptions.audience) !== null && _b !== void 0 ? _b : (_c = modelOptions.session) === null || _c === void 0 ? void 0 : _c.audience) !== null && _d !== void 0 ? _d : origin, connection: ((_e = modelOptions.session) === null || _e === void 0 ? void 0 : _e.connection) || new model().__connection, isSessionAllowed: (session) => __awaiter(this, void 0, void 0, function* () {
                 const id = fields.primaryKey === "_id" ? yield model.objectId(session.subject, { noExceptions: true }) : session.subject;
                 const user = id !== null && id !== undefined ? yield model.where(fields.primaryKey, "=", id).first() : null;
                 if (!(yield allowed(user)))
@@ -69,11 +81,15 @@ class ModelAuth extends WebAuth_1.WebAuth {
                 sessionUsers.set(session, user);
                 return true;
             }) }));
-        super(sessions, Object.assign(Object.assign({}, modelOptions), { origin, allowInsecureLocalhost: (_e = modelOptions.allowInsecureLocalhost) !== null && _e !== void 0 ? _e : true }));
+        super(sessions, Object.assign(Object.assign({}, modelOptions), { origin, cookiePrefix: (_f = modelOptions.cookiePrefix) !== null && _f !== void 0 ? _f : (key === "main" ? undefined : `${origin.startsWith("https:") ? "__Host-wf_" : "wf_dev_"}${key}_`), allowInsecureLocalhost: (_g = modelOptions.allowInsecureLocalhost) !== null && _g !== void 0 ? _g : true }));
         this.modelOptions = modelOptions;
+        this.key = key;
         this.sessionUsers = sessionUsers;
         this.model = model;
         this.fields = fields;
+    }
+    get configuration() {
+        return this.modelOptions;
     }
     message(code) {
         var _a, _b;
@@ -112,12 +128,51 @@ class ModelAuth extends WebAuth_1.WebAuth {
             login: { get: () => super.login }
         });
         return __awaiter(this, void 0, void 0, function* () {
-            const session = yield _super.login.call(this, req, res, verifyCredentials);
+            let user = null;
+            const session = yield _super.login.call(this, req, res, () => __awaiter(this, void 0, void 0, function* () {
+                const subject = yield verifyCredentials();
+                if (subject && (this.modelOptions.beforeLogin || this.modelOptions.afterLogin)) {
+                    const id = this.fields.primaryKey === "_id" ? yield this.model.objectId(subject, { noExceptions: true }) : subject;
+                    user = id == null ? null : yield this.model.where(this.fields.primaryKey, "=", id).first();
+                    if (!user)
+                        throw new AuthLoginError("invalid_login", 401, this.message("invalid_login"));
+                    if (this.modelOptions.beforeLogin) {
+                        try {
+                            yield this.modelOptions.beforeLogin(req, user, this);
+                        }
+                        catch (error) {
+                            throw new AuthHookError("login_blocked", error);
+                        }
+                    }
+                }
+                return subject;
+            }));
             if (this.modelOptions.trackActivity !== false)
                 yield this.sessions.recordLogin(session, (0, AuthSecurity_1.authHeader)(req, "user-agent"));
             if (this.modelOptions.onLogin)
                 yield this.modelOptions.onLogin(session, req);
+            if (this.modelOptions.afterLogin)
+                yield this.modelOptions.afterLogin(req, user, this);
             return session;
+        });
+    }
+    logout(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const session = yield this.logoutSession(req);
+            const user = this.sessionUsers.get(session);
+            if (!user)
+                throw new AuthLoginError("unauthorized", 401, this.message("unauthorized"));
+            if (this.modelOptions.beforeLogout) {
+                try {
+                    yield this.modelOptions.beforeLogout(req, user, this);
+                }
+                catch (error) {
+                    throw new AuthHookError("logout_blocked", error);
+                }
+            }
+            yield this.finishLogout(session, res);
+            if (this.modelOptions.afterLogout)
+                yield this.modelOptions.afterLogout(req, user, this);
         });
     }
     /** Resolve a fresh validated session and its model; never trusts a client-supplied req.auth. */
@@ -188,6 +243,7 @@ class ModelAuth extends WebAuth_1.WebAuth {
         });
     }
     handle(operation, req, res, loginResponse) {
+        var _a, _b;
         return __awaiter(this, void 0, void 0, function* () {
             res.header("Cache-Control", "no-store");
             try {
@@ -210,17 +266,10 @@ class ModelAuth extends WebAuth_1.WebAuth {
                 if (!(error instanceof WebAuth_1.WebAuthError))
                     console.error(error);
                 return res.status(error instanceof WebAuth_1.WebAuthError ? error.status : 500).send({ status: "error", code,
-                    message: this.message(code) });
+                    message: error instanceof AuthHookError ? (_b = (_a = this.modelOptions.messages) === null || _a === void 0 ? void 0 : _a[code]) !== null && _b !== void 0 ? _b : error.message : this.message(code) });
             }
         });
     }
 }
-exports.ModelAuth = ModelAuth;
-function authRoute(operation, options) {
-    let auth;
-    return (req, res) => {
-        auth || (auth = typeof options.auth === "function" ? options.auth() : options.auth || new ModelAuth(options));
-        return auth.handle(operation, req, res, options.loginResponse);
-    };
-}
-exports.authRoute = authRoute;
+exports.AuthScope = AuthScope;
+exports.ModelAuth = AuthScope;

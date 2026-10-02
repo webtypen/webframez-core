@@ -130,15 +130,28 @@ class WebAuth {
             return pair.session;
         });
     }
-    logout(req, res) {
+    logoutSession(req) {
         return __awaiter(this, void 0, void 0, function* () {
             this.post(req);
             const csrf = this.csrf(req), token = this.cookies.read(req, "refresh");
             if (!(yield this.sessions.verifyCsrf(token, csrf, "refresh")))
                 throw new WebAuthError(403, "Invalid session CSRF token.");
-            yield this.sessions.revoke(token.split(".")[0]);
+            const session = yield this.sessions.inspect(token.split(".")[0]);
+            if (!session)
+                throw new WebAuthError(401, "Invalid session.");
+            return session;
+        });
+    }
+    finishLogout(session, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.sessions.revoke(session.id);
             for (const key of ["access", "refresh", "csrf"])
                 this.cookies.write(res, key, "", 0, key !== "csrf");
+        });
+    }
+    logout(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.finishLogout(yield this.logoutSession(req), res);
         });
     }
 }

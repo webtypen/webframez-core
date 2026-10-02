@@ -1,3 +1,4 @@
+import { Auth } from "./Auth/Auth";
 /// <reference types="node" />
 import http, { Server } from "http";
 import { Config } from "./Config";
@@ -34,6 +35,7 @@ export class WebApplication {
                 Config.register(key, options.config[key]);
             }
         }
+        Auth.init();
         NotificationService.init();
 
         if (options && options.errorHandler) {

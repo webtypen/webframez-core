@@ -117,10 +117,20 @@ export class WebAuth {
         return pair.session;
     }
 
-    async logout(req: Request, res: Response): Promise<void> {
+    protected async logoutSession(req: Request): Promise<AuthSession> {
         this.post(req); const csrf = this.csrf(req), token = this.cookies.read(req, "refresh");
         if (!await this.sessions.verifyCsrf(token, csrf, "refresh")) throw new WebAuthError(403, "Invalid session CSRF token.");
-        await this.sessions.revoke(token.split(".")[0]);
+        const session = await this.sessions.inspect(token.split(".")[0]);
+        if (!session) throw new WebAuthError(401, "Invalid session.");
+        return session;
+    }
+
+    protected async finishLogout(session: AuthSession, res: Response): Promise<void> {
+        await this.sessions.revoke(session.id);
         for (const key of ["access", "refresh", "csrf"]) this.cookies.write(res, key, "", 0, key !== "csrf");
+    }
+
+    async logout(req: Request, res: Response): Promise<void> {
+        await this.finishLogout(await this.logoutSession(req), res);
     }
 }

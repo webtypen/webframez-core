@@ -15,7 +15,7 @@ async function fixture(options = {}) {
             return { first: async () => user[key] === value ? user : null };
         }
     }
-    const auth = new ModelAuth({ model: User, origin: 'https://site.example', ...options, session: { database: async () => db, ...options.session } });
+    const auth = new ModelAuth({ model: User, origin: 'https://site.example', ...options, session: { idAdapter: db.idAdapter, database: async () => db, ...options.session } });
     return { auth, db, user, lookups: () => lookups };
 }
 
@@ -133,7 +133,7 @@ test('Route.auth applies localized defaults and allows individual message overri
     Router.register = (...args) => registrations.push(args);
     try {
         const db = database();
-        new RouteFacade().auth('/auth', { model: Model, audience: 'route', origin: 'https://site.example', locale: 'de', session: { database: async () => db } });
+        new RouteFacade().auth('/auth', { model: Model, audience: 'route', origin: 'https://site.example', locale: 'de', session: { idAdapter: db.idAdapter, database: async () => db } });
         const response = new Response();
         await registrations.find(([method, path]) => method === 'POST' && path === '/auth/login')[2](request('POST'), response);
         assert.equal(response.content.message, 'Der Login konnte gerade nicht verarbeitet werden. Bitte lade die Seite neu.');

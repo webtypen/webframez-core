@@ -38,5 +38,7 @@ export declare class WebAuth {
     establishSession(subject: string, res: Response, parent?: AuthSession["parent"]): Promise<AuthSession>;
     authenticate(req: Request): Promise<AuthSession | null>;
     refresh(req: Request, res: Response): Promise<AuthSession>;
+    protected logoutSession(req: Request): Promise<AuthSession>;
+    protected finishLogout(session: AuthSession, res: Response): Promise<void>;
     logout(req: Request, res: Response): Promise<void>;
 }

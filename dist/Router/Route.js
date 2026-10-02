@@ -1,10 +1,21 @@
 "use strict";
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Route = exports.RouteFacade = void 0;
 const routing_1 = require("../routing");
 const Router_1 = require("./Router");
 const DataBuilderRoute_1 = require("../DataBuilder/DataBuilderRoute");
-const ModelAuth_1 = require("../Auth/ModelAuth");
+const Auth_1 = require("../Auth/Auth");
 class RouteFacade {
     constructor() {
         this.tempGroupPrefix = null;
@@ -71,15 +82,19 @@ class RouteFacade {
         this.registerWithGroupContext("POST", path, (0, DataBuilderRoute_1.dataBuilderRoute)(options), { middleware: options.middleware, domains: options.domains });
     }
     /** Register CSRF, model login, logout and refresh using the browser auth contract. */
-    auth(prefix, options) {
-        if (!(options === null || options === void 0 ? void 0 : options.auth) && !(options === null || options === void 0 ? void 0 : options.model))
-            throw new Error("Route.auth requires a Model class or auth instance.");
+    auth(prefix, options = {}) {
+        const { auth = "main", loginPath, loginResponse, middleware, domains } = options, overrides = __rest(options, ["auth", "loginPath", "loginResponse", "middleware", "domains"]);
+        if (typeof auth !== "string" || !/^[A-Za-z0-9_-]+$/.test(auth))
+            throw new Error("Route.auth expects an auth scope key.");
+        if (Object.keys(overrides).length) {
+            Auth_1.Auth.registerScope(auth, overrides);
+        }
         const base = prefix.replace(/\/+$/, "");
         const registration = { middleware: options.middleware, domains: options.domains };
-        this.get(`${base}/csrf`, (0, ModelAuth_1.authRoute)("csrf", options), registration);
-        this.post(options.loginPath || `${base}/login`, (0, ModelAuth_1.authRoute)("login", options), registration);
-        this.post(`${base}/logout`, (0, ModelAuth_1.authRoute)("logout", options), registration);
-        this.post(`${base}/refresh`, (0, ModelAuth_1.authRoute)("refresh", options), registration);
+        this.get(`${base}/csrf`, (0, Auth_1.authRoute)("csrf", options), registration);
+        this.post(options.loginPath || `${base}/login`, (0, Auth_1.authRoute)("login", options), registration);
+        this.post(`${base}/logout`, (0, Auth_1.authRoute)("logout", options), registration);
+        this.post(`${base}/refresh`, (0, Auth_1.authRoute)("refresh", options), registration);
     }
     /**
      * Register a POST-Method

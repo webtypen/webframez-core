@@ -21,3 +21,4 @@ __exportStar(require("./SessionAuth"), exports);
 __exportStar(require("./WebAuth"), exports);
 __exportStar(require("./SingleSignOn"), exports);
 __exportStar(require("./ModelAuth"), exports);
+__exportStar(require("./Auth"), exports);

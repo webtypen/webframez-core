@@ -1,5 +1,5 @@
 import { DBConnection } from "../Database/DBConnection";
-import type { DocumentDatabase } from "../Database/DatabaseAdapter";
+import type { DatabaseId, DatabaseIdAdapter, DocumentDatabase } from "../Database/DatabaseAdapter";
 import { authLifetime, authText, hashAuthToken, randomAuthToken } from "./AuthSecurity";
 
 export type AuthSession = {
@@ -7,6 +7,7 @@ export type AuthSession = {
     subject: string;
     issuer: string;
     audience: string;
+    scope: string;
     environment: string | null;
     userAgent?: string;
     lastActiveAt?: number;
@@ -28,6 +29,7 @@ export type CreatedAuthSession = SessionTokenPair & { csrf_token: string };
 export type SessionAuthOptions = {
     issuer: string;
     audience: string;
+    scope?: string;
     environment?: string;
     connection?: string;
     collection?: string;
@@ -38,10 +40,13 @@ export type SessionAuthOptions = {
     isSessionAllowed: (session: AuthSession) => boolean | Promise<boolean>;
     /** Dependency injection for a document-capable driver. Atomic findOneAndUpdate is required. */
     database?: () => Promise<DocumentDatabase>;
+    /** ID handling for an injected document store; otherwise the selected driver owns IDs. */
+    idAdapter?: DatabaseIdAdapter;
 };
 
-type SessionRecord = AuthSession & {
-    _id: string;
+type SessionRecord = Omit<AuthSession, "id" | "subject"> & {
+    _id: DatabaseId;
+    _subject: DatabaseId;
     accessHash: string;
     refreshHash: string;
     csrfHash: string;
@@ -50,29 +55,40 @@ type SessionRecord = AuthSession & {
     revokedAt: number | null;
 };
 
-function publicSession(record: AuthSession): AuthSession {
-    return { id: record.id, subject: record.subject, issuer: record.issuer, audience: record.audience,
+function publicSession(record: SessionRecord): AuthSession {
+    return { id: String(record._id), subject: String(record._subject), issuer: record.issuer, audience: record.audience, scope: record.scope,
         environment: record.environment, createdAt: record.createdAt, expiresAt: record.expiresAt, parent: record.parent,
         ...(record.userAgent !== undefined ? { userAgent: record.userAgent } : {}),
         ...(record.lastActiveAt !== undefined ? { lastActiveAt: record.lastActiveAt } : {}) };
 }
 
 function tokenSessionId(token: unknown): string | null {
-    return typeof token === "string" && /^[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{43}$/.test(token) ? token.split(".")[0] : null;
+    return typeof token === "string" && /^[A-Za-z0-9_-]{1,128}\.[A-Za-z0-9_-]{43}$/.test(token) ? token.split(".")[0] : null;
 }
 
 /** Revocable, hashed, independently addressable device sessions. Legacy UserAuth is unaffected. */
 export class SessionAuth {
-    private readonly scope: { issuer: string; audience: string; environment: string | null };
+    private readonly scope: { issuer: string; audience: string; scope: string; environment: string | null };
     private readonly accessSeconds: number;
     private readonly sessionSeconds: number;
 
     constructor(private readonly options: SessionAuthOptions) {
-        this.scope = { issuer: authText(options.issuer, "issuer"), audience: authText(options.audience, "audience"),
+        this.scope = { issuer: authText(options.issuer, "issuer"), audience: authText(options.audience, "audience"), scope: authText(options.scope ?? "main", "scope"),
             environment: options.environment === undefined ? null : authText(options.environment, "environment") };
         this.accessSeconds = authLifetime(options.accessTokenSeconds, 15 * 60);
         this.sessionSeconds = authLifetime(options.sessionSeconds, 30 * 86400);
         if (typeof options.isSessionAllowed !== "function") throw new Error("SessionAuth requires isSessionAllowed.");
+    }
+
+    private ids(): DatabaseIdAdapter {
+        return this.options.idAdapter || DBConnection.getIdAdapter(this.options.connection);
+    }
+
+    private sessionId(value: string): DatabaseId | null {
+        const adapter = this.ids();
+        const native = adapter.normalize(value);
+        // Converted legacy MongoDB sessions keep working with their existing opaque token prefix.
+        return native ?? (/^[A-Za-z0-9_-]{43}$/.test(value) ? adapter.normalize(hashAuthToken(value).slice(0, 24)) : null);
     }
 
     private async rows() {
@@ -94,9 +110,9 @@ export class SessionAuth {
     async create(subject: string, parent: AuthSession["parent"] = null): Promise<CreatedAuthSession> {
         authText(subject, "subject");
         if (parent) { authText(parent.issuer, "parent issuer"); authText(parent.sessionId, "parent session"); }
-        const now = Date.now(), id = randomAuthToken();
+        const now = Date.now(), id = this.ids().create();
         const access = `${id}.${randomAuthToken()}`, refresh = `${id}.${randomAuthToken()}`, csrf = randomAuthToken();
-        const record: SessionRecord = { _id: id, id, subject, ...this.scope, parent: parent ? { ...parent } : null,
+        const record: SessionRecord = { _id: id, _subject: this.ids().create(subject), ...this.scope, parent: parent ? { ...parent } : null,
             createdAt: now, expiresAt: now + this.sessionSeconds * 1000,
             accessExpiresAt: now + Math.min(this.accessSeconds, this.sessionSeconds) * 1000,
             accessHash: hashAuthToken(access), refreshHash: hashAuthToken(refresh), csrfHash: hashAuthToken(csrf),
@@ -109,20 +125,20 @@ export class SessionAuth {
     async authenticate(token: string): Promise<AuthSession | null> {
         const id = tokenSessionId(token);
         if (!id) return null;
-        const row = await (await this.rows()).findOne({ _id: id, ...this.scope, accessHash: hashAuthToken(token), accessExpiresAt: { $gt: Date.now() } });
+        const row = await (await this.rows()).findOne({ _id: this.sessionId(id), ...this.scope, accessHash: hashAuthToken(token), accessExpiresAt: { $gt: Date.now() } });
         return this.allowed(row);
     }
 
     /** Trusted-server introspection; never expose this method as an unauthenticated endpoint. */
     async inspect(sessionId: string): Promise<AuthSession | null> {
-        if (typeof sessionId !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(sessionId)) return null;
-        return this.allowed(await (await this.rows()).findOne({ _id: sessionId, ...this.scope }));
+        if (typeof sessionId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(sessionId)) return null;
+        return this.allowed(await (await this.rows()).findOne({ _id: this.sessionId(sessionId), ...this.scope }));
     }
 
     async verifyCsrf(token: string, csrf: string, kind: "access" | "refresh" = "access"): Promise<boolean> {
         const id = tokenSessionId(token);
         if (!id || typeof csrf !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(csrf)) return false;
-        const row = await (await this.rows()).findOne({ _id: id, ...this.scope,
+        const row = await (await this.rows()).findOne({ _id: this.sessionId(id), ...this.scope,
             ...(kind === "access" ? { accessHash: hashAuthToken(token) } : { $or: [{ refreshHash: hashAuthToken(token) }, { usedRefreshHashes: hashAuthToken(token) }] }), csrfHash: hashAuthToken(csrf),
             ...(kind === "access" ? { accessExpiresAt: { $gt: Date.now() } } : {}) });
         return !!await this.allowed(row);
@@ -133,7 +149,7 @@ export class SessionAuth {
         const id = tokenSessionId(token);
         if (!id) return null;
         const rows = await this.rows(), hash = hashAuthToken(token);
-        const row: SessionRecord | null = await rows.findOne({ _id: id, ...this.scope });
+        const row: SessionRecord | null = await rows.findOne({ _id: this.sessionId(id), ...this.scope });
         if (!await this.allowed(row) || !row) return null;
         if (row.refreshHash !== hash) {
             if (row.usedRefreshHashes.includes(hash)) await this.revoke(id);
@@ -142,13 +158,13 @@ export class SessionAuth {
         // Bound history size and retain an absolute expiry instead of extending sessions indefinitely.
         if (row.usedRefreshHashes.length >= 4096) { await this.revoke(id); return null; }
         const access = `${id}.${randomAuthToken()}`, refresh = `${id}.${randomAuthToken()}`;
-        const next = await rows.findOneAndUpdate({ _id: id, ...this.scope, refreshHash: hash, revokedAt: null, expiresAt: { $gt: Date.now() } },
+        const next = await rows.findOneAndUpdate({ _id: this.sessionId(id), ...this.scope, refreshHash: hash, revokedAt: null, expiresAt: { $gt: Date.now() } },
             { $set: { accessHash: hashAuthToken(access), refreshHash: hashAuthToken(refresh),
                 accessExpiresAt: Math.min(Date.now() + this.accessSeconds * 1000, row.expiresAt),
                 usedRefreshHashes: [...row.usedRefreshHashes, hash] } }, { returnDocument: "after" });
         if (!next) {
             // Also detect simultaneous replay that lost the compare-and-swap.
-            await rows.updateOne({ _id: id, ...this.scope, usedRefreshHashes: hash, revokedAt: null }, { $set: { revokedAt: Date.now() } });
+            await rows.updateOne({ _id: this.sessionId(id), ...this.scope, usedRefreshHashes: hash, revokedAt: null }, { $set: { revokedAt: Date.now() } });
             return null;
         }
         return this.pair(next, access, refresh);
@@ -157,7 +173,7 @@ export class SessionAuth {
     /** Browser login metadata; arbitrary request data and token hashes are never exposed. */
     async recordLogin(session: AuthSession, userAgent: string): Promise<void> {
         const metadata = { userAgent: userAgent.slice(0, 512), lastActiveAt: session.createdAt };
-        await (await this.rows()).updateOne({ _id: session.id, ...this.scope, revokedAt: null }, { $set: metadata });
+        await (await this.rows()).updateOne({ _id: this.sessionId(session.id), ...this.scope, revokedAt: null }, { $set: metadata });
         Object.assign(session, metadata);
     }
 
@@ -165,24 +181,24 @@ export class SessionAuth {
     async touch(session: AuthSession): Promise<void> {
         const now = Date.now();
         if ((session.lastActiveAt ?? session.createdAt) >= now - 60_000) return;
-        await (await this.rows()).updateOne({ _id: session.id, ...this.scope, revokedAt: null, expiresAt: { $gt: now } },
+        await (await this.rows()).updateOne({ _id: this.sessionId(session.id), ...this.scope, revokedAt: null, expiresAt: { $gt: now } },
             { $set: { lastActiveAt: now } });
         session.lastActiveAt = now;
     }
 
     async revoke(sessionId: string): Promise<void> {
         authText(sessionId, "session ID");
-        await (await this.rows()).updateOne({ _id: sessionId, ...this.scope, revokedAt: null }, { $set: { revokedAt: Date.now() } });
+        await (await this.rows()).updateOne({ _id: this.sessionId(sessionId), ...this.scope, revokedAt: null }, { $set: { revokedAt: Date.now() } });
     }
 
     async revokeAll(subject: string): Promise<void> {
         authText(subject, "subject");
-        await (await this.rows()).updateMany({ subject, ...this.scope, revokedAt: null }, { $set: { revokedAt: Date.now() } });
+        await (await this.rows()).updateMany({ _subject: this.ids().create(subject), ...this.scope, revokedAt: null }, { $set: { revokedAt: Date.now() } });
     }
 
     async list(subject: string): Promise<AuthSession[]> {
         authText(subject, "subject");
-        const rows: SessionRecord[] = await (await this.rows()).find({ subject, ...this.scope, revokedAt: null, expiresAt: { $gt: Date.now() } }).toArray();
+        const rows: SessionRecord[] = await (await this.rows()).find({ _subject: this.ids().create(subject), ...this.scope, revokedAt: null, expiresAt: { $gt: Date.now() } }).toArray();
         return rows.map(publicSession);
     }
 

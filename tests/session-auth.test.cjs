@@ -2,7 +2,7 @@ const test=require('node:test');const assert=require('node:assert/strict');
 const {SessionAuth,WebAuth,AuthCookies,Request,Response,UserAuth}=require('../dist');
 const {database}=require('../test-support/auth-store.cjs');
 
-function setup(extra={}){const db=database();const options={issuer:'https://id.example/',audience:'website',isSessionAllowed:async()=>true,database:async()=>db,...extra};return {db,options,auth:new SessionAuth(options)}}
+function setup(extra={}){const db=database();const options={issuer:'https://id.example/',audience:'website',isSessionAllowed:async()=>true,idAdapter:db.idAdapter,database:async()=>db,...extra};return {db,options,auth:new SessionAuth(options)}}
 
 function request(method='POST',cookies={},extra={}){return Object.assign(new Request(),{method,headers:{origin:'https://site.example','sec-fetch-site':'same-origin',cookie:Object.entries(cookies).map(([k,v])=>`${k}=${v}`).join('; '),'x-csrf-token':cookies['__Host-wf_csrf'],...extra}})}
 

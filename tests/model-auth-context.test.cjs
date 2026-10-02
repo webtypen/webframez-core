@@ -17,7 +17,7 @@ async function fixture() {
         }
     }
     user = Object.assign(new User(), { _id: 'alice', email: 'alice@example.test', roles: ['member'], password: 'HASH', activation_token: 'ACTIVATION', internalMarker: 'PRIVATE', is_active: true });
-    const auth = new ModelAuth({ model: User, origin: 'https://site.example', session: { database: async () => db }, publicUserFields: ['_id', 'email', 'roles', 'password', 'activation_token'] });
+    const auth = new ModelAuth({ model: User, origin: 'https://site.example', session: { idAdapter: db.idAdapter, database: async () => db }, publicUserFields: ['_id', 'email', 'roles', 'password', 'activation_token'] });
     const response = new Response();
     await auth.establishSession('alice', response);
     const cookies = Object.fromEntries(response.headers['Set-Cookie'].map(value => value.split(';')[0].split('=')));
