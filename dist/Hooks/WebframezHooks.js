@@ -56,8 +56,16 @@ class WebframezHooksFacade {
         this.handlers = {};
         return this;
     }
+    hasListeners(eventName) {
+        var _a;
+        return (((_a = this.handlers[eventName]) === null || _a === void 0 ? void 0 : _a.size) || 0) > 0;
+    }
     emit(eventName, context) {
         return __awaiter(this, void 0, void 0, function* () {
+            const handlers = this.handlers[eventName];
+            if (!handlers || handlers.size < 1) {
+                return;
+            }
             const parsed = parseEventName(eventName);
             const attributes = Object.assign({}, (context.attributes || {}));
             if (context.error && attributes["error.type"] === undefined) {
@@ -67,10 +75,6 @@ class WebframezHooksFacade {
                 type: eventName,
                 context: Object.assign(Object.assign({}, context), { operation: parsed.operation, phase: parsed.phase, timestamp: context.timestamp || new Date(), attributes }),
             };
-            const handlers = this.handlers[eventName];
-            if (!handlers || handlers.size < 1) {
-                return;
-            }
             for (const handler of Array.from(handlers)) {
                 try {
                     yield handler(event);

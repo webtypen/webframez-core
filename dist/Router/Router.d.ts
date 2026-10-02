@@ -65,6 +65,8 @@ declare class RouterFacade {
     routesDELETE: {
         [key: string]: RouteObject[];
     };
+    private routeRegexCache;
+    private domainRegexCache;
     /**
      * Load the application-routes
      */
@@ -103,6 +105,8 @@ declare class RouterFacade {
     extractParams(path: string, match: any): any;
     escapeRegexPart(value: string): string;
     buildRouteRegex(path: string): RegExp;
+    private getRouteRegex;
+    private getDomainRegex;
     normalizeDomainString(value: string): string | null;
     getRequestHostCandidates(request?: Request): string[];
     getRouteDomainFilters(routeObj: RouteObject): string[];

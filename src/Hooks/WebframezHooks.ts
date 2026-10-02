@@ -106,12 +106,21 @@ class WebframezHooksFacade {
         return this;
     }
 
+    hasListeners(eventName: WebframezHookEventName) {
+        return (this.handlers[eventName]?.size || 0) > 0;
+    }
+
     async emit<TEventName extends WebframezHookEventName>(
         eventName: TEventName,
         context: Omit<Partial<WebframezOperationContext>, "operation" | "phase"> & {
             operationId: string;
         }
     ) {
+        const handlers = this.handlers[eventName];
+        if (!handlers || handlers.size < 1) {
+            return;
+        }
+
         const parsed = parseEventName(eventName);
         const attributes: WebframezHookAttributes = {
             ...(context.attributes || {}),
@@ -131,11 +140,6 @@ class WebframezHooksFacade {
                 attributes,
             },
         };
-
-        const handlers = this.handlers[eventName];
-        if (!handlers || handlers.size < 1) {
-            return;
-        }
 
         for (const handler of Array.from(handlers)) {
             try {

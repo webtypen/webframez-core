@@ -32,6 +32,7 @@ declare class WebframezHooksFacade {
     on<TEventName extends WebframezHookEventName>(eventName: TEventName, handler: WebframezHookHandler<TEventName>): () => this;
     off<TEventName extends WebframezHookEventName>(eventName: TEventName, handler: WebframezHookHandler<TEventName>): this;
     clear(eventName?: WebframezHookEventName): this;
+    hasListeners(eventName: WebframezHookEventName): boolean;
     emit<TEventName extends WebframezHookEventName>(eventName: TEventName, context: Omit<Partial<WebframezOperationContext>, "operation" | "phase"> & {
         operationId: string;
     }): Promise<void>;

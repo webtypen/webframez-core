@@ -69,6 +69,8 @@ class RouterFacade {
          * DELETE Route Store
          */
         this.routesDELETE = {};
+        this.routeRegexCache = new Map();
+        this.domainRegexCache = new Map();
     }
     /**
      * Load the application-routes
@@ -88,6 +90,8 @@ class RouterFacade {
         this.routesPUT = {};
         this.routesPATCH = {};
         this.routesDELETE = {};
+        this.routeRegexCache.clear();
+        this.domainRegexCache.clear();
         // Load routes
         if (options.routesFunction) {
             options.routesFunction();
@@ -138,6 +142,10 @@ class RouterFacade {
         }
         else {
             routeConf.component = component;
+        }
+        this.getRouteRegex(path);
+        for (const domain of this.getRouteDomainFilters(routeConf)) {
+            this.getDomainRegex(domain);
         }
         if (type === "GET") {
             if (!this.routesGET[path]) {
@@ -273,6 +281,22 @@ class RouterFacade {
         const regexString = "^" + escaped.replace(/__WFZ_TOKEN_(\d+)__/g, (all, tokenIndex) => placeholders[tokenIndex]) + "$";
         return new RegExp(regexString);
     }
+    getRouteRegex(path) {
+        let regex = this.routeRegexCache.get(path);
+        if (!regex) {
+            regex = this.buildRouteRegex(path);
+            this.routeRegexCache.set(path, regex);
+        }
+        return regex;
+    }
+    getDomainRegex(domain) {
+        let regex = this.domainRegexCache.get(domain);
+        if (!regex) {
+            regex = this.buildDomainRegex(domain);
+            this.domainRegexCache.set(domain, regex);
+        }
+        return regex;
+    }
     normalizeDomainString(value) {
         if (!value || value.trim() === "") {
             return null;
@@ -342,7 +366,7 @@ class RouterFacade {
         return new RegExp("^" + regexBody + "$", "i");
     }
     matchDomainFilter(hostname, domainFilter) {
-        const regex = this.buildDomainRegex(domainFilter);
+        const regex = this.getDomainRegex(domainFilter);
         const match = hostname.match(regex);
         if (!match) {
             return { matches: false, matchedDomain: null, wildcard: null };
@@ -411,7 +435,7 @@ class RouterFacade {
                 continue;
             }
             for (const routeObj of routeCandidates) {
-                const match = url.match(this.buildRouteRegex(routeObj.path));
+                const match = url.match(this.getRouteRegex(routeObj.path));
                 if (!match) {
                     continue;
                 }
@@ -442,14 +466,16 @@ class RouterFacade {
                 : this.mode === "aws-lambda" && options && options.event && options.event.requestContext && options.event.requestContext.http
                     ? options.event.requestContext.http.method
                     : null;
-            yield WebframezHooks_1.WebframezHooks.emit("http.request.start", {
-                operationId: httpOperationId,
-                name: initialMethod || (this.mode === "aws-lambda" ? "lambda" : "request"),
-                attributes: {
-                    "http.request.method": initialMethod,
-                    "webframez.mode": this.mode,
-                },
-            });
+            if (WebframezHooks_1.WebframezHooks.hasListeners("http.request.start")) {
+                yield WebframezHooks_1.WebframezHooks.emit("http.request.start", {
+                    operationId: httpOperationId,
+                    name: initialMethod || (this.mode === "aws-lambda" ? "lambda" : "request"),
+                    attributes: {
+                        "http.request.method": initialMethod,
+                        "webframez.mode": this.mode,
+                    },
+                });
+            }
             let request;
             let routeOperationId = null;
             try {
@@ -478,15 +504,17 @@ class RouterFacade {
                     },
                 });
                 const errorResult = this.handleError(fallbackRequest, response, statusCode, e);
-                yield WebframezHooks_1.WebframezHooks.emit("http.request.error", {
-                    operationId: httpOperationId,
-                    name: `${fallbackRequest.method || "HTTP"} unmatched`,
-                    status: "error",
-                    error: e,
-                    request: fallbackRequest,
-                    response,
-                    attributes: Object.assign(Object.assign({ "http.request.method": fallbackRequest.method || null, "http.response.status_code": statusCode }, requestTelemetryAttributes(fallbackRequest)), { "webframez.mode": this.mode }),
-                });
+                if (WebframezHooks_1.WebframezHooks.hasListeners("http.request.error")) {
+                    yield WebframezHooks_1.WebframezHooks.emit("http.request.error", {
+                        operationId: httpOperationId,
+                        name: `${fallbackRequest.method || "HTTP"} unmatched`,
+                        status: "error",
+                        error: e,
+                        request: fallbackRequest,
+                        response,
+                        attributes: Object.assign(Object.assign({ "http.request.method": fallbackRequest.method || null, "http.response.status_code": statusCode }, requestTelemetryAttributes(fallbackRequest)), { "webframez.mode": this.mode }),
+                    });
+                }
                 return errorResult;
             }
             const route = this.dissolve(request);
@@ -496,83 +524,95 @@ class RouterFacade {
             }
             if (!route) {
                 const notFoundResult = this.handleError(request, response, 404, "Not found '" + request.url + "' ...");
-                yield WebframezHooks_1.WebframezHooks.emit("http.request.end", {
-                    operationId: httpOperationId,
-                    name: `${request.method} unmatched`,
-                    status: "ok",
-                    request,
-                    response,
-                    attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": 404 }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
-                });
+                if (WebframezHooks_1.WebframezHooks.hasListeners("http.request.end")) {
+                    yield WebframezHooks_1.WebframezHooks.emit("http.request.end", {
+                        operationId: httpOperationId,
+                        name: `${request.method} unmatched`,
+                        status: "ok",
+                        request,
+                        response,
+                        attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": 404 }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
+                    });
+                }
                 return notFoundResult;
             }
             if (!(route.component && typeof route.component === "function") && !(route.controller && route.method_name)) {
                 const missingRouteResult = this.handleError(request, response, 404, "Missing route function ...");
-                yield WebframezHooks_1.WebframezHooks.emit("http.request.end", {
-                    operationId: httpOperationId,
-                    name: `${request.method} ${route.path}`,
-                    status: "ok",
-                    request,
-                    response,
-                    attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": 404, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
-                });
-                return missingRouteResult;
-            }
-            try {
-                yield this.handleMiddleware(route, request, response);
-                if (request.method === "OPTIONS" && !request.skipOptionsForward) {
-                    const optionsResult = this.handleReturn(request, response, "");
+                if (WebframezHooks_1.WebframezHooks.hasListeners("http.request.end")) {
                     yield WebframezHooks_1.WebframezHooks.emit("http.request.end", {
                         operationId: httpOperationId,
                         name: `${request.method} ${route.path}`,
                         status: "ok",
                         request,
                         response,
-                        attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": response.statusCode || 200, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
+                        attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": 404, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
                     });
-                    return optionsResult;
                 }
-                let result = null;
-                routeOperationId = WebframezHooks_1.WebframezHooks.createOperationId("route");
-                yield WebframezHooks_1.WebframezHooks.emit("route.handler.start", {
-                    operationId: routeOperationId,
-                    parentOperationId: httpOperationId,
-                    name: `${request.method} ${route.path}`,
-                    attributes: {
-                        "http.request.method": request.method,
-                        "url.template": route.path,
-                        "webframez.route": route.path,
-                        "webframez.route.handler": route.controller && route.method_name
-                            ? `${route.controller.name || "Controller"}@${route.method_name}`
-                            : "component",
-                    },
-                });
-                if (route.controller && route.method_name) {
-                    const controllerInstance = new route.controller();
-                    if (!controllerInstance[route.method_name]) {
-                        const unknownMethodResult = this.handleError(request, response, 404, "Unknown method '" + route.method_name + "'.");
-                        yield WebframezHooks_1.WebframezHooks.emit("route.handler.error", {
-                            operationId: routeOperationId,
-                            parentOperationId: httpOperationId,
-                            name: `${request.method} ${route.path}`,
-                            status: "error",
-                            error: new Error("Unknown route method"),
-                            attributes: {
-                                "http.request.method": request.method,
-                                "http.response.status_code": 404,
-                                "url.template": route.path,
-                                "webframez.route": route.path,
-                                "webframez.route.handler": `${route.controller.name || "Controller"}@${route.method_name}`,
-                            },
-                        });
+                return missingRouteResult;
+            }
+            try {
+                yield this.handleMiddleware(route, request, response);
+                if (request.method === "OPTIONS" && !request.skipOptionsForward) {
+                    const optionsResult = this.handleReturn(request, response, "");
+                    if (WebframezHooks_1.WebframezHooks.hasListeners("http.request.end")) {
                         yield WebframezHooks_1.WebframezHooks.emit("http.request.end", {
                             operationId: httpOperationId,
                             name: `${request.method} ${route.path}`,
                             status: "ok",
                             request,
                             response,
-                            attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": 404, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
+                            attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": response.statusCode || 200, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
                         });
+                    }
+                    return optionsResult;
+                }
+                let result = null;
+                routeOperationId = WebframezHooks_1.WebframezHooks.createOperationId("route");
+                if (WebframezHooks_1.WebframezHooks.hasListeners("route.handler.start")) {
+                    yield WebframezHooks_1.WebframezHooks.emit("route.handler.start", {
+                        operationId: routeOperationId,
+                        parentOperationId: httpOperationId,
+                        name: `${request.method} ${route.path}`,
+                        attributes: {
+                            "http.request.method": request.method,
+                            "url.template": route.path,
+                            "webframez.route": route.path,
+                            "webframez.route.handler": route.controller && route.method_name
+                                ? `${route.controller.name || "Controller"}@${route.method_name}`
+                                : "component",
+                        },
+                    });
+                }
+                if (route.controller && route.method_name) {
+                    const controllerInstance = new route.controller();
+                    if (!controllerInstance[route.method_name]) {
+                        const unknownMethodResult = this.handleError(request, response, 404, "Unknown method '" + route.method_name + "'.");
+                        if (WebframezHooks_1.WebframezHooks.hasListeners("route.handler.error")) {
+                            yield WebframezHooks_1.WebframezHooks.emit("route.handler.error", {
+                                operationId: routeOperationId,
+                                parentOperationId: httpOperationId,
+                                name: `${request.method} ${route.path}`,
+                                status: "error",
+                                error: new Error("Unknown route method"),
+                                attributes: {
+                                    "http.request.method": request.method,
+                                    "http.response.status_code": 404,
+                                    "url.template": route.path,
+                                    "webframez.route": route.path,
+                                    "webframez.route.handler": `${route.controller.name || "Controller"}@${route.method_name}`,
+                                },
+                            });
+                        }
+                        if (WebframezHooks_1.WebframezHooks.hasListeners("http.request.end")) {
+                            yield WebframezHooks_1.WebframezHooks.emit("http.request.end", {
+                                operationId: httpOperationId,
+                                name: `${request.method} ${route.path}`,
+                                status: "ok",
+                                request,
+                                response,
+                                attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": 404, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
+                            });
+                        }
                         return unknownMethodResult;
                     }
                     result = yield controllerInstance[route.method_name].bind(controllerInstance)(request, response);
@@ -581,40 +621,46 @@ class RouterFacade {
                     result = yield route.component(request, response);
                 }
                 const returnResult = this.handleReturn(request, response, result);
-                yield WebframezHooks_1.WebframezHooks.emit("route.handler.end", {
-                    operationId: routeOperationId,
-                    parentOperationId: httpOperationId,
-                    name: `${request.method} ${route.path}`,
-                    status: "ok",
-                    attributes: {
-                        "http.request.method": request.method,
-                        "http.response.status_code": response.statusCode || 200,
-                        "url.template": route.path,
-                        "webframez.route": route.path,
-                    },
-                });
-                yield WebframezHooks_1.WebframezHooks.emit("http.request.end", {
-                    operationId: httpOperationId,
-                    name: `${request.method} ${route.path}`,
-                    status: "ok",
-                    request,
-                    response,
-                    attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": response.statusCode || 200, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
-                });
+                if (WebframezHooks_1.WebframezHooks.hasListeners("route.handler.end")) {
+                    yield WebframezHooks_1.WebframezHooks.emit("route.handler.end", {
+                        operationId: routeOperationId,
+                        parentOperationId: httpOperationId,
+                        name: `${request.method} ${route.path}`,
+                        status: "ok",
+                        attributes: {
+                            "http.request.method": request.method,
+                            "http.response.status_code": response.statusCode || 200,
+                            "url.template": route.path,
+                            "webframez.route": route.path,
+                        },
+                    });
+                }
+                if (WebframezHooks_1.WebframezHooks.hasListeners("http.request.end")) {
+                    yield WebframezHooks_1.WebframezHooks.emit("http.request.end", {
+                        operationId: httpOperationId,
+                        name: `${request.method} ${route.path}`,
+                        status: "ok",
+                        request,
+                        response,
+                        attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": response.statusCode || 200, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
+                    });
+                }
                 return returnResult;
             }
             catch (e) {
                 if (this.isMiddlewareRejectSignal(e)) {
                     const middlewareErrorResult = this.handleError(request, response, 500, e.reason);
-                    yield WebframezHooks_1.WebframezHooks.emit("http.request.error", {
-                        operationId: httpOperationId,
-                        name: `${request.method} ${route.path}`,
-                        status: "error",
-                        error: e.reason || e,
-                        request,
-                        response,
-                        attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": 500, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
-                    });
+                    if (WebframezHooks_1.WebframezHooks.hasListeners("http.request.error")) {
+                        yield WebframezHooks_1.WebframezHooks.emit("http.request.error", {
+                            operationId: httpOperationId,
+                            name: `${request.method} ${route.path}`,
+                            status: "error",
+                            error: e.reason || e,
+                            request,
+                            response,
+                            attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": 500, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
+                        });
+                    }
                     return middlewareErrorResult;
                 }
                 yield ErrorHandler_1.ErrorHandler.report(e, {
@@ -632,29 +678,33 @@ class RouterFacade {
                 });
                 const errorResult = this.handleError(request, response, 500, e);
                 if (routeOperationId) {
-                    yield WebframezHooks_1.WebframezHooks.emit("route.handler.error", {
-                        operationId: routeOperationId,
-                        parentOperationId: httpOperationId,
+                    if (WebframezHooks_1.WebframezHooks.hasListeners("route.handler.error")) {
+                        yield WebframezHooks_1.WebframezHooks.emit("route.handler.error", {
+                            operationId: routeOperationId,
+                            parentOperationId: httpOperationId,
+                            name: `${request.method} ${route.path}`,
+                            status: "error",
+                            error: e,
+                            attributes: {
+                                "http.request.method": request.method,
+                                "http.response.status_code": 500,
+                                "url.template": route.path,
+                                "webframez.route": route.path,
+                            },
+                        });
+                    }
+                }
+                if (WebframezHooks_1.WebframezHooks.hasListeners("http.request.error")) {
+                    yield WebframezHooks_1.WebframezHooks.emit("http.request.error", {
+                        operationId: httpOperationId,
                         name: `${request.method} ${route.path}`,
                         status: "error",
                         error: e,
-                        attributes: {
-                            "http.request.method": request.method,
-                            "http.response.status_code": 500,
-                            "url.template": route.path,
-                            "webframez.route": route.path,
-                        },
+                        request,
+                        response,
+                        attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": 500, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
                     });
                 }
-                yield WebframezHooks_1.WebframezHooks.emit("http.request.error", {
-                    operationId: httpOperationId,
-                    name: `${request.method} ${route.path}`,
-                    status: "error",
-                    error: e,
-                    request,
-                    response,
-                    attributes: Object.assign(Object.assign({ "http.request.method": request.method, "http.response.status_code": 500, "url.template": route.path, "webframez.route": route.path }, requestTelemetryAttributes(request)), { "webframez.mode": this.mode }),
-                });
                 return errorResult;
             }
         });

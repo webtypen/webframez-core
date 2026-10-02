@@ -925,3 +925,16 @@ the text representation; their separate `icon` property controls navigation icon
 ## DataBuilder model forms
 
 DataBuilder supports `@Field()`, parameterized `@Validates()`, server-side `ModelForm` classes and `Route.databuilder()` while retaining the v1 request protocol and legacy controller registrations. See [DataBuilder documentation](docs/databuilder.md).
+
+## Routing and lifecycle performance
+
+Route and domain patterns are compiled at registration and reused while matching.
+`Router.init()` resets their caches; runtime registration and legacy direct route
+stores still work. Exact-route precedence, domain ordering, parameters and wildcards
+retain their existing behavior. Public regex builders still produce fresh regexes.
+
+Lifecycle hooks skip event normalization when no listeners are registered. Use
+`WebframezHooks.hasListeners(eventName)` before constructing an expensive payload.
+Registered handlers retain their ordered, awaited execution and snapshot behavior.
+The router applies this check before building telemetry payloads. Middleware keeps
+its existing `next`/`reject` callback contract.
