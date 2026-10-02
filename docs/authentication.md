@@ -562,3 +562,25 @@ access nor refresh credentials need appear in navigation URLs. Configure a stron
 and an instance-specific audience. Create TTL indexes on `auth_handoffs.purgeAt`,
 `auth_sso_transactions.purgeAt` and `auth_sso_codes.purgeAt`, or schedule their cleanup methods.
 SSO introspection records successful central session activity, respecting its absolute expiry.
+
+### Linked parent session reuse
+
+`session.parentSessions: { mode: "reuse", secret: serverSecret }` opts into one local
+session per exact parent issuer/session, user, scope, audience and environment. The default
+`mode: "new"` retains independent session creation. Logins without a parent remain independent.
+The secret must be at least 32 characters and stay stable across all processes of an instance.
+Core stores hashes and independent random credential nonces, never plaintext tokens; a
+domain-separated HMAC derives the current credentials only on the trusted server. Rotation
+updates both hashes and nonces atomically. Reopening returns the current pair without rotating
+refresh or resetting the login timestamp. `auth_sessions_links` uses its primary key for atomic
+creation; add an optional TTL index on `purgeAt` for housekeeping. Session `_id` and `_subject`
+continue to use driver-native IDs. A revoked/expired local child creates a new generation.
+Changing the secret requires revoking existing linked sessions before reauthentication.
+
+Trusted callers can pass parent expiry as the fifth argument to
+`Auth.scope().establishBearerSession(request, subject, parent, environment, parentExpiresAt)`
+or fourth argument to `sessions.create`. It caps child expiry. Parent revocation must still be
+checked by `isSessionAllowed` on every authentication/refresh. To enforce logout on the next
+request, do not cache positive introspection results. This requires one authority round trip
+per check and fails closed when the authority is unavailable. No browser push is implied;
+clients detect logout when making their next authenticated request.

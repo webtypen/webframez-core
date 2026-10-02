@@ -226,7 +226,7 @@ export class AuthScope extends WebAuth {
     }
 
     /** Trusted SSO/server entry point; the subject must already be verified by the caller. */
-    async establishBearerSession(req: Request, subject: string, parent: AuthSession["parent"] = null, environment?: string) {
+    async establishBearerSession(req: Request, subject: string, parent: AuthSession["parent"] = null, environment?: string, parentExpiresAt?: number) {
         if (this.modelOptions.transport !== "bearer") throw new Error("Bearer transport is not enabled for this auth scope.");
         const id = this.fields.primaryKey === "_id" ? await this.model.objectId(subject, { noExceptions: true }) : subject;
         const user = id == null ? null : await this.model.where(this.fields.primaryKey, "=", id).first();
@@ -238,11 +238,11 @@ export class AuthScope extends WebAuth {
             try { await this.modelOptions.beforeLogin(req, user, this); }
             catch (error) { throw new AuthHookError("login_blocked", error); }
         }
-        const pair = await this.sessions.create(subject, parent, environment);
-        if (this.modelOptions.trackActivity !== false) await this.sessions.recordLogin(pair.session, authHeader(req, "user-agent"));
+        const pair = await this.sessions.create(subject, parent, environment, parentExpiresAt);
+        if (!pair.reused && this.modelOptions.trackActivity !== false) await this.sessions.recordLogin(pair.session, authHeader(req, "user-agent"));
         if (this.modelOptions.onLogin) await this.modelOptions.onLogin(pair.session, req);
         if (this.modelOptions.afterLogin) await this.modelOptions.afterLogin(req, user, this);
-        const { csrf_token, ...tokens } = pair;
+        const { csrf_token, reused, ...tokens } = pair;
         return tokens;
     }
 

@@ -24,6 +24,7 @@ export type SessionTokenPair = {
 };
 export type CreatedAuthSession = SessionTokenPair & {
     csrf_token: string;
+    reused?: boolean;
 };
 export type SessionAuthOptions = {
     issuer: string;
@@ -32,6 +33,11 @@ export type SessionAuthOptions = {
     environment?: string;
     /** Allow server-selected environments per session instead of one fixed environment. */
     allowDynamicEnvironment?: boolean;
+    /** Reuse one child per parent, subject and environment. Requires a strong server-held secret. */
+    parentSessions?: {
+        mode: "new" | "reuse";
+        secret?: string;
+    };
     connection?: string;
     collection?: string;
     accessTokenSeconds?: number;
@@ -60,7 +66,10 @@ export declare class SessionAuth {
     private liveFilter;
     private allowed;
     private pair;
-    create(subject: string, parent?: AuthSession["parent"], environment?: string): Promise<CreatedAuthSession>;
+    private credentials;
+    private reuse;
+    private linkedRecord;
+    create(subject: string, parent?: AuthSession["parent"], environment?: string, parentExpiresAt?: number): Promise<CreatedAuthSession>;
     authenticate(token: string): Promise<AuthSession | null>;
     /** Trusted-server introspection; never expose this method as an unauthenticated endpoint. */
     inspect(sessionId: string): Promise<AuthSession | null>;

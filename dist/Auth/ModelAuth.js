@@ -211,7 +211,7 @@ class AuthScope extends WebAuth_1.WebAuth {
         });
     }
     /** Trusted SSO/server entry point; the subject must already be verified by the caller. */
-    establishBearerSession(req, subject, parent = null, environment) {
+    establishBearerSession(req, subject, parent = null, environment, parentExpiresAt) {
         return __awaiter(this, void 0, void 0, function* () {
             if (this.modelOptions.transport !== "bearer")
                 throw new Error("Bearer transport is not enabled for this auth scope.");
@@ -229,14 +229,14 @@ class AuthScope extends WebAuth_1.WebAuth {
                     throw new AuthHookError("login_blocked", error);
                 }
             }
-            const pair = yield this.sessions.create(subject, parent, environment);
-            if (this.modelOptions.trackActivity !== false)
+            const pair = yield this.sessions.create(subject, parent, environment, parentExpiresAt);
+            if (!pair.reused && this.modelOptions.trackActivity !== false)
                 yield this.sessions.recordLogin(pair.session, (0, AuthSecurity_1.authHeader)(req, "user-agent"));
             if (this.modelOptions.onLogin)
                 yield this.modelOptions.onLogin(pair.session, req);
             if (this.modelOptions.afterLogin)
                 yield this.modelOptions.afterLogin(req, user, this);
-            const { csrf_token } = pair, tokens = __rest(pair, ["csrf_token"]);
+            const { csrf_token, reused } = pair, tokens = __rest(pair, ["csrf_token", "reused"]);
             return tokens;
         });
     }

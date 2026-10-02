@@ -1,3 +1,4 @@
+import { createHmac } from "crypto";
 import { DBConnection } from "../Database/DBConnection";
 import type { DatabaseId, DatabaseIdAdapter, DocumentDatabase } from "../Database/DatabaseAdapter";
 import { authLifetime, authText, hashAuthToken, randomAuthToken } from "./AuthSecurity";
@@ -24,7 +25,7 @@ export type SessionTokenPair = {
     session: AuthSession;
 };
 
-export type CreatedAuthSession = SessionTokenPair & { csrf_token: string };
+export type CreatedAuthSession = SessionTokenPair & { csrf_token: string; reused?: boolean };
 
 export type SessionAuthOptions = {
     issuer: string;
@@ -33,6 +34,8 @@ export type SessionAuthOptions = {
     environment?: string;
     /** Allow server-selected environments per session instead of one fixed environment. */
     allowDynamicEnvironment?: boolean;
+    /** Reuse one child per parent, subject and environment. Requires a strong server-held secret. */
+    parentSessions?: { mode: "new" | "reuse"; secret?: string };
     connection?: string;
     collection?: string;
     accessTokenSeconds?: number;
@@ -57,6 +60,7 @@ type SessionRecord = Omit<AuthSession, "id" | "subject"> & {
     usedRefreshHashes: string[];
     accessExpiresAt: number;
     revokedAt: number | null;
+    credentialState?: { access: string; refresh: string; csrf: string };
 };
 
 function publicSession(record: SessionRecord): AuthSession {
@@ -84,6 +88,9 @@ export class SessionAuth {
         this.accessSeconds = authLifetime(options.accessTokenSeconds, 15 * 60);
         this.sessionSeconds = authLifetime(options.sessionSeconds, 30 * 86400);
         this.idleSeconds = options.idleTimeoutSeconds === undefined || options.idleTimeoutSeconds === false ? false : authLifetime(options.idleTimeoutSeconds, 7 * 86400);
+        if (options.parentSessions?.mode === "reuse" && (typeof options.parentSessions.secret !== "string" || options.parentSessions.secret.length < 32)) {
+            throw new Error("Parent session reuse requires a strong server secret.");
+        }
         if (typeof options.isSessionAllowed !== "function") throw new Error("SessionAuth requires isSessionAllowed.");
     }
 
@@ -123,20 +130,92 @@ export class SessionAuth {
             refresh_expires_at: Math.min(record.expiresAt, record.createdAt + this.sessionSeconds * 1000), session: publicSession(record) };
     }
 
-    async create(subject: string, parent: AuthSession["parent"] = null, environment?: string): Promise<CreatedAuthSession> {
+    private credentials(record: SessionRecord): { access: string; refresh: string; csrf: string } {
+        if (!record.credentialState || !this.options.parentSessions?.secret) throw new Error("Linked session credentials are unavailable.");
+        const context = JSON.stringify([String(record._id), String(record._subject), record.issuer, record.audience,
+            record.scope, record.environment, record.parent?.issuer, record.parent?.sessionId]);
+        const derive = (kind: "access" | "refresh" | "csrf") => createHmac("sha256", this.options.parentSessions!.secret!)
+            .update(JSON.stringify(["webframez-parent-session-v1", context, kind, record.credentialState![kind]])).digest("base64url");
+        return { access: `${record._id}.${derive("access")}`, refresh: `${record._id}.${derive("refresh")}`, csrf: derive("csrf") };
+    }
+
+    private async reuse(record: SessionRecord): Promise<CreatedAuthSession> {
+        if (!await this.allowed(record)) throw new Error("Session is not allowed.");
+        const credentials = this.credentials(record);
+        if (hashAuthToken(credentials.access) !== record.accessHash || hashAuthToken(credentials.refresh) !== record.refreshHash
+            || hashAuthToken(credentials.csrf) !== record.csrfHash) throw new Error("Linked session credentials have changed.");
+        if (record.accessExpiresAt <= Date.now()) {
+            await this.renewAccess(credentials.refresh);
+            const current = await (await this.rows()).findOne({ _id: record._id, ...this.scope });
+            if (!current || current.accessExpiresAt <= Date.now()) throw new Error("Linked session access could not be renewed.");
+            return this.reuse(current);
+        }
+        const session = publicSession(record);
+        await this.touch(session);
+        return { ...this.pair(record, credentials.access, credentials.refresh), session, csrf_token: credentials.csrf, reused: true };
+    }
+
+    private async linkedRecord(record: SessionRecord): Promise<SessionRecord> {
+        const db = await (this.options.database ? this.options.database() : DBConnection.getDocumentStore(this.options.connection));
+        const links = db.collection(`${this.options.collection || "auth_sessions"}_links`);
+        const key = hashAuthToken(JSON.stringify([record.issuer, record.audience, record.scope, String(record._subject),
+            record.environment, record.parent!.issuer, record.parent!.sessionId]));
+        let link;
+        try {
+            link = await links.findOneAndUpdate({ _id: key }, { $setOnInsert: { ...this.scope, environment: record.environment,
+                sessionId: record._id, purgeAt: new Date(record.expiresAt) } }, { upsert: true, returnDocument: "after" });
+        } catch (error) {
+            if ((error as { code?: number }).code !== 11000) throw error;
+            link = await links.findOne({ _id: key });
+        }
+        if (!link) throw new Error("Linked session reference is unavailable.");
+        for (let attempt = 0; attempt < 5; attempt++) {
+            const candidate = { ...record, _id: link.sessionId, accessExpiresAt: Math.min(record.accessExpiresAt, record.expiresAt) };
+            const credentials = this.credentials(candidate);
+            Object.assign(candidate, { accessHash: hashAuthToken(credentials.access), refreshHash: hashAuthToken(credentials.refresh), csrfHash: hashAuthToken(credentials.csrf) });
+            let stored: SessionRecord | null;
+            try {
+                stored = await (await this.rows()).findOneAndUpdate({ _id: candidate._id }, { $setOnInsert: candidate }, { upsert: true, returnDocument: "after" });
+            } catch (error) {
+                if ((error as { code?: number }).code !== 11000) throw error;
+                stored = await (await this.rows()).findOne({ _id: candidate._id });
+            }
+            if (!stored) throw new Error("Linked session is unavailable.");
+            // A denied parent or membership must fail closed, rather than create another session.
+            if (stored.revokedAt === null && stored.expiresAt > Date.now()
+                && stored.createdAt + this.sessionSeconds * 1000 > Date.now()
+                && (this.idleSeconds === false || (stored.lastActiveAt ?? stored.createdAt) + this.idleSeconds * 1000 > Date.now())) return stored;
+            link = await links.findOneAndUpdate({ _id: key, sessionId: stored._id },
+                { $set: { sessionId: this.ids().create(), purgeAt: new Date(record.expiresAt) } }, { returnDocument: "after" })
+                || await links.findOne({ _id: key });
+        }
+        throw new Error("Linked session could not be established.");
+    }
+
+    async create(subject: string, parent: AuthSession["parent"] = null, environment?: string, parentExpiresAt?: number): Promise<CreatedAuthSession> {
         authText(subject, "subject");
         if (environment !== undefined && (!this.options.allowDynamicEnvironment || this.options.environment !== undefined)) {
             throw new Error("Dynamic session environments are not enabled.");
         }
         if (parent) { authText(parent.issuer, "parent issuer"); authText(parent.sessionId, "parent session"); }
+        if (parentExpiresAt !== undefined && (!parent || !Number.isFinite(parentExpiresAt) || parentExpiresAt <= Date.now())) {
+            throw new Error("Invalid parent session expiry.");
+        }
         const now = Date.now(), id = this.ids().create();
         const access = `${id}.${randomAuthToken()}`, refresh = `${id}.${randomAuthToken()}`, csrf = randomAuthToken();
         const record: SessionRecord = { _id: id, _subject: this.ids().create(subject), ...this.scope, environment: environment === undefined ? this.scope.environment ?? null : authText(environment, "environment"), parent: parent ? { ...parent } : null,
-            createdAt: now, lastActiveAt: now, expiresAt: now + this.sessionSeconds * 1000,
+            createdAt: now, lastActiveAt: now, expiresAt: Math.min(now + this.sessionSeconds * 1000, parentExpiresAt ?? Infinity),
             accessExpiresAt: now + Math.min(this.accessSeconds, this.sessionSeconds) * 1000,
             accessHash: hashAuthToken(access), refreshHash: hashAuthToken(refresh), csrfHash: hashAuthToken(csrf),
             usedRefreshHashes: [], revokedAt: null };
         if (!await this.allowed(record)) throw new Error("Session is not allowed.");
+        if (parent && this.options.parentSessions?.mode === "reuse") {
+            record.credentialState = { access: randomAuthToken(), refresh: randomAuthToken(), csrf: randomAuthToken() };
+            const stored = await this.linkedRecord(record);
+            const pair = await this.reuse(stored);
+            return { ...pair, reused: stored.credentialState?.access !== record.credentialState.access };
+        }
+        record.accessExpiresAt = Math.min(record.accessExpiresAt, record.expiresAt);
         await (await this.rows()).insertOne(record);
         return { ...this.pair(record, access, refresh), csrf_token: csrf };
     }
@@ -178,9 +257,11 @@ export class SessionAuth {
         }
         // Bound history size and retain an absolute expiry instead of extending sessions indefinitely.
         if (row.usedRefreshHashes.length >= 4096) { await this.revoke(id); return null; }
-        const access = `${id}.${randomAuthToken()}`, refresh = `${id}.${randomAuthToken()}`;
+        const credentialState = row.credentialState ? { ...row.credentialState, access: randomAuthToken(), refresh: randomAuthToken() } : undefined;
+        const credentials = credentialState ? this.credentials({ ...row, credentialState }) : null;
+        const access = credentials?.access ?? `${id}.${randomAuthToken()}`, refresh = credentials?.refresh ?? `${id}.${randomAuthToken()}`;
         const next = await rows.findOneAndUpdate({ _id: this.sessionId(id), ...this.scope, refreshHash: hash, ...this.liveFilter() },
-            { $set: { accessHash: hashAuthToken(access), refreshHash: hashAuthToken(refresh),
+            { $set: { ...(credentialState ? { credentialState } : {}), accessHash: hashAuthToken(access), refreshHash: hashAuthToken(refresh),
                 accessExpiresAt: Math.min(Date.now() + this.accessSeconds * 1000, row.expiresAt, row.createdAt + this.sessionSeconds * 1000),
                 lastActiveAt: Date.now(),
                 usedRefreshHashes: [...row.usedRefreshHashes, hash] } }, { returnDocument: "after" });
@@ -208,8 +289,9 @@ export class SessionAuth {
         const filter = { _id: this.sessionId(id), ...this.scope, refreshHash: hashAuthToken(token), ...this.liveFilter(), accessExpiresAt: { $lte: Date.now() } };
         const row = await rows.findOne(filter);
         if (!row || !await this.allowed(row)) return null;
-        const access = `${id}.${randomAuthToken()}`, now = Date.now();
-        const next = await rows.findOneAndUpdate(filter, { $set: { accessHash: hashAuthToken(access),
+        const credentialState = row.credentialState ? { ...row.credentialState, access: randomAuthToken() } : undefined;
+        const access = credentialState ? this.credentials({ ...row, credentialState }).access : `${id}.${randomAuthToken()}`, now = Date.now();
+        const next = await rows.findOneAndUpdate(filter, { $set: { ...(credentialState ? { credentialState } : {}), accessHash: hashAuthToken(access),
             accessExpiresAt: Math.min(now + this.accessSeconds * 1000, row.expiresAt, row.createdAt + this.sessionSeconds * 1000),
             lastActiveAt: now } }, { returnDocument: "after" });
         const session = next ? await this.allowed(next) : null;

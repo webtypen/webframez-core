@@ -24,7 +24,7 @@ function database() {
    async insertOne(row){if(records.has(row._id))throw Error('duplicate key');records.set(row._id,clone(row));return {insertedId:row._id}},
    async findOne(filter){return clone(select(filter)[0]||null)},
    find(filter){return {async toArray(){return clone(select(filter))}}},
-   async findOneAndUpdate(filter,change,options){const row=select(filter)[0];if(!row)return null;const before=clone(row);update(row,change);return options?.returnDocument==='after'?clone(row):before},
+   async findOneAndUpdate(filter,change,options){let row=select(filter)[0];if(!row && options?.upsert){row={...clone(filter),...clone(change.$setOnInsert||{})};records.set(row._id,row);update(row,change);return options?.returnDocument==='after'?clone(row):null;}if(!row)return null;const before=clone(row);update(row,change);return options?.returnDocument==='after'?clone(row):before},
    async updateOne(filter,change){const row=select(filter)[0];if(row)update(row,change);return {matchedCount:row?1:0}},
    async updateMany(filter,change){const rows=select(filter);rows.forEach(row=>update(row,change));return {matchedCount:rows.length}},
    async deleteMany(filter){for(const row of select(filter))records.delete(row._id)},

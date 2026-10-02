@@ -86,7 +86,7 @@ export declare class AuthScope extends WebAuth {
     login(req: Request, res: Response, verifyCredentials?: () => Promise<string | null>): Promise<AuthSession>;
     logout(req: Request, res: Response): Promise<void>;
     /** Trusted SSO/server entry point; the subject must already be verified by the caller. */
-    establishBearerSession(req: Request, subject: string, parent?: AuthSession["parent"], environment?: string): Promise<{
+    establishBearerSession(req: Request, subject: string, parent?: AuthSession["parent"], environment?: string, parentExpiresAt?: number): Promise<{
         auth_token: string;
         refresh_token: string;
         auth_expires_at: number;
