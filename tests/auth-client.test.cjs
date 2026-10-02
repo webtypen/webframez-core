@@ -71,3 +71,24 @@ test('browser adapter preserves permission failures and never loops when refresh
     assert.equal((await expired('/api/action', { method: 'POST' })).status, 403);
     assert.equal(calls, 3);
 });
+
+test('shared browser lock covers refresh and replay across independent tab adapters', async () => {
+    const order = [], names = [], attempts = new Map();
+    let queue = Promise.resolve();
+    const context = { exports: {}, window: { location: { href: 'https://site.example/', origin: 'https://site.example', protocol: 'https:' } },
+        document: { cookie: '__Host-wf_csrf=bound-csrf' }, URL, Request, Headers,
+        navigator: { locks: { request(name, run) { names.push(name); const result = queue.then(run); queue = result.then(() => {}, () => {}); return result; } } } };
+    vm.runInNewContext(fs.readFileSync(require.resolve('../auth-client'), 'utf8'), context);
+    const original = async input => {
+        if (input === '/api/auth/refresh') { order.push('refresh'); await new Promise(resolve => setTimeout(resolve, 5)); return new Response('{}'); }
+        const count = (attempts.get(input) || 0) + 1; attempts.set(input, count);
+        if (count === 1) return new Response(JSON.stringify({ code: 'invalid_csrf' }), { status: 403 });
+        order.push(input);
+        return new Response('{}');
+    };
+    const first = context.exports.createAuthFetch({}, original), second = context.exports.createAuthFetch({}, original);
+    const results = await Promise.all([first('/api/one', { method: 'POST' }), second('/api/two', { method: 'POST' })]);
+    assert.deepEqual(results.map(result => result.status), [200, 200]);
+    assert.deepEqual(order, ['refresh', '/api/one', 'refresh', '/api/two']);
+    assert.deepEqual(names, ['webframez-auth:/api/auth', 'webframez-auth:/api/auth']);
+});

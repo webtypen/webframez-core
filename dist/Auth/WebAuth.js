@@ -96,7 +96,7 @@ class WebAuth {
                 return null;
             const pair = yield this.sessions.renewAccess(token);
             if (!pair)
-                return null;
+                return this.sessions.inspectRefresh(token);
             this.writePair(res, pair);
             const name = this.cookies.prefix + "access";
             const cookies = (0, AuthSecurity_1.authHeader)(req, "cookie").split(";").map(value => value.trim()).filter(value => value && !value.startsWith(`${name}=`));

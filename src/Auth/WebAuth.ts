@@ -89,7 +89,7 @@ export class WebAuth {
         const token = this.cookies.read(req, "refresh"), csrf = this.cookies.read(req, "csrf");
         if (!await this.sessions.verifyCsrf(token, csrf, "refresh")) return null;
         const pair = await this.sessions.renewAccess(token);
-        if (!pair) return null;
+        if (!pair) return this.sessions.inspectRefresh(token);
         this.writePair(res, pair);
         const name = this.cookies.prefix + "access";
         const cookies = authHeader(req, "cookie").split(";").map(value => value.trim()).filter(value => value && !value.startsWith(`${name}=`));

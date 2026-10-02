@@ -186,12 +186,20 @@ export class SessionAuth {
         return this.pair(next, access, refresh);
     }
 
+    /** Trusted server refresh-secret lookup; never expose as a public endpoint. */
+    async inspectRefresh(token: string): Promise<AuthSession | null> {
+        const id = tokenSessionId(token);
+        if (!id) return null;
+        return this.allowed(await (await this.rows()).findOne({ _id: this.sessionId(id), ...this.scope,
+            refreshHash: hashAuthToken(token), ...this.liveFilter() }));
+    }
+
     /** Trusted browser GET resumption: renew access without consuming or replaying refresh rotation. */
     async renewAccess(token: string): Promise<SessionTokenPair | null> {
         const id = tokenSessionId(token);
         if (!id) return null;
         const rows = await this.rows();
-        const filter = { _id: this.sessionId(id), ...this.scope, refreshHash: hashAuthToken(token), ...this.liveFilter() };
+        const filter = { _id: this.sessionId(id), ...this.scope, refreshHash: hashAuthToken(token), ...this.liveFilter(), accessExpiresAt: { $lte: Date.now() } };
         const row = await rows.findOne(filter);
         if (!row || !await this.allowed(row)) return null;
         const access = `${id}.${randomAuthToken()}`, now = Date.now();

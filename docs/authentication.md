@@ -475,7 +475,9 @@ unsafe requests, revive expired sessions, or extend absolute expiry. Explicit
 POST refresh rotates both secrets and retains replay protection. Middleware uses
 this resumption automatically when a response is available. Browser `createAuthFetch`
 refreshes rejected authentication/CSRF requests once, then repeats the rejected
-request once; login failures and permission errors are never retried.
+request once; login failures and permission errors are never retried. Web Locks
+serialize refresh calls across tabs in browsers supporting that API; a per-window
+single-flight promise remains the fallback.
 
 Reset tokens have 256-bit random secrets; only a SHA-256 digest bound to the scope
 and current password is stored. Per-account request cooldown is an atomic conditional

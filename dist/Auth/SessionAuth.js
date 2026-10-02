@@ -144,6 +144,15 @@ class SessionAuth {
             return this.pair(next, access, refresh);
         });
     }
+    /** Trusted server refresh-secret lookup; never expose as a public endpoint. */
+    inspectRefresh(token) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const id = tokenSessionId(token);
+            if (!id)
+                return null;
+            return this.allowed(yield (yield this.rows()).findOne(Object.assign(Object.assign(Object.assign({ _id: this.sessionId(id) }, this.scope), { refreshHash: (0, AuthSecurity_1.hashAuthToken)(token) }), this.liveFilter())));
+        });
+    }
     /** Trusted browser GET resumption: renew access without consuming or replaying refresh rotation. */
     renewAccess(token) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -151,7 +160,7 @@ class SessionAuth {
             if (!id)
                 return null;
             const rows = yield this.rows();
-            const filter = Object.assign(Object.assign(Object.assign({ _id: this.sessionId(id) }, this.scope), { refreshHash: (0, AuthSecurity_1.hashAuthToken)(token) }), this.liveFilter());
+            const filter = Object.assign(Object.assign(Object.assign(Object.assign({ _id: this.sessionId(id) }, this.scope), { refreshHash: (0, AuthSecurity_1.hashAuthToken)(token) }), this.liveFilter()), { accessExpiresAt: { $lte: Date.now() } });
             const row = yield rows.findOne(filter);
             if (!row || !(yield this.allowed(row)))
                 return null;

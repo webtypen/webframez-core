@@ -28,17 +28,30 @@ exports.createAuthFetch = function createAuthFetch(options = {}, originalFetch =
             || ![401, 403].includes(response.status)) return response;
         const failure = await response.clone().json().catch(() => null);
         if (!["unauthorized", "invalid_csrf"].includes(failure?.code)) return response;
-        if (!refreshing) {
+        const performRefresh = () => {
             const refreshHeaders = new Headers();
             const csrf = csrfCookie(options.cookieName);
             if (csrf) refreshHeaders.set("X-CSRF-Token", csrf);
-            refreshing = originalFetch(`${base}/refresh`, { method: "POST", credentials: "same-origin", headers: refreshHeaders })
-                .then(result => result.ok, () => false).finally(() => { refreshing = undefined; });
+            return originalFetch(`${base}/refresh`, { method: "POST", credentials: "same-origin", headers: refreshHeaders });
+        };
+        const retry = () => {
+            const nextCsrf = csrfCookie(options.cookieName);
+            if (nextCsrf) headers.set("X-CSRF-Token", nextCsrf);
+            return originalFetch(retryInput, { ...init, headers });
+        };
+        if (typeof navigator !== "undefined" && navigator.locks) {
+            // Hold the shared tab lock through the retry so another refresh cannot invalidate it.
+            return navigator.locks.request(`webframez-auth:${base}`, async () => {
+                const renewed = await performRefresh().then(result => result.ok, () => false);
+                return renewed ? retry() : response;
+            });
+        }
+        if (!refreshing) {
+            refreshing = performRefresh().then(result => result.ok, () => false)
+                .finally(() => { refreshing = undefined; });
         }
         if (!await refreshing) return response;
-        const nextCsrf = csrfCookie(options.cookieName);
-        if (nextCsrf) headers.set("X-CSRF-Token", nextCsrf);
-        return originalFetch(retryInput, { ...init, headers });
+        return retry();
     };
 };
 

@@ -65,6 +65,8 @@ export declare class SessionAuth {
     verifyCsrf(token: string, csrf: string, kind?: "access" | "refresh"): Promise<boolean>;
     /** One winner under concurrency. A previously consumed refresh token revokes its device session. */
     refresh(token: string): Promise<SessionTokenPair | null>;
+    /** Trusted server refresh-secret lookup; never expose as a public endpoint. */
+    inspectRefresh(token: string): Promise<AuthSession | null>;
     /** Trusted browser GET resumption: renew access without consuming or replaying refresh rotation. */
     renewAccess(token: string): Promise<SessionTokenPair | null>;
     /** Browser login metadata; arbitrary request data and token hashes are never exposed. */
