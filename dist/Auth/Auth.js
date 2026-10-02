@@ -1,11 +1,21 @@
 "use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.authRoute = exports.Auth = exports.AuthFacade = void 0;
 const Config_1 = require("../Config");
 const Model_1 = require("../Database/Model");
 const ModelAuth_1 = require("./ModelAuth");
 function mergeOptions(base, config) {
-    return Object.assign(Object.assign(Object.assign({ model: Model_1.Model }, base), config), { fields: Object.assign(Object.assign({}, base.fields), config.fields), session: Object.assign(Object.assign({}, base.session), config.session), messages: Object.assign(Object.assign({}, base.messages), config.messages) });
+    return Object.assign(Object.assign(Object.assign({ model: Model_1.Model }, base), config), { fields: Object.assign(Object.assign({}, base.fields), config.fields), session: Object.assign(Object.assign({}, base.session), config.session), passwordReset: config.passwordReset === false ? false : config.passwordReset === undefined && base.passwordReset === false ? false
+            : Object.assign(Object.assign({}, (base.passwordReset || {})), (config.passwordReset || {})), messages: Object.assign(Object.assign({}, base.messages), config.messages) });
 }
 /** Application-wide registry of named browser-authentication scopes. */
 class AuthFacade {
@@ -34,6 +44,15 @@ class AuthFacade {
         if (!scope)
             throw new Error(`Auth scope "${key}" is not registered.`);
         return scope;
+    }
+    revokeUserSessions(model, subject) {
+        return __awaiter(this, void 0, void 0, function* () {
+            this.init();
+            for (const scope of this.scopes.values()) {
+                if (scope.configuration.model === model)
+                    yield scope.sessions.revokeAll(subject);
+            }
+        });
     }
     registerScope(key, config) {
         var _a;

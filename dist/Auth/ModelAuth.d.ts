@@ -1,6 +1,7 @@
 import { Model } from "../Database/Model";
 import { Request } from "../Router/Request";
 import type { Response } from "../Router/Response";
+import { PasswordReset, PasswordResetOptions } from "./PasswordReset";
 import { AuthSession, SessionAuthOptions } from "./SessionAuth";
 import { WebAuth, WebAuthError, WebAuthOptions } from "./WebAuth";
 export type AuthContext<TUser extends Model = Model> = {
@@ -24,6 +25,7 @@ export type ModelAuthOptions = Partial<WebAuthOptions> & {
     locale?: "en" | "de";
     /** Record browser metadata and update activity at most once per minute. */
     trackActivity?: boolean;
+    passwordReset?: PasswordResetOptions | false;
     fields?: {
         identifier?: string;
         password?: string;
@@ -56,10 +58,18 @@ export type AuthRouteOptions = Partial<ModelAuthOptions> & {
 export declare class AuthScope extends WebAuth {
     private readonly modelOptions;
     readonly key: string;
+    readonly passwordReset: PasswordReset | null;
     private readonly model;
+    private authPaths;
     private readonly sessionUsers;
     private readonly fields;
     constructor(modelOptions: ModelAuthOptions);
+    configureRoutes(basePath: string, loginPath?: string): void;
+    get browserConfiguration(): {
+        basePath: string;
+        loginPaths: string[];
+        cookieName: string;
+    };
     get configuration(): ModelAuthOptions;
     private message;
     /** Use this when creating users; existing bcrypt hashes are supported without migration. */
@@ -68,7 +78,7 @@ export declare class AuthScope extends WebAuth {
     login(req: Request, res: Response, verifyCredentials?: () => Promise<string | null>): Promise<AuthSession>;
     logout(req: Request, res: Response): Promise<void>;
     /** Resolve a fresh validated session and its model; never trusts a client-supplied req.auth. */
-    resolve<TUser extends Model = Model>(req: Request): Promise<AuthContext<TUser> | null>;
+    resolve<TUser extends Model = Model>(req: Request, res?: Response): Promise<AuthContext<TUser> | null>;
     resolveCookies<TUser extends Model = Model>(cookies: Record<string, string | undefined>): Promise<AuthContext<TUser> | null>;
     /** Only explicit public fields are sent to browsers; Model instances remain on the server. */
     snapshot(auth: AuthContext | null | undefined): AuthSnapshot | null;

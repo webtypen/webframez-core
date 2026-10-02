@@ -1,8 +1,11 @@
 import { compare, hash } from "bcryptjs";
+import { appPath } from "../routing";
 import { Config } from "../Config";
 import { Model } from "../Database/Model";
 import { Request } from "../Router/Request";
 import type { Response } from "../Router/Response";
+import { Auth } from "./Auth";
+import { PasswordReset, PasswordResetOptions } from "./PasswordReset";
 import { authHeader } from "./AuthSecurity";
 import { SessionAuth, AuthSession, SessionAuthOptions } from "./SessionAuth";
 import { WebAuth, WebAuthError, WebAuthOptions } from "./WebAuth";
@@ -27,6 +30,7 @@ export type ModelAuthOptions = Partial<WebAuthOptions> & {
     locale?: "en" | "de";
     /** Record browser metadata and update activity at most once per minute. */
     trackActivity?: boolean;
+    passwordReset?: PasswordResetOptions | false;
     fields?: { identifier?: string; password?: string; active?: string | false; primaryKey?: string };
     session?: Partial<Omit<SessionAuthOptions, "issuer" | "isSessionAllowed">>;
     csrfDisabled?: false;
@@ -92,7 +96,9 @@ let dummyHash: Promise<string> | undefined;
 /** Model-backed browser authentication with secure default routes and revocable sessions. */
 export class AuthScope extends WebAuth {
     readonly key: string;
+    readonly passwordReset: PasswordReset | null;
     private readonly model: typeof Model;
+    private authPaths = { basePath: "/api/auth", loginPath: "/api/auth/login" };
     private readonly sessionUsers: WeakMap<AuthSession, Model>;
     private readonly fields: { identifier: string; password: string; active: string | false; primaryKey: string };
 
@@ -108,7 +114,7 @@ export class AuthScope extends WebAuth {
         const allowed = async (user: Model | null) => Boolean(user && (fields.active === false || (user as any)[fields.active] !== false)
             && (!modelOptions.isUserAllowed || await modelOptions.isUserAllowed(user)));
         const sessionUsers = new WeakMap<AuthSession, Model>();
-        const sessions = new SessionAuth({ accessTokenSeconds: 30 * 86400, sessionSeconds: 30 * 86400,
+        const sessions = new SessionAuth({ accessTokenSeconds: 15 * 60, sessionSeconds: 30 * 86400, idleTimeoutSeconds: 7 * 86400,
             ...modelOptions.session, issuer: origin, scope: key,
             audience: modelOptions.audience ?? modelOptions.session?.audience ?? origin,
             connection: modelOptions.session?.connection || new model().__connection,
@@ -126,6 +132,20 @@ export class AuthScope extends WebAuth {
         this.sessionUsers = sessionUsers;
         this.model = model;
         this.fields = fields;
+        this.passwordReset = modelOptions.passwordReset === false ? null : new PasswordReset(model, key, fields,
+            modelOptions.passwordReset || {}, async user => allowed(user), async (user, mode) => {
+                const subject = String((user as any)[fields.primaryKey]);
+                await this.sessions.revokeAll(subject);
+                if (mode === "all") await Auth.revokeUserSessions(model, subject);
+            }, modelOptions.session?.database);
+    }
+
+    configureRoutes(basePath: string, loginPath?: string): void {
+        this.authPaths = { basePath, loginPath: loginPath || `${basePath}/login` };
+    }
+
+    get browserConfiguration() {
+        return { basePath: appPath(this.authPaths.basePath), loginPaths: [appPath(this.authPaths.loginPath)], cookieName: this.cookies.prefix + "csrf" };
     }
 
     get configuration(): ModelAuthOptions {
@@ -195,9 +215,10 @@ export class AuthScope extends WebAuth {
     }
 
     /** Resolve a fresh validated session and its model; never trusts a client-supplied req.auth. */
-    async resolve<TUser extends Model = Model>(req: Request): Promise<AuthContext<TUser> | null> {
+    async resolve<TUser extends Model = Model>(req: Request, res?: Response): Promise<AuthContext<TUser> | null> {
+        res?.header("Cache-Control", "no-store");
         Object.defineProperty(req, "auth", { value: null, writable: true, configurable: true, enumerable: false });
-        const session = await super.authenticate(req);
+        const session = await super.authenticate(req) || (res ? await super.resume(req, res) : null);
         if (!session) return null;
         const user = this.sessionUsers.get(session);
         if (!user) return null;
@@ -220,7 +241,7 @@ export class AuthScope extends WebAuth {
         const user: Record<string, unknown> = {};
         for (const field of fields) {
             if (field.startsWith("__") || field === this.fields.password || auth.user.__hidden?.includes(field)
-                || ["constructor", "prototype"].includes(field)) continue;
+                || field.startsWith("auth_reset_") || ["constructor", "prototype"].includes(field)) continue;
             const value = (auth.user as any)[field];
             if (value !== undefined) user[field] = value;
         }
@@ -231,7 +252,7 @@ export class AuthScope extends WebAuth {
     middleware(options: { required?: boolean } = {}) {
         return async (next: Function, reject: Function, req: Request, res: Response) => {
             try {
-                const auth = await this.resolve(req);
+                const auth = await this.resolve(req, res);
                 res.header("Cache-Control", "no-store");
                 if (!auth && options.required) {
                     res.status(401).send({ status: "error", code: "unauthorized" });

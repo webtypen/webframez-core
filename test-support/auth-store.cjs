@@ -5,9 +5,10 @@ const clone = value => value == null ? value : structuredClone(value);
 function matches(row, filter) {
  return Object.entries(filter).every(([key, condition]) => {
   if(key === '$or')return condition.some(part=>matches(row,part));
+  if(key === '$and')return condition.every(part=>matches(row,part));
   const value=row[key];
   if(condition && typeof condition==='object' && !Array.isArray(condition)) {
-   return Object.entries(condition).every(([op, expected])=>op==='$gt'?value>expected:op==='$lte'?value<=expected:op==='$in'?expected.includes(value):false);
+   return Object.entries(condition).every(([op, expected])=>op==='$gt'?value>expected:op==='$lte'?value<=expected:op==='$in'?expected.includes(value):op==='$exists'?(value!==undefined)===expected:op==='$ne'?value!==expected:false);
   }
   return Array.isArray(value)?value.includes(condition):value===condition;
  });
@@ -18,7 +19,7 @@ function database() {
  return {tables, idAdapter: { create: value => value == null ? require("node:crypto").randomBytes(12).toString("hex") : String(value), normalize: value => typeof value === "string" && value ? value : null, isValid: value => typeof value === "string" && !!value, equals: (a, b) => String(a) === String(b) }, collection(name){
   if(!tables.has(name))tables.set(name,new Map());const records=tables.get(name);
   function select(filter){return [...records.values()].filter(row=>matches(row,filter))}
-  function update(row, change){Object.assign(row,clone(change.$set||{}));return row}
+  function update(row, change){Object.assign(row,clone(change.$set||{}));for(const key of Object.keys(change.$unset||{}))delete row[key];for(const [key,value] of Object.entries(change.$max||{}))if(row[key]===undefined||row[key]<value)row[key]=value;return row}
   return {
    async insertOne(row){if(records.has(row._id))throw Error('duplicate key');records.set(row._id,clone(row));return {insertedId:row._id}},
    async findOne(filter){return clone(select(filter)[0]||null)},

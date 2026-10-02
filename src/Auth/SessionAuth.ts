@@ -35,6 +35,8 @@ export type SessionAuthOptions = {
     collection?: string;
     accessTokenSeconds?: number;
     sessionSeconds?: number;
+    /** Maximum inactivity; false disables the idle limit. */
+    idleTimeoutSeconds?: number | false;
     /** Called on creation, authentication and refresh. Check account status and tenant membership here.
      * For federated sessions this can also introspect the parent authority session. Failures fail closed. */
     isSessionAllowed: (session: AuthSession) => boolean | Promise<boolean>;
@@ -71,12 +73,14 @@ export class SessionAuth {
     private readonly scope: { issuer: string; audience: string; scope: string; environment: string | null };
     private readonly accessSeconds: number;
     private readonly sessionSeconds: number;
+    private readonly idleSeconds: number | false;
 
     constructor(private readonly options: SessionAuthOptions) {
         this.scope = { issuer: authText(options.issuer, "issuer"), audience: authText(options.audience, "audience"), scope: authText(options.scope ?? "main", "scope"),
             environment: options.environment === undefined ? null : authText(options.environment, "environment") };
         this.accessSeconds = authLifetime(options.accessTokenSeconds, 15 * 60);
         this.sessionSeconds = authLifetime(options.sessionSeconds, 30 * 86400);
+        this.idleSeconds = options.idleTimeoutSeconds === undefined || options.idleTimeoutSeconds === false ? false : authLifetime(options.idleTimeoutSeconds, 7 * 86400);
         if (typeof options.isSessionAllowed !== "function") throw new Error("SessionAuth requires isSessionAllowed.");
     }
 
@@ -96,15 +100,24 @@ export class SessionAuth {
         return db.collection(this.options.collection || "auth_sessions");
     }
 
+    private liveFilter(now = Date.now()): object {
+        return { revokedAt: null, expiresAt: { $gt: now }, createdAt: { $gt: now - this.sessionSeconds * 1000 },
+            ...(this.idleSeconds === false ? {} : { $and: [{ $or: [
+                { lastActiveAt: { $gt: now - this.idleSeconds * 1000 } },
+                { lastActiveAt: { $exists: false }, createdAt: { $gt: now - this.idleSeconds * 1000 } },
+            ] }] }) };
+    }
+
     private async allowed(record: SessionRecord | null): Promise<AuthSession | null> {
-        if (!record || record.revokedAt !== null || !Number.isFinite(record.expiresAt) || record.expiresAt <= Date.now()) return null;
+        if (!record || record.revokedAt !== null || !Number.isFinite(record.expiresAt) || Math.min(record.expiresAt, record.createdAt + this.sessionSeconds * 1000) <= Date.now()
+            || (this.idleSeconds !== false && (record.lastActiveAt ?? record.createdAt) + this.idleSeconds * 1000 <= Date.now())) return null;
         const session = publicSession(record);
         return await this.options.isSessionAllowed(session) ? session : null;
     }
 
     private pair(record: SessionRecord, access: string, refresh: string): SessionTokenPair {
         return { auth_token: access, refresh_token: refresh, auth_expires_at: record.accessExpiresAt,
-            refresh_expires_at: record.expiresAt, session: publicSession(record) };
+            refresh_expires_at: Math.min(record.expiresAt, record.createdAt + this.sessionSeconds * 1000), session: publicSession(record) };
     }
 
     async create(subject: string, parent: AuthSession["parent"] = null): Promise<CreatedAuthSession> {
@@ -113,7 +126,7 @@ export class SessionAuth {
         const now = Date.now(), id = this.ids().create();
         const access = `${id}.${randomAuthToken()}`, refresh = `${id}.${randomAuthToken()}`, csrf = randomAuthToken();
         const record: SessionRecord = { _id: id, _subject: this.ids().create(subject), ...this.scope, parent: parent ? { ...parent } : null,
-            createdAt: now, expiresAt: now + this.sessionSeconds * 1000,
+            createdAt: now, lastActiveAt: now, expiresAt: now + this.sessionSeconds * 1000,
             accessExpiresAt: now + Math.min(this.accessSeconds, this.sessionSeconds) * 1000,
             accessHash: hashAuthToken(access), refreshHash: hashAuthToken(refresh), csrfHash: hashAuthToken(csrf),
             usedRefreshHashes: [], revokedAt: null };
@@ -125,8 +138,10 @@ export class SessionAuth {
     async authenticate(token: string): Promise<AuthSession | null> {
         const id = tokenSessionId(token);
         if (!id) return null;
-        const row = await (await this.rows()).findOne({ _id: this.sessionId(id), ...this.scope, accessHash: hashAuthToken(token), accessExpiresAt: { $gt: Date.now() } });
-        return this.allowed(row);
+        const row = await (await this.rows()).findOne({ _id: this.sessionId(id), ...this.scope, ...this.liveFilter(), accessHash: hashAuthToken(token), accessExpiresAt: { $gt: Date.now() } });
+        const session = await this.allowed(row);
+        if (session && this.idleSeconds !== false) await this.touch(session);
+        return session;
     }
 
     /** Trusted-server introspection; never expose this method as an unauthenticated endpoint. */
@@ -158,9 +173,10 @@ export class SessionAuth {
         // Bound history size and retain an absolute expiry instead of extending sessions indefinitely.
         if (row.usedRefreshHashes.length >= 4096) { await this.revoke(id); return null; }
         const access = `${id}.${randomAuthToken()}`, refresh = `${id}.${randomAuthToken()}`;
-        const next = await rows.findOneAndUpdate({ _id: this.sessionId(id), ...this.scope, refreshHash: hash, revokedAt: null, expiresAt: { $gt: Date.now() } },
+        const next = await rows.findOneAndUpdate({ _id: this.sessionId(id), ...this.scope, refreshHash: hash, ...this.liveFilter() },
             { $set: { accessHash: hashAuthToken(access), refreshHash: hashAuthToken(refresh),
-                accessExpiresAt: Math.min(Date.now() + this.accessSeconds * 1000, row.expiresAt),
+                accessExpiresAt: Math.min(Date.now() + this.accessSeconds * 1000, row.expiresAt, row.createdAt + this.sessionSeconds * 1000),
+                lastActiveAt: Date.now(),
                 usedRefreshHashes: [...row.usedRefreshHashes, hash] } }, { returnDocument: "after" });
         if (!next) {
             // Also detect simultaneous replay that lost the compare-and-swap.
@@ -168,6 +184,22 @@ export class SessionAuth {
             return null;
         }
         return this.pair(next, access, refresh);
+    }
+
+    /** Trusted browser GET resumption: renew access without consuming or replaying refresh rotation. */
+    async renewAccess(token: string): Promise<SessionTokenPair | null> {
+        const id = tokenSessionId(token);
+        if (!id) return null;
+        const rows = await this.rows();
+        const filter = { _id: this.sessionId(id), ...this.scope, refreshHash: hashAuthToken(token), ...this.liveFilter() };
+        const row = await rows.findOne(filter);
+        if (!row || !await this.allowed(row)) return null;
+        const access = `${id}.${randomAuthToken()}`, now = Date.now();
+        const next = await rows.findOneAndUpdate(filter, { $set: { accessHash: hashAuthToken(access),
+            accessExpiresAt: Math.min(now + this.accessSeconds * 1000, row.expiresAt, row.createdAt + this.sessionSeconds * 1000),
+            lastActiveAt: now } }, { returnDocument: "after" });
+        const session = next ? await this.allowed(next) : null;
+        return next && session ? { ...this.pair(next, access, token), session } : null;
     }
 
     /** Browser login metadata; arbitrary request data and token hashes are never exposed. */
@@ -180,9 +212,9 @@ export class SessionAuth {
     /** Persist activity with a one-minute throttle; authorization does not depend on this timestamp. */
     async touch(session: AuthSession): Promise<void> {
         const now = Date.now();
-        if ((session.lastActiveAt ?? session.createdAt) >= now - 60_000) return;
-        await (await this.rows()).updateOne({ _id: this.sessionId(session.id), ...this.scope, revokedAt: null, expiresAt: { $gt: now } },
-            { $set: { lastActiveAt: now } });
+        if ((session.lastActiveAt ?? session.createdAt) >= now - (this.idleSeconds === false ? 60_000 : Math.min(60_000, this.idleSeconds * 250))) return;
+        await (await this.rows()).updateOne({ _id: this.sessionId(session.id), ...this.scope, ...this.liveFilter(now) },
+            { $max: { lastActiveAt: now } });
         session.lastActiveAt = now;
     }
 
@@ -198,12 +230,19 @@ export class SessionAuth {
 
     async list(subject: string): Promise<AuthSession[]> {
         authText(subject, "subject");
-        const rows: SessionRecord[] = await (await this.rows()).find({ _subject: this.ids().create(subject), ...this.scope, revokedAt: null, expiresAt: { $gt: Date.now() } }).toArray();
+        const rows: SessionRecord[] = await (await this.rows()).find({ _subject: this.ids().create(subject), ...this.scope, ...this.liveFilter() }).toArray();
         return rows.map(publicSession);
     }
 
     /** Run periodically; authorization checks never depend on cleanup scheduling. */
     async cleanup(): Promise<void> {
-        await (await this.rows()).deleteMany({ ...this.scope, expiresAt: { $lte: Date.now() } });
+        const now = Date.now();
+        await (await this.rows()).deleteMany({ ...this.scope, $or: [
+            { expiresAt: { $lte: now } }, { createdAt: { $lte: now - this.sessionSeconds * 1000 } },
+            ...(this.idleSeconds === false ? [] : [
+                { lastActiveAt: { $lte: now - this.idleSeconds * 1000 } },
+                { lastActiveAt: { $exists: false }, createdAt: { $lte: now - this.idleSeconds * 1000 } },
+            ]),
+        ] });
     }
 }

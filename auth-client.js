@@ -8,6 +8,7 @@ function csrfCookie(name) {
 exports.createAuthFetch = function createAuthFetch(options = {}, originalFetch = window.fetch.bind(window)) {
     const base = (options.basePath || "/api/auth").replace(/\/+$/, "");
     const loginPaths = options.loginPaths || [`${base}/login`];
+    let refreshing;
     return async (input, init) => {
         const url = new URL(input instanceof Request ? input.url : String(input), window.location.href);
         const method = String(init?.method || (input instanceof Request ? input.method : "GET")).toUpperCase();
@@ -21,7 +22,23 @@ exports.createAuthFetch = function createAuthFetch(options = {}, originalFetch =
         } else token = csrfCookie(options.cookieName);
         const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined));
         if (typeof token === "string" && token) headers.set("X-CSRF-Token", token);
-        return originalFetch(input, { ...init, headers });
+        const retryInput = input instanceof Request ? input.clone() : input;
+        const response = await originalFetch(input, { ...init, headers });
+        if (loginPaths.includes(url.pathname) || url.pathname.startsWith(`${base}/`)
+            || ![401, 403].includes(response.status)) return response;
+        const failure = await response.clone().json().catch(() => null);
+        if (!["unauthorized", "invalid_csrf"].includes(failure?.code)) return response;
+        if (!refreshing) {
+            const refreshHeaders = new Headers();
+            const csrf = csrfCookie(options.cookieName);
+            if (csrf) refreshHeaders.set("X-CSRF-Token", csrf);
+            refreshing = originalFetch(`${base}/refresh`, { method: "POST", credentials: "same-origin", headers: refreshHeaders })
+                .then(result => result.ok, () => false).finally(() => { refreshing = undefined; });
+        }
+        if (!await refreshing) return response;
+        const nextCsrf = csrfCookie(options.cookieName);
+        if (nextCsrf) headers.set("X-CSRF-Token", nextCsrf);
+        return originalFetch(retryInput, { ...init, headers });
     };
 };
 

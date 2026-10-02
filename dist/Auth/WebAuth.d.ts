@@ -32,6 +32,8 @@ export declare class WebAuth {
     /** GET /auth/csrf, fetched from this origin. Also protects login before a user session exists. */
     bootstrap(req: Request, res: Response): string;
     private writePair;
+    /** GET/HEAD only. A current refresh secret and matching session-bound CSRF cookie are required. */
+    resume(req: Request, res: Response): Promise<AuthSession | null>;
     /** Credential verification is supplied by the app, after CSRF checks. Never accepts a user ID from the browser. */
     login(req: Request, res: Response, verifyCredentials: () => Promise<string | null>): Promise<AuthSession>;
     /** Trusted-server entry point after a validated SSO callback (not a public login endpoint). */

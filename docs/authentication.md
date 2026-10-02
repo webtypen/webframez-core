@@ -312,7 +312,7 @@ not trimmed. Store a bcrypt hash; existing bcrypt hashes work without migration.
 and `isUserAllowed` adds account/tenant checks on login and every session access.
 An explicit `false` in `is_active` rejects the account; `fields.active: false`
 disables this field check. Optional `session` options configure storage, scope
-and lifetimes. For `AuthScope`, access and absolute session lifetimes default to
+and lifetimes. For `AuthScope`, access lifetime defaults to 15 minutes and absolute session lifetime to
 30 days; both remain configurable through `session.accessTokenSeconds` and
 `session.sessionSeconds`. The lower-level `SessionAuth` retains its 15-minute
 access-token default.
@@ -428,3 +428,68 @@ hashes and expiry unchanged. SessionAuth recognizes the former token prefixes,
 so converted sessions retain their existing cookies. Applications should run
 an explicit migration while stopping auth writes, rather than changing schemas
 implicitly during a request.
+
+
+## Scope-configured lifetimes and password recovery
+
+```ts
+Config.register("auth", {
+    scopes: {
+        main: {
+            model: User,
+            session: {
+                accessTokenSeconds: 15 * 60,
+                sessionSeconds: 30 * 86400,
+                idleTimeoutSeconds: 7 * 86400, // false explicitly disables inactivity expiry.
+            },
+            passwordReset: {
+                tokenSeconds: 15 * 60,
+                cooldownSeconds: 3 * 60,
+                revokeSessions: "all", // "scope" or false are explicit alternatives.
+            },
+        },
+    },
+});
+
+await Auth.scope().passwordReset?.request(email, async (user, token, expiresAt) => {
+    // Build a link from your configured website URL, never from request Host headers.
+    await sendResetEmail(user, token, expiresAt);
+});
+const user = await Auth.scope().passwordReset?.validate(token); // Does not consume it.
+const changedUser = await Auth.scope().passwordReset?.reset(token, newPassword);
+// null means invalid, expired, consumed, wrong scope, inactive account, or changed password.
+```
+
+Scope defaults are a 15-minute access lifetime, a 30-day absolute lifetime and a
+seven-day inactivity limit. `session.idleTimeoutSeconds: false` disables only the
+inactivity limit. All deadlines are enforced on access, refresh, CSRF, introspection
+and listing. Existing records also respect newly shortened configured limits.
+Successful authentication updates activity with throttled writes; introspection
+and CSRF verification alone do not extend inactivity. Absolute expiry never slides.
+
+`scope.resolve(req, res)` resumes an expired access token for GET/HEAD if the current
+refresh secret and matching session-bound CSRF cookie are valid. It issues a new
+access token and retains the refresh secret, so parallel page requests do not
+trigger refresh replay revocation. This trusted read resumption does not authorize
+unsafe requests, revive expired sessions, or extend absolute expiry. Explicit
+POST refresh rotates both secrets and retains replay protection. Middleware uses
+this resumption automatically when a response is available. Browser `createAuthFetch`
+refreshes rejected authentication/CSRF requests once, then repeats the rejected
+request once; login failures and permission errors are never retried.
+
+Reset tokens have 256-bit random secrets; only a SHA-256 digest bound to the scope
+and current password is stored. Per-account request cooldown is an atomic conditional
+update. Successful reset consumes the token and writes the new password in the same
+atomic database operation. Other password changes invalidate outstanding links.
+The callback is a trusted server delivery integration; raw reset tokens must not be
+returned to browsers by the request endpoint. Password validation remains the app's
+responsibility. Disable recovery explicitly with `passwordReset: false`.
+
+The fields `auth_reset_<scope>_hash`, `_expires_at` and `_requested_at` are stored
+on the model's document collection and must be included in the model's `__hidden`
+when serializing entire models. Auth snapshots always exclude these fields.
+`revokeSessions: "all"` revokes registered scopes using the same model class;
+`"scope"` limits revocation to the initiating scope. Recovery does not log in the
+user automatically. Existing application plaintext reset links are intentionally
+not accepted; users must request a new link after migration. Reset pages should
+use `Referrer-Policy: no-referrer` and avoid response caching.

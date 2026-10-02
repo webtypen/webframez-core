@@ -1,3 +1,4 @@
+import { Model } from "../Database/Model";
 import type { Request } from "../Router/Request";
 import type { Response } from "../Router/Response";
 import { AuthScope, AuthScopeOptions, AuthOperation, AuthRouteOptions } from "./ModelAuth";
@@ -13,6 +14,7 @@ export declare class AuthFacade {
     private initialized;
     init(): void;
     scope(key?: string): AuthScope;
+    revokeUserSessions(model: typeof Model, subject: string): Promise<void>;
     registerScope(key: string, config: Partial<AuthScopeOptions>): AuthScope;
 }
 export declare const Auth: AuthFacade;

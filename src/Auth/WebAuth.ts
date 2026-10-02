@@ -83,6 +83,20 @@ export class WebAuth {
         this.cookies.write(res, "refresh", pair.refresh_token, (pair.refresh_expires_at - Date.now()) / 1000);
     }
 
+    /** GET/HEAD only. A current refresh secret and matching session-bound CSRF cookie are required. */
+    async resume(req: Request, res: Response): Promise<AuthSession | null> {
+        if (!["GET", "HEAD"].includes(req.method)) return null;
+        const token = this.cookies.read(req, "refresh"), csrf = this.cookies.read(req, "csrf");
+        if (!await this.sessions.verifyCsrf(token, csrf, "refresh")) return null;
+        const pair = await this.sessions.renewAccess(token);
+        if (!pair) return null;
+        this.writePair(res, pair);
+        const name = this.cookies.prefix + "access";
+        const cookies = authHeader(req, "cookie").split(";").map(value => value.trim()).filter(value => value && !value.startsWith(`${name}=`));
+        req.headers = { ...req.headers, cookie: [...cookies, `${name}=${encodeURIComponent(pair.auth_token)}`].join("; ") };
+        return pair.session;
+    }
+
     /** Credential verification is supplied by the app, after CSRF checks. Never accepts a user ID from the browser. */
     async login(req: Request, res: Response, verifyCredentials: () => Promise<string | null>): Promise<AuthSession> {
         this.post(req); this.csrf(req);

@@ -86,6 +86,24 @@ class WebAuth {
         this.cookies.write(res, "access", pair.auth_token, (pair.auth_expires_at - Date.now()) / 1000);
         this.cookies.write(res, "refresh", pair.refresh_token, (pair.refresh_expires_at - Date.now()) / 1000);
     }
+    /** GET/HEAD only. A current refresh secret and matching session-bound CSRF cookie are required. */
+    resume(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!["GET", "HEAD"].includes(req.method))
+                return null;
+            const token = this.cookies.read(req, "refresh"), csrf = this.cookies.read(req, "csrf");
+            if (!(yield this.sessions.verifyCsrf(token, csrf, "refresh")))
+                return null;
+            const pair = yield this.sessions.renewAccess(token);
+            if (!pair)
+                return null;
+            this.writePair(res, pair);
+            const name = this.cookies.prefix + "access";
+            const cookies = (0, AuthSecurity_1.authHeader)(req, "cookie").split(";").map(value => value.trim()).filter(value => value && !value.startsWith(`${name}=`));
+            req.headers = Object.assign(Object.assign({}, req.headers), { cookie: [...cookies, `${name}=${encodeURIComponent(pair.auth_token)}`].join("; ") });
+            return pair.session;
+        });
+    }
     /** Credential verification is supplied by the app, after CSRF checks. Never accepts a user ID from the browser. */
     login(req, res, verifyCredentials) {
         return __awaiter(this, void 0, void 0, function* () {

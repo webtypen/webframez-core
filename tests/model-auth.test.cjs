@@ -111,7 +111,7 @@ test('browser auth defaults and overrides preserve audience isolation and config
         const { auth } = await fixture(options);
         const created = await auth.sessions.create('alice');
         assert.equal(created.session.audience, audience);
-        assert.equal(created.auth_expires_at - created.session.createdAt, (options.session?.accessTokenSeconds || 30 * 86400) * 1000);
+        assert.equal(created.auth_expires_at - created.session.createdAt, (options.session?.accessTokenSeconds || 15 * 60) * 1000);
         assert.equal(created.session.expiresAt - created.session.createdAt, (options.session?.sessionSeconds || 30 * 86400) * 1000);
     }
 });

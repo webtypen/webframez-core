@@ -27,6 +27,7 @@ class SessionAuth {
             environment: options.environment === undefined ? null : (0, AuthSecurity_1.authText)(options.environment, "environment") };
         this.accessSeconds = (0, AuthSecurity_1.authLifetime)(options.accessTokenSeconds, 15 * 60);
         this.sessionSeconds = (0, AuthSecurity_1.authLifetime)(options.sessionSeconds, 30 * 86400);
+        this.idleSeconds = options.idleTimeoutSeconds === undefined || options.idleTimeoutSeconds === false ? false : (0, AuthSecurity_1.authLifetime)(options.idleTimeoutSeconds, 7 * 86400);
         if (typeof options.isSessionAllowed !== "function")
             throw new Error("SessionAuth requires isSessionAllowed.");
     }
@@ -45,9 +46,17 @@ class SessionAuth {
             return db.collection(this.options.collection || "auth_sessions");
         });
     }
+    liveFilter(now = Date.now()) {
+        return Object.assign({ revokedAt: null, expiresAt: { $gt: now }, createdAt: { $gt: now - this.sessionSeconds * 1000 } }, (this.idleSeconds === false ? {} : { $and: [{ $or: [
+                        { lastActiveAt: { $gt: now - this.idleSeconds * 1000 } },
+                        { lastActiveAt: { $exists: false }, createdAt: { $gt: now - this.idleSeconds * 1000 } },
+                    ] }] }));
+    }
     allowed(record) {
+        var _a;
         return __awaiter(this, void 0, void 0, function* () {
-            if (!record || record.revokedAt !== null || !Number.isFinite(record.expiresAt) || record.expiresAt <= Date.now())
+            if (!record || record.revokedAt !== null || !Number.isFinite(record.expiresAt) || Math.min(record.expiresAt, record.createdAt + this.sessionSeconds * 1000) <= Date.now()
+                || (this.idleSeconds !== false && ((_a = record.lastActiveAt) !== null && _a !== void 0 ? _a : record.createdAt) + this.idleSeconds * 1000 <= Date.now()))
                 return null;
             const session = publicSession(record);
             return (yield this.options.isSessionAllowed(session)) ? session : null;
@@ -55,7 +64,7 @@ class SessionAuth {
     }
     pair(record, access, refresh) {
         return { auth_token: access, refresh_token: refresh, auth_expires_at: record.accessExpiresAt,
-            refresh_expires_at: record.expiresAt, session: publicSession(record) };
+            refresh_expires_at: Math.min(record.expiresAt, record.createdAt + this.sessionSeconds * 1000), session: publicSession(record) };
     }
     create(subject, parent = null) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -66,7 +75,7 @@ class SessionAuth {
             }
             const now = Date.now(), id = this.ids().create();
             const access = `${id}.${(0, AuthSecurity_1.randomAuthToken)()}`, refresh = `${id}.${(0, AuthSecurity_1.randomAuthToken)()}`, csrf = (0, AuthSecurity_1.randomAuthToken)();
-            const record = Object.assign(Object.assign({ _id: id, _subject: this.ids().create(subject) }, this.scope), { parent: parent ? Object.assign({}, parent) : null, createdAt: now, expiresAt: now + this.sessionSeconds * 1000, accessExpiresAt: now + Math.min(this.accessSeconds, this.sessionSeconds) * 1000, accessHash: (0, AuthSecurity_1.hashAuthToken)(access), refreshHash: (0, AuthSecurity_1.hashAuthToken)(refresh), csrfHash: (0, AuthSecurity_1.hashAuthToken)(csrf), usedRefreshHashes: [], revokedAt: null });
+            const record = Object.assign(Object.assign({ _id: id, _subject: this.ids().create(subject) }, this.scope), { parent: parent ? Object.assign({}, parent) : null, createdAt: now, lastActiveAt: now, expiresAt: now + this.sessionSeconds * 1000, accessExpiresAt: now + Math.min(this.accessSeconds, this.sessionSeconds) * 1000, accessHash: (0, AuthSecurity_1.hashAuthToken)(access), refreshHash: (0, AuthSecurity_1.hashAuthToken)(refresh), csrfHash: (0, AuthSecurity_1.hashAuthToken)(csrf), usedRefreshHashes: [], revokedAt: null });
             if (!(yield this.allowed(record)))
                 throw new Error("Session is not allowed.");
             yield (yield this.rows()).insertOne(record);
@@ -78,8 +87,11 @@ class SessionAuth {
             const id = tokenSessionId(token);
             if (!id)
                 return null;
-            const row = yield (yield this.rows()).findOne(Object.assign(Object.assign({ _id: this.sessionId(id) }, this.scope), { accessHash: (0, AuthSecurity_1.hashAuthToken)(token), accessExpiresAt: { $gt: Date.now() } }));
-            return this.allowed(row);
+            const row = yield (yield this.rows()).findOne(Object.assign(Object.assign(Object.assign({ _id: this.sessionId(id) }, this.scope), this.liveFilter()), { accessHash: (0, AuthSecurity_1.hashAuthToken)(token), accessExpiresAt: { $gt: Date.now() } }));
+            const session = yield this.allowed(row);
+            if (session && this.idleSeconds !== false)
+                yield this.touch(session);
+            return session;
         });
     }
     /** Trusted-server introspection; never expose this method as an unauthenticated endpoint. */
@@ -120,8 +132,9 @@ class SessionAuth {
                 return null;
             }
             const access = `${id}.${(0, AuthSecurity_1.randomAuthToken)()}`, refresh = `${id}.${(0, AuthSecurity_1.randomAuthToken)()}`;
-            const next = yield rows.findOneAndUpdate(Object.assign(Object.assign({ _id: this.sessionId(id) }, this.scope), { refreshHash: hash, revokedAt: null, expiresAt: { $gt: Date.now() } }), { $set: { accessHash: (0, AuthSecurity_1.hashAuthToken)(access), refreshHash: (0, AuthSecurity_1.hashAuthToken)(refresh),
-                    accessExpiresAt: Math.min(Date.now() + this.accessSeconds * 1000, row.expiresAt),
+            const next = yield rows.findOneAndUpdate(Object.assign(Object.assign(Object.assign({ _id: this.sessionId(id) }, this.scope), { refreshHash: hash }), this.liveFilter()), { $set: { accessHash: (0, AuthSecurity_1.hashAuthToken)(access), refreshHash: (0, AuthSecurity_1.hashAuthToken)(refresh),
+                    accessExpiresAt: Math.min(Date.now() + this.accessSeconds * 1000, row.expiresAt, row.createdAt + this.sessionSeconds * 1000),
+                    lastActiveAt: Date.now(),
                     usedRefreshHashes: [...row.usedRefreshHashes, hash] } }, { returnDocument: "after" });
             if (!next) {
                 // Also detect simultaneous replay that lost the compare-and-swap.
@@ -129,6 +142,25 @@ class SessionAuth {
                 return null;
             }
             return this.pair(next, access, refresh);
+        });
+    }
+    /** Trusted browser GET resumption: renew access without consuming or replaying refresh rotation. */
+    renewAccess(token) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const id = tokenSessionId(token);
+            if (!id)
+                return null;
+            const rows = yield this.rows();
+            const filter = Object.assign(Object.assign(Object.assign({ _id: this.sessionId(id) }, this.scope), { refreshHash: (0, AuthSecurity_1.hashAuthToken)(token) }), this.liveFilter());
+            const row = yield rows.findOne(filter);
+            if (!row || !(yield this.allowed(row)))
+                return null;
+            const access = `${id}.${(0, AuthSecurity_1.randomAuthToken)()}`, now = Date.now();
+            const next = yield rows.findOneAndUpdate(filter, { $set: { accessHash: (0, AuthSecurity_1.hashAuthToken)(access),
+                    accessExpiresAt: Math.min(now + this.accessSeconds * 1000, row.expiresAt, row.createdAt + this.sessionSeconds * 1000),
+                    lastActiveAt: now } }, { returnDocument: "after" });
+            const session = next ? yield this.allowed(next) : null;
+            return next && session ? Object.assign(Object.assign({}, this.pair(next, access, token)), { session }) : null;
         });
     }
     /** Browser login metadata; arbitrary request data and token hashes are never exposed. */
@@ -144,9 +176,9 @@ class SessionAuth {
         var _a;
         return __awaiter(this, void 0, void 0, function* () {
             const now = Date.now();
-            if (((_a = session.lastActiveAt) !== null && _a !== void 0 ? _a : session.createdAt) >= now - 60000)
+            if (((_a = session.lastActiveAt) !== null && _a !== void 0 ? _a : session.createdAt) >= now - (this.idleSeconds === false ? 60000 : Math.min(60000, this.idleSeconds * 250)))
                 return;
-            yield (yield this.rows()).updateOne(Object.assign(Object.assign({ _id: this.sessionId(session.id) }, this.scope), { revokedAt: null, expiresAt: { $gt: now } }), { $set: { lastActiveAt: now } });
+            yield (yield this.rows()).updateOne(Object.assign(Object.assign({ _id: this.sessionId(session.id) }, this.scope), this.liveFilter(now)), { $max: { lastActiveAt: now } });
             session.lastActiveAt = now;
         });
     }
@@ -165,14 +197,21 @@ class SessionAuth {
     list(subject) {
         return __awaiter(this, void 0, void 0, function* () {
             (0, AuthSecurity_1.authText)(subject, "subject");
-            const rows = yield (yield this.rows()).find(Object.assign(Object.assign({ _subject: this.ids().create(subject) }, this.scope), { revokedAt: null, expiresAt: { $gt: Date.now() } })).toArray();
+            const rows = yield (yield this.rows()).find(Object.assign(Object.assign({ _subject: this.ids().create(subject) }, this.scope), this.liveFilter())).toArray();
             return rows.map(publicSession);
         });
     }
     /** Run periodically; authorization checks never depend on cleanup scheduling. */
     cleanup() {
         return __awaiter(this, void 0, void 0, function* () {
-            yield (yield this.rows()).deleteMany(Object.assign(Object.assign({}, this.scope), { expiresAt: { $lte: Date.now() } }));
+            const now = Date.now();
+            yield (yield this.rows()).deleteMany(Object.assign(Object.assign({}, this.scope), { $or: [
+                    { expiresAt: { $lte: now } }, { createdAt: { $lte: now - this.sessionSeconds * 1000 } },
+                    ...(this.idleSeconds === false ? [] : [
+                        { lastActiveAt: { $lte: now - this.idleSeconds * 1000 } },
+                        { lastActiveAt: { $exists: false }, createdAt: { $lte: now - this.idleSeconds * 1000 } },
+                    ]),
+                ] }));
         });
     }
 }

@@ -6,3 +6,4 @@ export * from "./WebAuth";
 export * from "./SingleSignOn";
 export * from "./ModelAuth";
 export * from "./Auth";
+export * from "./PasswordReset";

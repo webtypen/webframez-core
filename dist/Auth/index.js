@@ -22,3 +22,4 @@ __exportStar(require("./WebAuth"), exports);
 __exportStar(require("./SingleSignOn"), exports);
 __exportStar(require("./ModelAuth"), exports);
 __exportStar(require("./Auth"), exports);
+__exportStar(require("./PasswordReset"), exports);

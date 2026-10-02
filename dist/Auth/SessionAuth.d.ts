@@ -34,6 +34,8 @@ export type SessionAuthOptions = {
     collection?: string;
     accessTokenSeconds?: number;
     sessionSeconds?: number;
+    /** Maximum inactivity; false disables the idle limit. */
+    idleTimeoutSeconds?: number | false;
     /** Called on creation, authentication and refresh. Check account status and tenant membership here.
      * For federated sessions this can also introspect the parent authority session. Failures fail closed. */
     isSessionAllowed: (session: AuthSession) => boolean | Promise<boolean>;
@@ -48,10 +50,12 @@ export declare class SessionAuth {
     private readonly scope;
     private readonly accessSeconds;
     private readonly sessionSeconds;
+    private readonly idleSeconds;
     constructor(options: SessionAuthOptions);
     private ids;
     private sessionId;
     private rows;
+    private liveFilter;
     private allowed;
     private pair;
     create(subject: string, parent?: AuthSession["parent"]): Promise<CreatedAuthSession>;
@@ -61,6 +65,8 @@ export declare class SessionAuth {
     verifyCsrf(token: string, csrf: string, kind?: "access" | "refresh"): Promise<boolean>;
     /** One winner under concurrency. A previously consumed refresh token revokes its device session. */
     refresh(token: string): Promise<SessionTokenPair | null>;
+    /** Trusted browser GET resumption: renew access without consuming or replaying refresh rotation. */
+    renewAccess(token: string): Promise<SessionTokenPair | null>;
     /** Browser login metadata; arbitrary request data and token hashes are never exposed. */
     recordLogin(session: AuthSession, userAgent: string): Promise<void>;
     /** Persist activity with a one-minute throttle; authorization does not depend on this timestamp. */

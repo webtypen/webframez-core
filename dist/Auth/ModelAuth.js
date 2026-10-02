@@ -11,8 +11,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ModelAuth = exports.AuthScope = exports.AuthLoginError = void 0;
 const bcryptjs_1 = require("bcryptjs");
+const routing_1 = require("../routing");
 const Config_1 = require("../Config");
 const Request_1 = require("../Router/Request");
+const Auth_1 = require("./Auth");
+const PasswordReset_1 = require("./PasswordReset");
 const AuthSecurity_1 = require("./AuthSecurity");
 const SessionAuth_1 = require("./SessionAuth");
 const WebAuth_1 = require("./WebAuth");
@@ -57,7 +60,7 @@ let dummyHash;
 /** Model-backed browser authentication with secure default routes and revocable sessions. */
 class AuthScope extends WebAuth_1.WebAuth {
     constructor(modelOptions) {
-        var _a, _b, _c, _d, _e, _f, _g;
+        var _a, _b, _c, _d, _e, _f, _g, _h;
         if (modelOptions.csrfDisabled)
             throw new Error("Browser auth routes require CSRF protection.");
         if (!modelOptions.model)
@@ -73,7 +76,7 @@ class AuthScope extends WebAuth_1.WebAuth {
                 && (!modelOptions.isUserAllowed || (yield modelOptions.isUserAllowed(user))));
         });
         const sessionUsers = new WeakMap();
-        const sessions = new SessionAuth_1.SessionAuth(Object.assign(Object.assign({ accessTokenSeconds: 30 * 86400, sessionSeconds: 30 * 86400 }, modelOptions.session), { issuer: origin, scope: key, audience: (_d = (_b = modelOptions.audience) !== null && _b !== void 0 ? _b : (_c = modelOptions.session) === null || _c === void 0 ? void 0 : _c.audience) !== null && _d !== void 0 ? _d : origin, connection: ((_e = modelOptions.session) === null || _e === void 0 ? void 0 : _e.connection) || new model().__connection, isSessionAllowed: (session) => __awaiter(this, void 0, void 0, function* () {
+        const sessions = new SessionAuth_1.SessionAuth(Object.assign(Object.assign({ accessTokenSeconds: 15 * 60, sessionSeconds: 30 * 86400, idleTimeoutSeconds: 7 * 86400 }, modelOptions.session), { issuer: origin, scope: key, audience: (_d = (_b = modelOptions.audience) !== null && _b !== void 0 ? _b : (_c = modelOptions.session) === null || _c === void 0 ? void 0 : _c.audience) !== null && _d !== void 0 ? _d : origin, connection: ((_e = modelOptions.session) === null || _e === void 0 ? void 0 : _e.connection) || new model().__connection, isSessionAllowed: (session) => __awaiter(this, void 0, void 0, function* () {
                 const id = fields.primaryKey === "_id" ? yield model.objectId(session.subject, { noExceptions: true }) : session.subject;
                 const user = id !== null && id !== undefined ? yield model.where(fields.primaryKey, "=", id).first() : null;
                 if (!(yield allowed(user)))
@@ -83,10 +86,23 @@ class AuthScope extends WebAuth_1.WebAuth {
             }) }));
         super(sessions, Object.assign(Object.assign({}, modelOptions), { origin, cookiePrefix: (_f = modelOptions.cookiePrefix) !== null && _f !== void 0 ? _f : (key === "main" ? undefined : `${origin.startsWith("https:") ? "__Host-wf_" : "wf_dev_"}${key}_`), allowInsecureLocalhost: (_g = modelOptions.allowInsecureLocalhost) !== null && _g !== void 0 ? _g : true }));
         this.modelOptions = modelOptions;
+        this.authPaths = { basePath: "/api/auth", loginPath: "/api/auth/login" };
         this.key = key;
         this.sessionUsers = sessionUsers;
         this.model = model;
         this.fields = fields;
+        this.passwordReset = modelOptions.passwordReset === false ? null : new PasswordReset_1.PasswordReset(model, key, fields, modelOptions.passwordReset || {}, (user) => __awaiter(this, void 0, void 0, function* () { return allowed(user); }), (user, mode) => __awaiter(this, void 0, void 0, function* () {
+            const subject = String(user[fields.primaryKey]);
+            yield this.sessions.revokeAll(subject);
+            if (mode === "all")
+                yield Auth_1.Auth.revokeUserSessions(model, subject);
+        }), (_h = modelOptions.session) === null || _h === void 0 ? void 0 : _h.database);
+    }
+    configureRoutes(basePath, loginPath) {
+        this.authPaths = { basePath, loginPath: loginPath || `${basePath}/login` };
+    }
+    get browserConfiguration() {
+        return { basePath: (0, routing_1.appPath)(this.authPaths.basePath), loginPaths: [(0, routing_1.appPath)(this.authPaths.loginPath)], cookieName: this.cookies.prefix + "csrf" };
     }
     get configuration() {
         return this.modelOptions;
@@ -176,13 +192,15 @@ class AuthScope extends WebAuth_1.WebAuth {
         });
     }
     /** Resolve a fresh validated session and its model; never trusts a client-supplied req.auth. */
-    resolve(req) {
+    resolve(req, res) {
         const _super = Object.create(null, {
-            authenticate: { get: () => super.authenticate }
+            authenticate: { get: () => super.authenticate },
+            resume: { get: () => super.resume }
         });
         return __awaiter(this, void 0, void 0, function* () {
+            res === null || res === void 0 ? void 0 : res.header("Cache-Control", "no-store");
             Object.defineProperty(req, "auth", { value: null, writable: true, configurable: true, enumerable: false });
-            const session = yield _super.authenticate.call(this, req);
+            const session = (yield _super.authenticate.call(this, req)) || (res ? yield _super.resume.call(this, req, res) : null);
             if (!session)
                 return null;
             const user = this.sessionUsers.get(session);
@@ -212,7 +230,7 @@ class AuthScope extends WebAuth_1.WebAuth {
         const user = {};
         for (const field of fields) {
             if (field.startsWith("__") || field === this.fields.password || ((_a = auth.user.__hidden) === null || _a === void 0 ? void 0 : _a.includes(field))
-                || ["constructor", "prototype"].includes(field))
+                || field.startsWith("auth_reset_") || ["constructor", "prototype"].includes(field))
                 continue;
             const value = auth.user[field];
             if (value !== undefined)
@@ -224,7 +242,7 @@ class AuthScope extends WebAuth_1.WebAuth {
     middleware(options = {}) {
         return (next, reject, req, res) => __awaiter(this, void 0, void 0, function* () {
             try {
-                const auth = yield this.resolve(req);
+                const auth = yield this.resolve(req, res);
                 res.header("Cache-Control", "no-store");
                 if (!auth && options.required) {
                     res.status(401).send({ status: "error", code: "unauthorized" });

@@ -90,6 +90,7 @@ class RouteFacade {
             Auth_1.Auth.registerScope(auth, overrides);
         }
         const base = prefix.replace(/\/+$/, "");
+        Auth_1.Auth.scope(auth).configureRoutes(base, loginPath);
         const registration = { middleware: options.middleware, domains: options.domains };
         this.get(`${base}/csrf`, (0, Auth_1.authRoute)("csrf", options), registration);
         this.post(options.loginPath || `${base}/login`, (0, Auth_1.authRoute)("login", options), registration);

@@ -15,6 +15,8 @@ function mergeOptions(base: Partial<AuthScopeOptions>, config: Partial<AuthScope
     return { model: Model, ...base, ...config,
         fields: { ...base.fields, ...config.fields },
         session: { ...base.session, ...config.session },
+        passwordReset: config.passwordReset === false ? false : config.passwordReset === undefined && base.passwordReset === false ? false
+            : { ...(base.passwordReset || {}), ...(config.passwordReset || {}) },
         messages: { ...base.messages, ...config.messages } };
 }
 
@@ -42,6 +44,13 @@ export class AuthFacade {
         const scope = this.scopes.get(key);
         if (!scope) throw new Error(`Auth scope "${key}" is not registered.`);
         return scope;
+    }
+
+    async revokeUserSessions(model: typeof Model, subject: string): Promise<void> {
+        this.init();
+        for (const scope of this.scopes.values()) {
+            if (scope.configuration.model === model) await scope.sessions.revokeAll(subject);
+        }
     }
 
     registerScope(key: string, config: Partial<AuthScopeOptions>): AuthScope {

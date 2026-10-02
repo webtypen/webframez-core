@@ -37,3 +37,37 @@ test('browser adapter never adds CSRF to external requests or GET and stops if b
     assert.equal(response.status, 403);
     assert.equal(calls.length, before + 1);
 });
+
+test('browser adapter refreshes once for parallel expired-access failures and replays each rejected request once', async () => {
+    const context = { exports: {}, window: { location: { href: 'https://site.example/', origin: 'https://site.example', protocol: 'https:' } },
+        document: { cookie: '__Host-wf_csrf=bound-csrf' }, URL, Request, Headers };
+    vm.runInNewContext(fs.readFileSync(require.resolve('../auth-client'), 'utf8'), context);
+    let refreshes = 0, attempts = 0, renewed = false;
+    const fetch = context.exports.createAuthFetch({}, async (input, init) => {
+        if (input === '/api/auth/refresh') {
+            refreshes++;
+            assert.equal(init.headers.get('X-CSRF-Token'), 'bound-csrf');
+            await new Promise(resolve => setTimeout(resolve, 10));
+            renewed = true;
+            return new Response('{}', { status: 200 });
+        }
+        attempts++;
+        assert.equal(init.body, 'payload');
+        return new Response(JSON.stringify(renewed ? { status: 'success' } : { code: 'invalid_csrf' }), { status: renewed ? 200 : 403 });
+    });
+    const results = await Promise.all([fetch('/api/action', { method: 'POST', body: 'payload' }), fetch('/api/action', { method: 'POST', body: 'payload' })]);
+    assert.equal(refreshes, 1);
+    assert.equal(attempts, 4);
+    assert.deepEqual(results.map(response => response.status), [200, 200]);
+});
+
+test('browser adapter preserves permission failures and never loops when refresh is rejected', async () => {
+    const { createAuthFetch } = fixture();
+    let calls = 0;
+    const forbidden = createAuthFetch({}, async () => { calls++; return new Response(JSON.stringify({ code: 'forbidden' }), { status: 403 }); });
+    assert.equal((await forbidden('/api/action', { method: 'POST' })).status, 403);
+    assert.equal(calls, 1);
+    const expired = createAuthFetch({}, async input => { calls++; return new Response(JSON.stringify({ code: input === '/api/auth/refresh' ? 'unauthorized' : 'invalid_csrf' }), { status: 403 }); });
+    assert.equal((await expired('/api/action', { method: 'POST' })).status, 403);
+    assert.equal(calls, 3);
+});
