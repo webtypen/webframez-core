@@ -170,7 +170,7 @@ export class SessionAuth {
         }
         if (!link) throw new Error("Linked session reference is unavailable.");
         for (let attempt = 0; attempt < 5; attempt++) {
-            const candidate = { ...record, _id: link.sessionId, accessExpiresAt: Math.min(record.accessExpiresAt, record.expiresAt) };
+            const candidate: SessionRecord = { ...record, _id: link.sessionId, accessExpiresAt: Math.min(record.accessExpiresAt, record.expiresAt) };
             const credentials = this.credentials(candidate);
             Object.assign(candidate, { accessHash: hashAuthToken(credentials.access), refreshHash: hashAuthToken(credentials.refresh), csrfHash: hashAuthToken(credentials.csrf) });
             let stored: SessionRecord | null;
