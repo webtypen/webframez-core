@@ -7,6 +7,7 @@ import {
     DataBuilderFields,
     DataBuilderType,
     DataBuilderErrors,
+    DataBuilderFormDefinition,
     DocumentDatabase,
     Request,
     Route,
@@ -93,3 +94,10 @@ if (inferredLegacy) {
 }
 const registeredInstance: DataBuilderFieldTypeInstance | null = baseBuilder.registerFieldType(CodeField).getFieldTypeInstance("code");
 void [registeredLegacy, previousExport, registeredInstance];
+
+// Responsive widths accepted by Native Design must also work through the published Core types.
+const responsiveForm: DataBuilderFormDefinition[] = [
+    { field: "name", width: { xs: "100%", md: "50%" } },
+    { type: "tabs", width: { default: "100%", lg: 960 }, tabs: [] },
+    { type: "layout", width: { width: "100%", sm: "75%" }, children: [] },
+];

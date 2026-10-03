@@ -42,9 +42,11 @@ export type DataBuilderOptionMapping = {
 
 export type DataBuilderOptionsMapping = DataBuilderOptionMapping | DataBuilderOptionMapping[];
 
+export type DataBuilderFormWidth = string | number | Partial<Record<"width" | "default" | "xs" | "sm" | "md" | "lg" | "xl", string | number>>;
+
 export type DataBuilderFormFieldDefinition = {
     field: string;
-    width?: string | number;
+    width?: DataBuilderFormWidth;
     placement?: "content" | "actions";
     hidden?: string | boolean;
     disabled?: string | boolean;
@@ -63,14 +65,14 @@ export type DataBuilderFormTabDefinition = {
 export type DataBuilderFormTabsDefinition = {
     type: "tabs";
     label?: string;
-    width?: string | number;
+    width?: DataBuilderFormWidth;
     appearance?: "card" | "plain";
     tabs: DataBuilderFormTabDefinition[];
 };
 
 export type DataBuilderFormLayoutDefinition = {
     type: string;
-    width?: string | number;
+    width?: DataBuilderFormWidth;
     children?: DataBuilderFormDefinition[];
     [key: string]: any;
 };
