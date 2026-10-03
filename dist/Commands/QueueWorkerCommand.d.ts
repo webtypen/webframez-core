@@ -11,6 +11,14 @@ export declare class QueueWorkerCommand extends ConsoleCommand {
     workerOperationId: string | null;
     workerHadError: boolean;
     lastAutomationCheckAt: any;
+    private stopping;
+    private automationRun;
+    private runtimeState;
+    private wakeWaiters;
+    private readonly stopSignal;
+    get workerInstanceKey(): string;
+    requestStop(): void;
+    private publishRuntimeState;
     jobsExecuted: number;
     jobsSucceeded: number;
     jobsFailed: number;
@@ -23,7 +31,7 @@ export declare class QueueWorkerCommand extends ConsoleCommand {
     init(): boolean;
     canStart(): boolean;
     random(min: number, max: number): number;
-    wait(ms: number): Promise<unknown>;
+    wait(ms: number): Promise<void>;
     waitRun(): Promise<unknown>;
     cancelRun(jobId: any): Promise<unknown>;
     updateWorkerStatus(values: {

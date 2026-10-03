@@ -1,6 +1,6 @@
 {
     "name": "@webtypen/webframez-core",
-    "version": "0.3.80",
+    "version": "0.3.81",
     "description": "The core package of the typescript based webframez (web-framework) by webtypen.de",
     "homepage": "https://webtypen.de/",
     "license": "MIT",
@@ -32,7 +32,8 @@
         "auth-client.js",
         "auth-client.d.ts",
         "bearer-auth-client.js",
-        "bearer-auth-client.d.ts"
+        "bearer-auth-client.d.ts",
+        "docs/queue-workers.md"
     ],
     "scripts": {
         "build": "tsc",

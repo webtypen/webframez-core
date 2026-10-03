@@ -105,6 +105,10 @@ class ConsoleApplication {
                     if (options && options.onEnd) {
                         yield options.onEnd(command.signature);
                     }
+                    // Managed workers must terminate even when a database driver keeps sockets open.
+                    if (command.signature === "queue:worker" && process.env.WEBFRAMEZ_QUEUE_STATE_FILE) {
+                        process.exit(commandInstance.workerHadError ? 1 : 0);
+                    }
                 }
                 catch (e) {
                     yield ErrorHandler_1.ErrorHandler.report(e, {

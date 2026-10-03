@@ -1,4 +1,5 @@
 import fs from "fs";
+import crypto from "crypto";
 import path from "path";
 import moment from "moment-timezone";
 import { ConsoleCommand } from "./ConsoleCommand";
@@ -29,6 +30,38 @@ export class QueueWorkerCommand extends ConsoleCommand {
     workerOperationId: string | null = null;
     workerHadError = false;
     lastAutomationCheckAt: any = null;
+
+    private stopping = false;
+    private automationRun: Promise<void> | null = null;
+    private runtimeState: Record<string, any> = {};
+    private wakeWaiters = new Set<() => void>();
+    private readonly stopSignal = () => this.requestStop();
+
+    get workerInstanceKey() {
+        const instance = process.env.WEBFRAMEZ_QUEUE_INSTANCE;
+        if (instance && !/^[A-Za-z0-9_.-]+$/.test(instance)) throw new Error("Invalid queue instance ID");
+        return this.workerKey + (instance ? `--${instance}` : "");
+    }
+
+    requestStop() {
+        this.stopping = true;
+        try {
+            this.updateWorkerStatus({ status: "draining", status_at: new Date().toISOString() });
+        } catch (error) {
+            // A telemetry/storage failure must not turn a graceful signal into a job interruption.
+            console.error("Could not publish queue drain status", error);
+        }
+        for (const wake of this.wakeWaiters) wake();
+    }
+
+    private publishRuntimeState(values: Record<string, any>) {
+        this.runtimeState = { ...this.runtimeState, ...values, pid: process.pid, worker: this.workerKey };
+        const target = process.env.WEBFRAMEZ_QUEUE_STATE_FILE;
+        if (!target) return;
+        const temporary = `${target}.${process.pid}.tmp`;
+        fs.writeFileSync(temporary, JSON.stringify(this.runtimeState), { mode: 0o600 });
+        fs.renameSync(temporary, target);
+    }
 
     // Statistics
     jobsExecuted = 0;
@@ -106,36 +139,42 @@ export class QueueWorkerCommand extends ConsoleCommand {
         const workerKey = this.getOption("worker");
         if (!workerKey || typeof workerKey !== "string" || workerKey.trim() === "") {
             this.error("You must specify a worker key using --worker=<worker_key>");
+            this.workerHadError = true;
             return;
         }
 
         this.workerConfig = Config.get("queue.workers." + workerKey);
         if (!this.workerConfig) {
             this.error(`Worker '${workerKey}' is not defined in the queue configuration.`);
+            this.workerHadError = true;
             return;
         }
 
         if (!this.workerConfig.is_active) {
             this.error(`Worker '${workerKey}' is disabled in the queue configuration.`);
+            this.workerHadError = true;
             return;
         }
 
         this.workerKey = workerKey;
         this.startTime = moment().tz(this.workerConfig.timezone ? this.workerConfig.timezone : "Europe/Berlin");
         if (!this.init()) {
+            this.workerHadError = true;
             return;
         }
 
+        process.on("SIGTERM", this.stopSignal);
+        process.on("SIGINT", this.stopSignal);
         this.workerOperationId = WebframezHooks.createOperationId("worker");
-        await WebframezHooks.emit("queue.worker.start", {
-            operationId: this.workerOperationId,
-            name: workerKey,
-            attributes: {
-                "webframez.queue.worker": workerKey,
-            },
-        });
-
         try {
+            await WebframezHooks.emit("queue.worker.start", {
+                operationId: this.workerOperationId,
+                name: workerKey,
+                attributes: {
+                    "webframez.queue.worker": workerKey,
+                },
+            });
+
             this.log("Queue started");
             this.logRegisteredAutomation();
             await this.run();
@@ -166,21 +205,31 @@ export class QueueWorkerCommand extends ConsoleCommand {
             });
             this.error(`Queue run failed: ${e instanceof Error ? e.message : String(e)}`);
         } finally {
-            if (!this.workerHadError && this.workerOperationId) {
-                await WebframezHooks.emit("queue.worker.end", {
-                    operationId: this.workerOperationId,
-                    name: workerKey,
-                    status: "ok",
-                    attributes: {
-                        "webframez.queue.worker": workerKey,
-                    },
+            this.stopping = true;
+            for (const wake of this.wakeWaiters) wake();
+            await this.automationRun;
+            try {
+                if (!this.workerHadError && this.workerOperationId) {
+                    await WebframezHooks.emit("queue.worker.end", {
+                        operationId: this.workerOperationId,
+                        name: workerKey,
+                        status: "ok",
+                        attributes: {
+                            "webframez.queue.worker": workerKey,
+                        },
+                    });
+                }
+                this.log("Queue stopped");
+                this.updateWorkerStatus({
+                    status: "stopped",
+                    ended_at: new Date().toISOString(),
+                    current_job: null,
+                    current_job_number: null,
                 });
+            } finally {
+                process.off("SIGTERM", this.stopSignal);
+                process.off("SIGINT", this.stopSignal);
             }
-            this.log("Queue stopped");
-            this.updateWorkerStatus({
-                status: "stopped",
-                ended_at: new Date().toISOString(),
-            });
         }
     }
 
@@ -198,7 +247,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
             fs.mkdirSync(storageDir("queue"), { recursive: true });
         }
 
-        const filePath = storageDir("queue", `worker_${this.workerKey}.json`);
+        const filePath = storageDir("queue", `worker_${this.workerInstanceKey}.json`);
         let lastLogFile: any = null;
         if (fs.existsSync(filePath)) {
             try {
@@ -232,7 +281,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
     }
 
     canStart() {
-        const filePath = storageDir("queue", `worker_${this.workerKey}.json`);
+        const filePath = storageDir("queue", `worker_${this.workerInstanceKey}.json`);
         if (!fs.existsSync(filePath)) {
             return true;
         }
@@ -270,8 +319,15 @@ export class QueueWorkerCommand extends ConsoleCommand {
     }
 
     async wait(ms: number) {
-        return new Promise((resolve) => {
-            setTimeout(() => resolve(true), ms);
+        if (this.stopping) return;
+        await new Promise<void>((resolve) => {
+            const done = () => {
+                clearTimeout(timer);
+                this.wakeWaiters.delete(done);
+                resolve();
+            };
+            const timer = setTimeout(done, ms);
+            this.wakeWaiters.add(done);
         });
     }
 
@@ -281,6 +337,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
                 status: "waiting",
                 status_at: new Date().toISOString(),
                 current_job: null,
+                current_job_number: null,
             });
 
             await this.wait(1000);
@@ -308,7 +365,9 @@ export class QueueWorkerCommand extends ConsoleCommand {
     }
 
     updateWorkerStatus(values: { [key: string]: boolean | string | number | null }) {
-        const filePath = storageDir("queue", `worker_${this.workerKey}.json`);
+        if (this.stopping && values.status !== "stopped") values = { ...values, status: "draining" };
+        this.publishRuntimeState(values);
+        const filePath = storageDir("queue", `worker_${this.workerInstanceKey}.json`);
         if (!fs.existsSync(filePath)) return;
 
         const json = JSON.parse(fs.readFileSync(filePath, "utf-8"));
@@ -456,6 +515,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
                 }
 
                 for (let automation of checkAutomation) {
+                    if (this.checkStop()) break;
                     if (!automation || !automation.jobclass || !automation._execution || !automation._execution.key) {
                         continue;
                     }
@@ -471,6 +531,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
                     // Create the automation job
                     const now = moment().tz(this.workerConfig.timezone ? this.workerConfig.timezone : "Europe/Berlin");
                     const newJob = {
+                        _id: await DBConnection.objectId(crypto.createHash("sha256").update("queue-automation:" + automation._execution.key).digest("hex").slice(0, 24)),
                         jobclass: automation.jobclass,
                         number: await this.getNextJobNumber(connection),
                         is_automated: true,
@@ -486,7 +547,14 @@ export class QueueWorkerCommand extends ConsoleCommand {
                         executions: [],
                         worker: this.workerKey,
                     };
-                    await DBConnection.documentStore(connection).collection("queue_jobs").insertOne(newJob);
+                    if (this.checkStop()) break;
+                    try {
+                        await DBConnection.documentStore(connection).collection("queue_jobs").insertOne(newJob);
+                    } catch (error) {
+                        // Concurrent replicas may schedule the same occurrence; the primary key arbitrates.
+                        const existing = await DBConnection.documentStore(connection).collection("queue_jobs").findOne({ _id: newJob._id });
+                        if (!existing) throw error;
+                    }
                 }
 
                 await this.wait(5000);
@@ -516,9 +584,10 @@ export class QueueWorkerCommand extends ConsoleCommand {
     }
 
     checkStop() {
+        if (this.stopping) return true;
         if (!this.workerKey) return false;
 
-        const stopFilePath = path.join(storageDir(), "queue", this.workerKey + ".stop");
+        const stopFilePath = path.join(storageDir(), "queue", this.workerInstanceKey + ".stop");
         if (fs.existsSync(stopFilePath)) {
             if (this.autorestart) {
                 fs.writeFileSync(
@@ -534,7 +603,8 @@ export class QueueWorkerCommand extends ConsoleCommand {
     async run() {
         const connection = await DBConnection.getConnection();
 
-        this.runAutomation();
+        this.updateWorkerStatus({ status: "waiting", current_job: null });
+        this.automationRun = this.runAutomation();
         while (true) {
             const now = moment().tz(this.workerConfig.timezone ? this.workerConfig.timezone : "Europe/Berlin");
 
@@ -578,6 +648,15 @@ export class QueueWorkerCommand extends ConsoleCommand {
                 );
 
             const job = jobUpdate;
+
+            // A signal can arrive while the atomic claim is in flight. Return that claim before executing it.
+            if (this.checkStop()) {
+                if (job?._id) await DBConnection.documentStore(connection).collection("queue_jobs").updateOne(
+                    { _id: job._id, status: "running", worker: this.workerKey },
+                    { $set: { status: "pending", started_at: null } }
+                );
+                break;
+            }
 
             if (!job || !job.jobclass || !job._id) {
                 this.currentJob = null;
