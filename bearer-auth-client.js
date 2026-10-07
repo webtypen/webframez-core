@@ -41,27 +41,27 @@ exports.createBearerAuthFetch = function createBearerAuthFetch(options, original
         }
         return pending.get(key);
     };
-    return async (input, init) => {
+    return async (input, init, requestFetch = originalFetch) => {
         let url;
         try { url = new URL(typeof Request !== "undefined" && input instanceof Request ? input.url : String(input), globalThis.location?.href); }
-        catch { return originalFetch(input, init); }
+        catch { return requestFetch(input, init); }
         const configuration = options.configuration(url);
-        if (!configuration) return originalFetch(input, init);
+        if (!configuration) return requestFetch(input, init);
         const refreshUrl = new URL(configuration.refreshUrl);
         if (refreshUrl.origin !== url.origin) throw new Error("Bearer refresh must use the request origin.");
         let session = await options.load(configuration.key);
-        if (!session || url.href === refreshUrl.href) return originalFetch(input, init);
+        if (!session || url.href === refreshUrl.href) return requestFetch(input, init);
         if (session.auth_expires_at <= Date.now() + 30000) session = await refresh(configuration, session.auth_token) || session;
         const headers = new Headers(init?.headers || (typeof Request !== "undefined" && input instanceof Request ? input.headers : undefined));
         headers.set("Authorization", `Bearer ${session.auth_token}`);
         const retryInput = typeof Request !== "undefined" && input instanceof Request ? input.clone() : input;
-        const response = await originalFetch(input, { ...init, headers, credentials: "omit", redirect: "error" });
+        const response = await requestFetch(input, { ...init, headers, credentials: "omit", redirect: "error" });
         if (response.status !== 401) return response;
         const failure = await response.clone().json().catch(() => null);
         if (failure?.code !== "unauthorized") return response;
         const renewed = await refresh(configuration, session.auth_token);
         if (!renewed) return response;
         headers.set("Authorization", `Bearer ${renewed.auth_token}`);
-        return originalFetch(retryInput, { ...init, headers, credentials: "omit", redirect: "error" });
+        return requestFetch(retryInput, { ...init, headers, credentials: "omit", redirect: "error" });
     };
 };

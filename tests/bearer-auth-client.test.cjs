@@ -14,6 +14,46 @@ function setup(handler) {
 
 const renewed = () => ({ status: 'success', auth_token: 'new', refresh_token: 'refresh-new', auth_expires_at: Date.now() + 60000, refresh_expires_at: Date.now() + 3600000 });
 
+test('multipart transport and JSON requests share refresh; retry retains transport and body', async () => {
+    let refreshes = 0;
+    const { fetch } = setup(async url => {
+        if (url.endsWith('/refresh')) {
+            refreshes++;
+            await new Promise(resolve => setTimeout(resolve, 5));
+            return Response.json(renewed());
+        }
+        return Response.json({ code: 'unauthorized' }, { status: 401 });
+    });
+    const body = new FormData();
+    body.append('file', new Blob(['file content']), 'file.txt');
+    const uploads = [];
+    const transport = async (url, init) => {
+        assert.equal(url, 'https://api.example/files');
+        assert.equal(init.body, body);
+        const authorization = new Headers(init.headers).get('Authorization');
+        uploads.push(authorization);
+        return authorization === 'Bearer old' ? Response.json({ code: 'unauthorized' }, { status: 401 }) : Response.json({ ok: true });
+    };
+    const [upload] = await Promise.all([
+        fetch('https://api.example/files', { method: 'POST', body }, transport),
+        fetch('https://api.example/items'),
+    ]);
+    assert.ok(upload.ok);
+    assert.equal(refreshes, 1);
+    assert.deepEqual(uploads, ['Bearer old', 'Bearer new']);
+});
+
+test('custom transports preserve legacy headers without a Core session and never receive foreign credentials', async () => {
+    const { fetch, clear, calls } = setup(() => { throw new Error('unexpected default transport'); });
+    const received = [];
+    const transport = async (_url, init) => { received.push(new Headers(init?.headers).get('Authorization')); return Response.json({ ok: true }); };
+    await fetch('https://foreign.example/files', {}, transport);
+    clear();
+    await fetch('https://api.example/files', { headers: { Authorization: 'Bearer legacy' } }, transport);
+    assert.deepEqual(received, [null, 'Bearer legacy']);
+    assert.equal(calls.length, 0);
+});
+
 test('parallel bearer requests share one refresh and retry only explicit unauthorized errors', async () => {
     let refreshes = 0;
     const { fetch, calls } = setup(async (url, init) => {
