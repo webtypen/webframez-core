@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
-import { Readable } from "stream";
+import { Writable } from "stream";
+import { pipeline } from "stream/promises";
 import { open, Entry, ZipFile } from "yauzl";
 
 function ensureDirectory(directory: string): void {
@@ -71,13 +72,24 @@ async function extractEntry(zip: ZipFile, entry: Entry, target: string, mode: nu
             throw new Error(`Restore destination is not a private regular file: ${target}`);
         }
 
-        const input = await new Promise<Readable>((resolve, reject) => {
-            zip.openReadStream(entry, (error, stream) => error ? reject(error) : resolve(stream!));
-        });
         await output.truncate(0);
-        for await (const chunk of input) {
-            await output.writeFile(chunk);
-        }
+        await new Promise<void>((resolve, reject) => {
+            zip.openReadStream(entry, (error, input) => {
+                if (error) {
+                    reject(error);
+                    return;
+                }
+
+                // Attach all stream error handlers synchronously, before an
+                // inflater can report a corrupt entry on the next tick (Node 22).
+                const sink = new Writable({
+                    write(chunk, _encoding, callback) {
+                        output.writeFile(chunk).then(() => callback(), callback);
+                    },
+                });
+                pipeline(input!, sink).then(resolve, reject);
+            });
+        });
         await output.chmod(mode || 0o600);
     } finally {
         await output.close();
