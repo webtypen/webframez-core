@@ -17,7 +17,7 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const os_1 = __importDefault(require("os"));
 const crypto_1 = __importDefault(require("crypto"));
-const extract_zip_1 = __importDefault(require("extract-zip"));
+const ZipReader_1 = require("./Utils/ZipReader");
 const Config_1 = require("../Config");
 const DBConnection_1 = require("../Database/DBConnection");
 const BackupOutputDrivers_1 = require("./BackupOutputDrivers");
@@ -705,7 +705,7 @@ class BackupManager {
     }
     extractArtifact(artifactPath, targetDir) {
         return __awaiter(this, void 0, void 0, function* () {
-            yield (0, extract_zip_1.default)(artifactPath, { dir: path_1.default.resolve(targetDir) });
+            yield (0, ZipReader_1.extractBackupZip)(artifactPath, targetDir);
             fs_1.default.rmSync(path_1.default.join(targetDir, ".webframez-backup"), { recursive: true, force: true });
         });
     }

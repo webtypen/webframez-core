@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import crypto from "crypto";
-import extractZip from "extract-zip";
+import { extractBackupZip } from "./Utils/ZipReader";
 import { Config } from "../Config";
 import { DBConnection } from "../Database/DBConnection";
 import {
@@ -872,7 +872,7 @@ export class BackupManager {
     }
 
     private async extractArtifact(artifactPath: string, targetDir: string) {
-        await extractZip(artifactPath, { dir: path.resolve(targetDir) });
+        await extractBackupZip(artifactPath, targetDir);
         fs.rmSync(path.join(targetDir, ".webframez-backup"), { recursive: true, force: true });
     }
 
