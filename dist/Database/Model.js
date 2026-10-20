@@ -138,6 +138,18 @@ class Model {
             return yield DBConnection_1.DBConnection.objectId(val, this.__connection, options);
         });
     }
+    /** Atomically claim or update one matching record through the selected document driver.
+     * Filter and update use the document adapter's native operators. Returns the updated model.
+     * Like update(), this low-level operation does not invoke schema form hooks.
+     */
+    static findOneAndUpdate(filter, update) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const model = new this();
+            const store = yield DBConnection_1.DBConnection.getDocumentStore(model.__connection);
+            const record = yield store.collection(model.__table).findOneAndUpdate(filter, update, { returnDocument: "after" });
+            return record ? DBConnection_1.DBConnection.mapDataToModel(this, record) : null;
+        });
+    }
     /**
      * Creates a new query-builder object and adds a where-clause
      * @param column

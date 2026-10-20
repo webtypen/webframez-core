@@ -135,6 +135,18 @@ export class Model {
         return await DBConnection.objectId(val, this.__connection, options);
     }
 
+    /** Atomically claim or update one matching record through the selected document driver.
+     * Filter and update use the document adapter's native operators. Returns the updated model.
+     * Like update(), this low-level operation does not invoke schema form hooks.
+     */
+    static async findOneAndUpdate(filter: Record<string, any>, update: Record<string, any>) {
+        const model = new this();
+        const store = await DBConnection.getDocumentStore(model.__connection);
+        const record = await store.collection(model.__table).findOneAndUpdate(filter, update, { returnDocument: "after" });
+
+        return record ? DBConnection.mapDataToModel(this, record) : null;
+    }
+
     /**
      * Creates a new query-builder object and adds a where-clause
      * @param column
