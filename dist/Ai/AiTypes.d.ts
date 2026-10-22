@@ -4,7 +4,10 @@ export type KernelAiApiRegistrations = {
     middleware?: string[];
     [key: string]: any;
 };
-export type KernelAiRegistrations = {
+/** Optional packages augment this map without introducing a Core -> AI dependency. */
+export interface KernelAiExtensions {
+}
+export type KernelAiRegistrations = KernelAiExtensions & {
     agents?: KernelAiAgentRegistration[];
     api?: KernelAiApiRegistrations;
 };
