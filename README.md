@@ -9,6 +9,7 @@ This README reflects the current API in this repository and focuses on:
 - DataBuilder
 - Console Commands
 - Queue and Jobs
+- Structured error reporting and execution context
 - Session, browser and cross-instance authentication
 
 ## Requirements
@@ -680,6 +681,26 @@ app.boot({
 - `write`, `writeln`, `info`, `warning`, `success`, `error`
 - progress helpers (`progress`, `progressIncrement`, `progressFinish`)
 
+## Error reporting and execution context (0.3.88+)
+
+`ErrorHandler.onReport(listener)` observes reported errors independently of the
+existing logging handlers and returns an unsubscribe function. Replacing handlers
+with `setHandler` / `setHandlers` does not remove these subscriptions.
+`ErrorHandler.withContext(context, callback)` propagates request, command and queue
+context through asynchronous work; a distinct `operationId` separates executions
+and prevents duplicate reports of the same Error within one execution.
+
+Core reports errors at Router/middleware, ApiFunction, application boot, Console
+and queue boundaries. Unexpected HTTP failures receive a generic 500 response;
+failed console commands set a nonzero exit code. Error events include application
+type, process identity and the available route/API/command/job/worker context.
+
+Use `@webtypen/webframez-errors` for redaction, bounded durable buffering and
+Server Manager delivery. Core itself does not implement Manager authentication or
+transport. The SDK excludes expected errors, including HTTP 4xx, by default.
+See [Error reporting and execution context](docs/errors.md) for the subscription
+API, explicit reporting and the distinction between error events and job status.
+
 ## Queue and Jobs
 
 Queue workers run through console commands and use `queue_jobs` storage.
@@ -744,6 +765,29 @@ export default {
   }
 };
 ```
+
+### Retry limits and long-running polling
+
+Console workers and the embedded `Queue` share finite limits. Defaults are
+`maxAttempts: 100`, `maxErrorRetries: 3`, `maxAgeSeconds: 86400` and
+`maxFinalizationAttempts: 3`; error retries require `error.retryable === true`.
+**Every execution counts toward maxAttempts, including successful status polls
+that return executeAgain().** Polling does not consume maxErrorRetries.
+
+Configure `queue.retry`, `static retry`, `queue.jobs[JobClass].retry` or the job's
+asynchronous `retryPolicy(job)` override. A policy can define delay stages and an
+absolute `deadlineAt`; both the job age and that deadline are enforced. Stages set
+minimum delays and also cap attempts at their summed attempt count.
+
+Long-running provider workflows such as SEPA settlement need an application-owned
+policy covering their settlement window. A generic 24-hour / 100-execution default
+is not a payment settlement deadline. Existing histories count after upgrades, so
+an older polling job can exhaust a newly introduced limit before its next handler
+call. Updating a policy does not reactivate failed jobs or reset their histories.
+
+See [Managed workers, retry policies and safe recovery](docs/queue-workers.md)
+for precedence, stages, finalization hooks and recovery without repeating external
+side effects. Core never automatically creates, cancels or retries a payment.
 
 ### Built-in Queue Commands
 

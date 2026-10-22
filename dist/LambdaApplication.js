@@ -1,4 +1,13 @@
 "use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LambdaApplication = void 0;
 const Auth_1 = require("./Auth/Auth");
@@ -13,6 +22,17 @@ class LambdaApplication {
      * Init the routes and handle the request
      */
     boot(event, context, options) {
+        return ErrorHandler_1.ErrorHandler.withContext({ applicationType: "LambdaApplication", scope: "boot" }, () => {
+            try {
+                return this.bootScoped(event, context, options);
+            }
+            catch (error) {
+                void ErrorHandler_1.ErrorHandler.report(error, { source: "lambda.boot" });
+                throw error;
+            }
+        });
+    }
+    bootScoped(event, context, options) {
         const operationId = WebframezHooks_1.WebframezHooks.createOperationId("lambda");
         void WebframezHooks_1.WebframezHooks.emit("lambda.invoke.start", {
             operationId,
@@ -62,7 +82,8 @@ class LambdaApplication {
             });
             return result;
         })
-            .catch((error) => {
+            .catch((error) => __awaiter(this, void 0, void 0, function* () {
+            yield ErrorHandler_1.ErrorHandler.report(error, { scope: "controller", source: "lambda.invoke" });
             void WebframezHooks_1.WebframezHooks.emit("lambda.invoke.error", {
                 operationId,
                 name: "aws-lambda",
@@ -74,7 +95,7 @@ class LambdaApplication {
                 },
             });
             throw error;
-        });
+        }));
     }
 }
 exports.LambdaApplication = LambdaApplication;

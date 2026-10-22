@@ -20,6 +20,8 @@ type RouteObject = {
 type MiddlewareRejectSignal = {
     __middlewareReject: true;
     reason?: any;
+    statusCode?: number;
+    body?: any;
 };
 
 type RouteDomainMatchResult = {
@@ -450,10 +452,12 @@ class RouterFacade {
         request.routeDomainWildcard = domainMatch.wildcard;
     }
 
-    createMiddlewareRejectSignal(reason?: any): MiddlewareRejectSignal {
+    createMiddlewareRejectSignal(reason?: any, body?: any): MiddlewareRejectSignal {
         return {
             __middlewareReject: true,
             reason: reason,
+            ...(typeof reason === "number" && Number.isInteger(reason) && reason >= 400 && reason <= 599
+                ? { statusCode: reason, body } : {}),
         };
     }
 
@@ -521,6 +525,10 @@ class RouterFacade {
      * @param res
      */
     async handleRequest(req: null | IncomingMessage, res: null | ServerResponse, options?: any) {
+        return ErrorHandler.withContext({ applicationType: this.mode === "aws-lambda" ? "LambdaApplication" : "WebApplication", scope: "controller", operationId: WebframezHooks.createOperationId("request") }, () => this.handleRequestScoped(req, res, options));
+    }
+
+    private async handleRequestScoped(req: null | IncomingMessage, res: null | ServerResponse, options?: any) {
         const httpOperationId = WebframezHooks.createOperationId("http");
         const initialMethod =
             req && req.method
@@ -763,7 +771,19 @@ class RouterFacade {
             return returnResult;
         } catch (e: any) {
             if (this.isMiddlewareRejectSignal(e)) {
-                const middlewareErrorResult = this.handleError(request, response, 500, e.reason);
+                // Preserve the explicit reject(status, body) API used by existing consumers.
+                // A regular reject(reason) continues through the standard error handler.
+                let middlewareErrorResult: any;
+                if (e.statusCode && e.body !== undefined) {
+                    if (typeof e.body === "object" && e.body !== null && !Buffer.isBuffer(e.body)) {
+                        response.header("content-type", "application/json");
+                    }
+                    response.status(e.statusCode).send(e.body);
+                    middlewareErrorResult = this.handleReturn(request, response, e.body);
+                } else {
+                    middlewareErrorResult = this.handleError(request, response,
+                        e.statusCode ?? (response.statusCode >= 400 ? response.statusCode : ErrorHandler.httpStatus(e.reason)), e.reason);
+                }
                 if (WebframezHooks.hasListeners("http.request.error")) {
                     await WebframezHooks.emit("http.request.error", {
                         operationId: httpOperationId,
@@ -798,7 +818,7 @@ class RouterFacade {
                     query: request.query,
                 },
             });
-            const errorResult = this.handleError(request, response, 500, e);
+            const errorResult = this.handleError(request, response, ErrorHandler.httpStatus(e), e);
             if (routeOperationId) {
                 if (WebframezHooks.hasListeners("route.handler.error")) {
                     await WebframezHooks.emit("route.handler.error", {
@@ -851,12 +871,12 @@ class RouterFacade {
 
             await new Promise((resolve, reject) => {
                 try {
-                    middleware(
+                    Promise.resolve(middleware(
                         resolve,
-                        (reason?: any) => reject(this.createMiddlewareRejectSignal(reason)),
+                        (reason?: any, body?: any) => reject(this.createMiddlewareRejectSignal(reason, body)),
                         request,
                         response
-                    );
+                    )).catch(reject);
                 } catch (e) {
                     reject(e);
                 }
@@ -1033,12 +1053,7 @@ class RouterFacade {
             return;
         }
 
-        const errorMessage =
-            error && typeof error === "string" && error.trim() !== ""
-                ? error.trim()
-                : error && error.toString() && error.toString().trim() !== ""
-                ? error.toString().trim()
-                : "Internal Server Error";
+        const errorMessage = ErrorHandler.publicMessage(error, statusCode);
 
         let data: any = "";
         const contentType = response.headers["content-type"] || request.headers["content-type"] || "";
@@ -1056,7 +1071,7 @@ class RouterFacade {
                 response.header("Content-Type", "text/html");
             }
 
-            data = "<div>" + errorMessage + "</div>";
+            data = "<div>" + errorMessage.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;") + "</div>";
         }
 
         if (response.res && response.res instanceof ServerResponse) {

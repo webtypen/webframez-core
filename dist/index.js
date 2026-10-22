@@ -47,6 +47,8 @@ __exportStar(require("./Datatable/Datatable"), exports);
 __exportStar(require("./Datatable/DatatableRegistry"), exports);
 __exportStar(require("./Datatable/DatatableController"), exports);
 __exportStar(require("./Queue/BaseQueueJob"), exports);
+__exportStar(require("./Queue/QueueRetryPolicy"), exports);
+__exportStar(require("./Queue/QueueRetryLimitError"), exports);
 __exportStar(require("./Queue/QueueJob"), exports);
 __exportStar(require("./Queue/QueueJobsRegisty"), exports);
 __exportStar(require("./Backup/BackupManager"), exports);

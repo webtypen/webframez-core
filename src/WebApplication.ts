@@ -21,6 +21,13 @@ export class WebApplication {
      * Init the routes and start the http-server
      */
     boot(options?: any) {
+        return ErrorHandler.withContext({ applicationType: "WebApplication", scope: "boot" }, () => {
+            try { return this.bootScoped(options); }
+            catch (error) { void ErrorHandler.report(error, { scope: "boot", source: "application.boot" }); throw error; }
+        });
+    }
+
+    private bootScoped(options?: any) {
         const bootOperationId = WebframezHooks.createOperationId("app");
         void WebframezHooks.emit("app.boot.start", {
             operationId: bootOperationId,
@@ -84,7 +91,7 @@ export class WebApplication {
         }
 
         const port = options && options.port ? options.port : 3000;
-        this.server = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
+        this.server = http.createServer((req: http.IncomingMessage, res: http.ServerResponse) => ErrorHandler.withContext({ applicationType: "WebApplication", scope: "controller", operationId: WebframezHooks.createOperationId("http") }, async () => {
             try {
                 const handled = await HttpKernelHandlerRegistry.handle({
                     req,
@@ -115,9 +122,10 @@ export class WebApplication {
                     res.end("Internal Server Error");
                 }
             }
-        });
+        }));
 
         this.server.on("error", (error) => {
+            void ErrorHandler.report(error, { applicationType: "WebApplication", scope: "boot", source: "http.server" });
             void WebframezHooks.emit("app.boot.error", {
                 operationId: bootOperationId,
                 name: "web",

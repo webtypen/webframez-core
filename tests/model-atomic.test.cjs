@@ -26,3 +26,22 @@ test('atomic model updates use the model connection, preserve filters and map th
     assert.equal(results[0].status, 'running');
     assert.deepEqual(calls[0], { filter, update, options: { returnDocument: 'after' } });
 });
+
+
+test('bulk conditional model updates retain tenant filters and driver result', async t => {
+    class Run extends Model { __table = 'runs'; __connection = 'tenant'; }
+    const filter = { environment: 'env', status: 'pending' };
+    const update = { $set: { status: 'failed' } };
+    t.mock.method(DBConnection, 'getDocumentStore', async connection => {
+        assert.equal(connection, 'tenant');
+        return { collection(table) {
+            assert.equal(table, 'runs');
+            return { async updateMany(actualFilter, actualUpdate) {
+                assert.deepEqual(actualFilter, filter);
+                assert.deepEqual(actualUpdate, update);
+                return { matchedCount: 2, modifiedCount: 2 };
+            } };
+        } };
+    });
+    assert.deepEqual(await Run.updateManyWhere(filter, update), { matchedCount: 2, modifiedCount: 2 });
+});

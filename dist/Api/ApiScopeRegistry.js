@@ -10,6 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ApiScopeRegistry = void 0;
+const ErrorHandler_1 = require("../ErrorHandling/ErrorHandler");
 const Route_1 = require("../Router/Route");
 const ApiFunctionUtils_1 = require("./ApiFunctionUtils");
 function getModuleInstances(modulesLoader) {
@@ -92,14 +93,15 @@ class ApiScopeRegistryFacade {
                 const context = yield (0, ApiFunctionUtils_1.runApiScopeRegistrationMiddleware)(registration, req, res);
                 const paramsSource = (func.requestMethod || req.method).toUpperCase() === "GET" ? req.query : req.body;
                 const params = (0, ApiFunctionUtils_1.validateApiFunctionParams)(func.params || {}, paramsSource || {});
-                const result = yield func.handle({ context, params, request: req, response: res });
+                const result = yield ErrorHandler_1.ErrorHandler.withContext({ api: { scope: registration.scopeClass.name, function: func.key } }, () => func.handle({ context, params, request: req, response: res }));
                 return (0, ApiFunctionUtils_1.toApiFunctionHttpResult)(res, result);
             }
             catch (error) {
+                yield ErrorHandler_1.ErrorHandler.report(error, { scope: "controller", source: "api.function", api: { scope: registration.scopeClass.name, function: func.key } });
                 const statusCode = error && error.statusCode && !isNaN(parseInt(error.statusCode)) ? parseInt(error.statusCode) : 500;
                 return res.status(statusCode).send({
                     status: "error",
-                    message: (0, ApiFunctionUtils_1.getApiErrorMessage)(error),
+                    message: ErrorHandler_1.ErrorHandler.publicMessage(error, statusCode),
                 });
             }
         });

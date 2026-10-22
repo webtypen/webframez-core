@@ -21,6 +21,8 @@ export declare class Model {
      * Like update(), this low-level operation does not invoke schema form hooks.
      */
     static findOneAndUpdate(filter: Record<string, any>, update: Record<string, any>): Promise<any>;
+    /** Conditionally update matching documents without read-modify-save races or form hooks. */
+    static updateManyWhere(filter: Record<string, any>, update: Record<string, any>, options?: any): Promise<any>;
     /**
      * Creates a new query-builder object and adds a where-clause
      * @param column

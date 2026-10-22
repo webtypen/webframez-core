@@ -1,3 +1,4 @@
+import { ErrorHandler } from "../ErrorHandling/ErrorHandler";
 import { Route } from "../Router/Route";
 import { Request } from "../Router/Request";
 import { Response } from "../Router/Response";
@@ -129,13 +130,14 @@ class ApiScopeRegistryFacade {
             const context = await runApiScopeRegistrationMiddleware(registration, req, res);
             const paramsSource = (func.requestMethod || req.method).toUpperCase() === "GET" ? req.query : req.body;
             const params = validateApiFunctionParams(func.params || {}, paramsSource || {});
-            const result = await func.handle({ context, params, request: req, response: res });
+            const result = await ErrorHandler.withContext({ api: { scope: registration.scopeClass.name, function: func.key } }, () => func.handle({ context, params, request: req, response: res }));
             return toApiFunctionHttpResult(res, result);
         } catch (error: any) {
+            await ErrorHandler.report(error, { scope: "controller", source: "api.function", api: { scope: registration.scopeClass.name, function: func.key } });
             const statusCode = error && error.statusCode && !isNaN(parseInt(error.statusCode)) ? parseInt(error.statusCode) : 500;
             return res.status(statusCode).send({
                 status: "error",
-                message: getApiErrorMessage(error),
+                message: ErrorHandler.publicMessage(error, statusCode),
             });
         }
     }

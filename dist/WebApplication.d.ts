@@ -8,4 +8,5 @@ export declare class WebApplication {
      * Init the routes and start the http-server
      */
     boot(options?: any): http.Server<typeof http.IncomingMessage, typeof http.ServerResponse>;
+    private bootScoped;
 }

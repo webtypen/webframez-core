@@ -24,6 +24,10 @@ export class ConsoleCommand {
     async handle() {}
 
     async handleSystem() {
+        return ErrorHandler.withContext({ applicationType: "ConsoleApplication", scope: "command", operationId: WebframezHooks.createOperationId("command"), command: { signature: (this.constructor as any).signature, className: this.constructor.name } }, () => this.handleSystemScoped());
+    }
+
+    private async handleSystemScoped() {
         const commandSignature = String((this.constructor as any).signature || this.constructor.name || "command");
         const operationId = WebframezHooks.createOperationId("command");
         this.rl = readline.createInterface({
@@ -52,6 +56,7 @@ export class ConsoleCommand {
                 },
             });
         } catch (e) {
+            process.exitCode = process.exitCode || 1;
             await WebframezHooks.emit("console.command.error", {
                 operationId,
                 name: commandSignature,

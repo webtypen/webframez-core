@@ -10,9 +10,42 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ErrorHandler = void 0;
+const async_hooks_1 = require("async_hooks");
+const crypto_1 = require("crypto");
 class ErrorHandlerFacade {
     constructor() {
         this.handlers = [];
+        this.observers = new Set();
+        this.context = new async_hooks_1.AsyncLocalStorage();
+        this.process = { instanceId: (0, crypto_1.randomUUID)(), pid: process.pid, startedAt: new Date(Date.now() - process.uptime() * 1000), nodeVersion: process.version, coreVersion: require("../../package.json").version };
+    }
+    getProcessInfo() { return Object.assign({}, this.process); }
+    onReport(listener) {
+        this.observers.add(listener);
+        return () => { this.observers.delete(listener); };
+    }
+    getContext() {
+        var _a;
+        return ((_a = this.context.getStore()) === null || _a === void 0 ? void 0 : _a.context) || {};
+    }
+    withContext(context, callback) {
+        const parent = this.context.getStore();
+        const merged = Object.assign(Object.assign({}, parent === null || parent === void 0 ? void 0 : parent.context), context);
+        const seen = context.operationId && context.operationId !== (parent === null || parent === void 0 ? void 0 : parent.context.operationId) ? new WeakSet() : (parent === null || parent === void 0 ? void 0 : parent.seen) || new WeakSet();
+        return this.context.run({ context: merged, seen }, callback);
+    }
+    isExpected(error) {
+        var _a;
+        const status = Number((_a = error === null || error === void 0 ? void 0 : error.statusCode) !== null && _a !== void 0 ? _a : error === null || error === void 0 ? void 0 : error.status);
+        return (error === null || error === void 0 ? void 0 : error.expected) === true || (status >= 400 && status < 500);
+    }
+    httpStatus(error) {
+        var _a;
+        const status = Number((_a = error === null || error === void 0 ? void 0 : error.statusCode) !== null && _a !== void 0 ? _a : error === null || error === void 0 ? void 0 : error.status);
+        return Number.isInteger(status) && status >= 400 && status <= 599 ? status : 500;
+    }
+    publicMessage(error, status = this.httpStatus(error)) {
+        return status < 500 ? this.normalizeToError(error).message : "Internal Server Error";
     }
     normalizeToError(error) {
         if (error instanceof Error) {
@@ -56,10 +89,27 @@ class ErrorHandlerFacade {
         this.handlers = [];
         return this;
     }
-    report(error, context) {
+    report(error, context = {}) {
         return __awaiter(this, void 0, void 0, function* () {
+            const state = this.context.getStore();
+            if (error && typeof error === "object" && state) {
+                if (state.seen.has(error))
+                    return;
+                state.seen.add(error);
+            }
             const normalizedError = this.normalizeToError(error);
-            const event = Object.assign({ timestamp: new Date(), error: normalizedError, originalError: error }, context);
+            const event = Object.assign(Object.assign(Object.assign({ scope: "process", severity: "error", expected: this.isExpected(error) }, state === null || state === void 0 ? void 0 : state.context), { eventId: (0, crypto_1.randomUUID)(), process: this.process, timestamp: new Date(), error: normalizedError, originalError: error }), context);
+            // Invoke observers before the first await, including fatal-process observers.
+            const pending = Array.from(this.observers, observer => {
+                try {
+                    return Promise.resolve(observer(event)).catch(() => console.error("[webframez:error-handler] Observer failed."));
+                }
+                catch (_a) {
+                    console.error("[webframez:error-handler] Observer failed.");
+                    return Promise.resolve();
+                }
+            });
+            yield Promise.all(pending);
             if (!this.handlers || this.handlers.length < 1) {
                 console.error(normalizedError);
                 return;

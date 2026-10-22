@@ -51,6 +51,13 @@ export class ConsoleApplication {
      * Init the routes and start the http-server
      */
     boot(options?: any) {
+        return ErrorHandler.withContext({ applicationType: "ConsoleApplication", scope: "boot" }, () => {
+            try { return this.bootScoped(options); }
+            catch (error) { void ErrorHandler.report(error, { scope: "boot", source: "application.boot" }); throw error; }
+        });
+    }
+
+    private bootScoped(options?: any) {
         if (options && options.config) {
             for (let key in options.config) {
                 Config.register(key, options.config[key]);
@@ -110,6 +117,7 @@ export class ConsoleApplication {
                         process.exit(commandInstance.workerHadError ? 1 : 0);
                     }
                 } catch (e) {
+                    process.exitCode = process.exitCode || 1;
                     await ErrorHandler.report(e, {
                         scope: "command",
                         source: "console.application.boot",

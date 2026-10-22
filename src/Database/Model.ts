@@ -147,6 +147,13 @@ export class Model {
         return record ? DBConnection.mapDataToModel(this, record) : null;
     }
 
+    /** Conditionally update matching documents without read-modify-save races or form hooks. */
+    static async updateManyWhere(filter: Record<string, any>, update: Record<string, any>, options?: any) {
+        const model = new this();
+        const store = await DBConnection.getDocumentStore(model.__connection);
+        return await store.collection(model.__table).updateMany(filter, update, options);
+    }
+
     /**
      * Creates a new query-builder object and adds a where-clause
      * @param column

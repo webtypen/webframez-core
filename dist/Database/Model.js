@@ -150,6 +150,14 @@ class Model {
             return record ? DBConnection_1.DBConnection.mapDataToModel(this, record) : null;
         });
     }
+    /** Conditionally update matching documents without read-modify-save races or form hooks. */
+    static updateManyWhere(filter, update, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const model = new this();
+            const store = yield DBConnection_1.DBConnection.getDocumentStore(model.__connection);
+            return yield store.collection(model.__table).updateMany(filter, update, options);
+        });
+    }
     /**
      * Creates a new query-builder object and adds a where-clause
      * @param column

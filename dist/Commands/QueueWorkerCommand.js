@@ -28,6 +28,8 @@ const BackupManager_1 = require("../Backup/BackupManager");
 const WebframezHooks_1 = require("../Hooks/WebframezHooks");
 const AutomationSchedule_1 = require("../Queue/AutomationSchedule");
 const NotificationService_1 = require("../Notifications/NotificationService");
+const QueueRetryLimitError_1 = require("../Queue/QueueRetryLimitError");
+const QueueRetryPolicy_1 = require("../Queue/QueueRetryPolicy");
 class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
     constructor() {
         super(...arguments);
@@ -592,6 +594,11 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                     current_job: job._id.toString(),
                     current_job_number: job.number,
                 });
+                const previousAttempts = QueueRetryPolicy_1.QueueRetryPolicy.attempts(job);
+                const previousFailures = QueueRetryPolicy_1.QueueRetryPolicy.failures(job);
+                job.first_started_at = QueueRetryPolicy_1.QueueRetryPolicy.startedAt(job, startedAt);
+                job.attempts_made = previousAttempts + 1;
+                job.failed_attempts = previousFailures;
                 job.executions = [
                     { key: executionKey, worker: this.workerKey, status: "running", started_at: startedAt },
                     ...(job.executions && job.executions.length > 0 ? job.executions : []),
@@ -602,6 +609,9 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                     $set: {
                         started_at: startedAt,
                         ended_at: null,
+                        first_started_at: job.first_started_at,
+                        attempts_made: job.attempts_made,
+                        failed_attempts: job.failed_attempts,
                         executions: job.executions,
                     },
                 });
@@ -611,173 +621,214 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                     started_at: startedAt,
                     job_executions_count: job.executions.length,
                 };
+                let retryPolicy = null;
                 let jobInstance = null;
                 let jobNotification = null;
                 const jobType = this.jobTypes && this.jobTypes[job.jobclass] ? this.jobTypes[job.jobclass] : null;
                 const jobOperationId = WebframezHooks_1.WebframezHooks.createOperationId("job");
-                yield WebframezHooks_1.WebframezHooks.emit("queue.job.start", {
-                    operationId: jobOperationId,
-                    parentOperationId: this.workerOperationId,
-                    name: job.jobclass,
-                    attributes: {
-                        "webframez.queue.job": job.jobclass,
-                        "webframez.queue.worker": this.workerKey,
-                    },
-                });
-                try {
-                    if (job.notification_queue_job) {
-                        if (!job._notification) {
-                            throw new Error(`Notification queue-job '${job._id.toString()}' has no _notification reference.`);
-                        }
-                        jobNotification = yield NotificationService_1.NotificationService.getNotification(job._notification);
-                        const targetContext = yield NotificationService_1.NotificationService.resolveTarget({
-                            target: jobNotification.target,
-                            target_id: jobNotification.target_id,
-                        });
-                        if (!(targetContext === null || targetContext === void 0 ? void 0 : targetContext.targetModel)) {
-                            throw new Error(`Notification queue-job '${job._id.toString()}' references a missing target.`);
-                        }
-                        NotificationService_1.NotificationService.attachTargetModel(jobNotification, targetContext.targetModel);
-                        job.notification = jobNotification;
-                        yield NotificationService_1.NotificationService.setChangingStatus(jobNotification, "running");
-                    }
-                    if (!jobType) {
-                        throw new Error(`QueueError: Invalid job-type ${job.jobclass}`);
-                    }
-                    jobInstance = new jobType();
-                    const result = yield jobInstance.handle(job);
-                    const endedAt = new Date();
-                    job.status = "finished";
-                    job.ended_at = endedAt;
-                    job.executions[0].status = "finished";
-                    job.executions[0].ended_at = endedAt;
-                    job.executions[0].log = jobInstance.getLog();
-                    job.executions[0].duration_ms = (0, moment_timezone_1.default)().diff((0, moment_timezone_1.default)(startedAt), "milliseconds");
-                    if (result && typeof result === "object" && result.__execute_again) {
-                        job.status = "pending";
-                        job.ended_at = null;
-                        job.not_before = result.__execute_again;
-                    }
-                    if (jobNotification) {
-                        yield NotificationService_1.NotificationService.setChangingStatus(jobNotification, job.status === "pending" ? "pending" : "success");
-                    }
-                    yield DBConnection_1.DBConnection.documentStore(connection)
-                        .collection("queue_jobs")
-                        .updateOne({ _id: job._id }, {
-                        $set: {
-                            status: job.status,
-                            ended_at: job.ended_at,
-                            not_before: job.status === "pending" ? job.not_before : null,
-                            executions: [...job.executions],
-                        },
-                    });
-                    this.jobsSucceeded++;
-                    yield WebframezHooks_1.WebframezHooks.emit("queue.job.end", {
+                yield ErrorHandler_1.ErrorHandler.withContext({ scope: "job", operationId: jobOperationId, job: { id: String(job._id), number: job.number, jobclass: job.jobclass, worker: this.workerKey, instance: process.env.WEBFRAMEZ_QUEUE_INSTANCE, attempt: job.attempts_made } }, () => __awaiter(this, void 0, void 0, function* () {
+                    var _a;
+                    yield WebframezHooks_1.WebframezHooks.emit("queue.job.start", {
                         operationId: jobOperationId,
                         parentOperationId: this.workerOperationId,
                         name: job.jobclass,
-                        status: "ok",
-                        attributes: {
-                            "webframez.queue.job": job.jobclass,
-                            "webframez.queue.worker": this.workerKey,
-                            "webframez.queue.job.status": job.status,
-                        },
-                    });
-                    this.log(`Finished Job #${job.number} - ${job.jobclass} - ${(job.executions[0].duration_ms / 1000).toFixed(2)}s`);
-                }
-                catch (e) {
-                    yield WebframezHooks_1.WebframezHooks.emit("queue.job.error", {
-                        operationId: jobOperationId,
-                        parentOperationId: this.workerOperationId,
-                        name: job.jobclass,
-                        status: "error",
-                        error: e,
                         attributes: {
                             "webframez.queue.job": job.jobclass,
                             "webframez.queue.worker": this.workerKey,
                         },
                     });
-                    yield ErrorHandler_1.ErrorHandler.report(e, {
-                        scope: "job",
-                        source: "queue.worker.job.handle",
-                        job: {
-                            id: job && job._id ? job._id.toString() : undefined,
-                            number: job && job.number ? job.number : undefined,
-                            jobclass: job && job.jobclass ? job.jobclass : undefined,
-                            worker: this.workerKey,
-                        },
-                        metadata: {
-                            executionKey: executionKey,
-                        },
-                    });
-                    const errorMessage = e instanceof Error ? e.stack || e.message : String(e);
-                    const endedAt = new Date();
-                    let notificationFailureStatusSaved = false;
-                    if (jobNotification) {
-                        try {
-                            yield NotificationService_1.NotificationService.setChangingStatus(jobNotification, "error", errorMessage);
-                            notificationFailureStatusSaved = true;
-                        }
-                        catch (notificationError) {
-                            yield ErrorHandler_1.ErrorHandler.report(notificationError, {
-                                scope: "job",
-                                source: "queue.worker.notification.status",
-                                job: {
-                                    id: job && job._id ? job._id.toString() : undefined,
-                                    number: job && job.number ? job.number : undefined,
-                                    jobclass: job && job.jobclass ? job.jobclass : undefined,
-                                    worker: this.workerKey,
-                                },
-                                metadata: {
-                                    notification: job._notification ? job._notification.toString() : null,
-                                },
+                    try {
+                        jobInstance = jobType ? new jobType() : null;
+                        retryPolicy = QueueRetryPolicy_1.QueueRetryPolicy.resolve(job.jobclass, jobType, yield ((_a = jobInstance === null || jobInstance === void 0 ? void 0 : jobInstance.retryPolicy) === null || _a === void 0 ? void 0 : _a.call(jobInstance, job)));
+                        if (job.retry_exhaustion_attempts)
+                            throw new QueueRetryLimitError_1.QueueRetryLimitError("Retry exhaustion finalization pending.");
+                        QueueRetryPolicy_1.QueueRetryPolicy.assertCanRun(retryPolicy, job, previousAttempts, startedAt);
+                        if (job.notification_queue_job) {
+                            if (!job._notification) {
+                                throw new Error(`Notification queue-job '${job._id.toString()}' has no _notification reference.`);
+                            }
+                            jobNotification = yield NotificationService_1.NotificationService.getNotification(job._notification);
+                            const targetContext = yield NotificationService_1.NotificationService.resolveTarget({
+                                target: jobNotification.target,
+                                target_id: jobNotification.target_id,
                             });
+                            if (!(targetContext === null || targetContext === void 0 ? void 0 : targetContext.targetModel)) {
+                                throw new Error(`Notification queue-job '${job._id.toString()}' references a missing target.`);
+                            }
+                            NotificationService_1.NotificationService.attachTargetModel(jobNotification, targetContext.targetModel);
+                            job.notification = jobNotification;
+                            yield NotificationService_1.NotificationService.setChangingStatus(jobNotification, "running");
                         }
+                        if (!jobType) {
+                            throw new Error(`QueueError: Invalid job-type ${job.jobclass}`);
+                        }
+                        const result = yield ErrorHandler_1.ErrorHandler.withContext({ scope: "job", operationId: jobOperationId, job: { id: String(job._id), number: job.number, jobclass: job.jobclass, worker: this.workerKey, instance: process.env.WEBFRAMEZ_QUEUE_INSTANCE, attempt: job.attempts_made } }, () => jobInstance.handle(job));
+                        const endedAt = new Date();
+                        job.status = "finished";
+                        job.ended_at = endedAt;
+                        job.executions[0].status = "finished";
+                        job.executions[0].ended_at = endedAt;
+                        job.executions[0].log = jobInstance.getLog();
+                        job.executions[0].duration_ms = (0, moment_timezone_1.default)().diff((0, moment_timezone_1.default)(startedAt), "milliseconds");
+                        if (result && typeof result === "object" && result.__execute_again) {
+                            job.status = "pending";
+                            job.ended_at = null;
+                            job.not_before = QueueRetryPolicy_1.QueueRetryPolicy.rescheduleAt(retryPolicy, job, job.attempts_made, result.__execute_again, endedAt);
+                        }
+                        if (jobNotification) {
+                            yield NotificationService_1.NotificationService.setChangingStatus(jobNotification, job.status === "pending" ? "pending" : "success");
+                        }
+                        yield DBConnection_1.DBConnection.documentStore(connection)
+                            .collection("queue_jobs")
+                            .updateOne({ _id: job._id }, {
+                            $set: {
+                                status: job.status,
+                                ended_at: job.ended_at,
+                                not_before: job.status === "pending" ? job.not_before : null,
+                                executions: [...job.executions],
+                            },
+                        });
+                        this.jobsSucceeded++;
+                        yield WebframezHooks_1.WebframezHooks.emit("queue.job.end", {
+                            operationId: jobOperationId,
+                            parentOperationId: this.workerOperationId,
+                            name: job.jobclass,
+                            status: "ok",
+                            attributes: {
+                                "webframez.queue.job": job.jobclass,
+                                "webframez.queue.worker": this.workerKey,
+                                "webframez.queue.job.status": job.status,
+                            },
+                        });
+                        this.log(`Finished Job #${job.number} - ${job.jobclass} - ${(job.executions[0].duration_ms / 1000).toFixed(2)}s`);
                     }
-                    if (!notificationFailureStatusSaved && job.notification_queue_job && job._notification) {
-                        try {
-                            const notificationFound = yield NotificationService_1.NotificationService.setQueueJobFailureStatus(job._notification, errorMessage);
-                            if (!notificationFound) {
-                                throw new Error(`Notification queue-job '${job._id.toString()}' references a missing notification '${job._notification.toString()}'.`);
+                    catch (e) {
+                        yield WebframezHooks_1.WebframezHooks.emit("queue.job.error", {
+                            operationId: jobOperationId,
+                            parentOperationId: this.workerOperationId,
+                            name: job.jobclass,
+                            status: "error",
+                            error: e,
+                            attributes: {
+                                "webframez.queue.job": job.jobclass,
+                                "webframez.queue.worker": this.workerKey,
+                            },
+                        });
+                        const errorMessage = e instanceof Error ? e.stack || e.message : String(e);
+                        const endedAt = new Date();
+                        job.failed_attempts = previousFailures + 1;
+                        let retryAt = retryPolicy
+                            ? QueueRetryPolicy_1.QueueRetryPolicy.retryAt(retryPolicy, job, job.attempts_made, job.failed_attempts, e, endedAt)
+                            : null;
+                        let recovered = false;
+                        const exhausted = retryPolicy && (e instanceof QueueRetryLimitError_1.QueueRetryLimitError
+                            || retryPolicy.retryOn !== "never" && (e === null || e === void 0 ? void 0 : e.retryable) !== false && (retryPolicy.retryOn === "all" || (e === null || e === void 0 ? void 0 : e.retryable) === true)
+                                && !retryAt);
+                        if (exhausted && (jobInstance === null || jobInstance === void 0 ? void 0 : jobInstance.onRetryExhausted) && (job.retry_exhaustion_attempts || 0) < retryPolicy.maxFinalizationAttempts) {
+                            job.retry_exhaustion_attempts = (job.retry_exhaustion_attempts || 0) + 1;
+                            try {
+                                recovered = (yield jobInstance.onRetryExhausted(job, e)) === "finished";
+                                job.retry_exhaustion_error = null;
+                            }
+                            catch (finalizationError) {
+                                if ((finalizationError === null || finalizationError === void 0 ? void 0 : finalizationError.retryable) !== false && job.retry_exhaustion_attempts < retryPolicy.maxFinalizationAttempts) {
+                                    retryAt = new Date(endedAt.getTime() + retryPolicy.delaySeconds * 1000);
+                                }
+                                job.retry_exhaustion_error = finalizationError instanceof Error ? finalizationError.message : "Queue exhaustion finalization failed.";
+                                yield ErrorHandler_1.ErrorHandler.report(finalizationError, { scope: "job", source: "queue.retry.exhausted", job: { number: job.number, jobclass: job.jobclass } });
                             }
                         }
-                        catch (notificationError) {
-                            yield ErrorHandler_1.ErrorHandler.report(notificationError, {
-                                scope: "job",
-                                source: "queue.worker.notification.status.fallback",
-                                job: {
-                                    id: job && job._id ? job._id.toString() : undefined,
-                                    number: job && job.number ? job.number : undefined,
-                                    jobclass: job && job.jobclass ? job.jobclass : undefined,
-                                    worker: this.workerKey,
-                                },
-                                metadata: {
-                                    notification: job._notification.toString(),
-                                },
-                            });
+                        yield ErrorHandler_1.ErrorHandler.report(e, {
+                            scope: "job",
+                            source: "queue.worker.job.handle",
+                            job: {
+                                id: job && job._id ? job._id.toString() : undefined,
+                                number: job && job.number ? job.number : undefined,
+                                jobclass: job && job.jobclass ? job.jobclass : undefined,
+                                worker: this.workerKey,
+                                instance: process.env.WEBFRAMEZ_QUEUE_INSTANCE,
+                                attempt: job.attempts_made,
+                                status: recovered ? "finished" : retryAt ? "pending" : "failed",
+                                retryAt: (retryAt === null || retryAt === void 0 ? void 0 : retryAt.toISOString()) || null,
+                            },
+                            metadata: {
+                                executionKey: executionKey,
+                            },
+                        });
+                        let notificationFailureStatusSaved = false;
+                        if (jobNotification) {
+                            try {
+                                yield NotificationService_1.NotificationService.setChangingStatus(jobNotification, recovered ? "success" : retryAt ? "pending" : "error", recovered ? undefined : errorMessage);
+                                notificationFailureStatusSaved = true;
+                            }
+                            catch (notificationError) {
+                                yield ErrorHandler_1.ErrorHandler.report(notificationError, {
+                                    scope: "job",
+                                    source: "queue.worker.notification.status",
+                                    job: {
+                                        id: job && job._id ? job._id.toString() : undefined,
+                                        number: job && job.number ? job.number : undefined,
+                                        jobclass: job && job.jobclass ? job.jobclass : undefined,
+                                        worker: this.workerKey,
+                                    },
+                                    metadata: {
+                                        notification: job._notification ? job._notification.toString() : null,
+                                    },
+                                });
+                            }
                         }
+                        if (!recovered && !retryAt && !notificationFailureStatusSaved && job.notification_queue_job && job._notification) {
+                            try {
+                                const notificationFound = yield NotificationService_1.NotificationService.setQueueJobFailureStatus(job._notification, errorMessage);
+                                if (!notificationFound) {
+                                    throw new Error(`Notification queue-job '${job._id.toString()}' references a missing notification '${job._notification.toString()}'.`);
+                                }
+                            }
+                            catch (notificationError) {
+                                yield ErrorHandler_1.ErrorHandler.report(notificationError, {
+                                    scope: "job",
+                                    source: "queue.worker.notification.status.fallback",
+                                    job: {
+                                        id: job && job._id ? job._id.toString() : undefined,
+                                        number: job && job.number ? job.number : undefined,
+                                        jobclass: job && job.jobclass ? job.jobclass : undefined,
+                                        worker: this.workerKey,
+                                    },
+                                    metadata: {
+                                        notification: job._notification.toString(),
+                                    },
+                                });
+                            }
+                        }
+                        job.status = recovered ? "finished" : retryAt ? "pending" : "failed";
+                        job.ended_at = retryAt ? null : endedAt;
+                        job.not_before = retryAt;
+                        job.executions[0].status = "failed";
+                        job.executions[0].ended_at = endedAt;
+                        job.executions[0].error = errorMessage;
+                        job.executions[0].duration_ms = (0, moment_timezone_1.default)().diff((0, moment_timezone_1.default)(startedAt), "milliseconds");
+                        if (jobInstance) {
+                            job.executions[0].log = jobInstance.getLog();
+                        }
+                        yield DBConnection_1.DBConnection.documentStore(connection)
+                            .collection("queue_jobs")
+                            .updateOne({ _id: job._id }, {
+                            $set: {
+                                status: job.status,
+                                ended_at: job.ended_at,
+                                not_before: job.not_before,
+                                failed_attempts: job.failed_attempts,
+                                retry_exhaustion_error: job.retry_exhaustion_error || null,
+                                retry_exhaustion_attempts: job.retry_exhaustion_attempts || 0,
+                                executions: [...job.executions],
+                            },
+                        });
+                        this.jobsFailed++;
+                        this.log(recovered ? `Reconciled Job #${job.number} - ${job.jobclass} at retry exhaustion` : retryAt
+                            ? `Retry Job #${job.number} - ${job.jobclass} at ${retryAt.toISOString()} (attempt ${job.attempts_made}/${retryPolicy.maxAttempts}, error ${job.failed_attempts}/${retryPolicy.maxErrorRetries + 1})`
+                            : `Failed Job #${job.number} - ${job.jobclass} - ${(job.executions[0].duration_ms / 1000).toFixed(2)}s`);
                     }
-                    job.status = "failed";
-                    job.ended_at = endedAt;
-                    job.executions[0].status = "failed";
-                    job.executions[0].ended_at = endedAt;
-                    job.executions[0].error = errorMessage;
-                    job.executions[0].duration_ms = (0, moment_timezone_1.default)().diff((0, moment_timezone_1.default)(startedAt), "milliseconds");
-                    if (jobInstance) {
-                        job.executions[0].log = jobInstance.getLog();
-                    }
-                    yield DBConnection_1.DBConnection.documentStore(connection)
-                        .collection("queue_jobs")
-                        .updateOne({ _id: job._id }, {
-                        $set: {
-                            status: job.status,
-                            ended_at: job.ended_at,
-                            executions: [...job.executions],
-                        },
-                    });
-                    this.jobsFailed++;
-                    this.log(`Failed Job #${job.number} - ${job.jobclass} - ${(job.executions[0].duration_ms / 1000).toFixed(2)}s`);
-                }
+                }));
                 this.jobsExecuted++;
                 this.currentJob = null;
                 this.updateWorkerStatus({

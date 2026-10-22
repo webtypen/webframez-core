@@ -398,11 +398,9 @@ class RouterFacade {
         request.routeDomainMatch = domainMatch.matchedDomain;
         request.routeDomainWildcard = domainMatch.wildcard;
     }
-    createMiddlewareRejectSignal(reason) {
-        return {
-            __middlewareReject: true,
-            reason: reason,
-        };
+    createMiddlewareRejectSignal(reason, body) {
+        return Object.assign({ __middlewareReject: true, reason: reason }, (typeof reason === "number" && Number.isInteger(reason) && reason >= 400 && reason <= 599
+            ? { statusCode: reason, body } : {}));
     }
     isMiddlewareRejectSignal(error) {
         return !!(error && typeof error === "object" && error.__middlewareReject === true);
@@ -459,6 +457,12 @@ class RouterFacade {
      * @param res
      */
     handleRequest(req, res, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return ErrorHandler_1.ErrorHandler.withContext({ applicationType: this.mode === "aws-lambda" ? "LambdaApplication" : "WebApplication", scope: "controller", operationId: WebframezHooks_1.WebframezHooks.createOperationId("request") }, () => this.handleRequestScoped(req, res, options));
+        });
+    }
+    handleRequestScoped(req, res, options) {
+        var _a;
         return __awaiter(this, void 0, void 0, function* () {
             const httpOperationId = WebframezHooks_1.WebframezHooks.createOperationId("http");
             const initialMethod = req && req.method
@@ -649,7 +653,19 @@ class RouterFacade {
             }
             catch (e) {
                 if (this.isMiddlewareRejectSignal(e)) {
-                    const middlewareErrorResult = this.handleError(request, response, 500, e.reason);
+                    // Preserve the explicit reject(status, body) API used by existing consumers.
+                    // A regular reject(reason) continues through the standard error handler.
+                    let middlewareErrorResult;
+                    if (e.statusCode && e.body !== undefined) {
+                        if (typeof e.body === "object" && e.body !== null && !Buffer.isBuffer(e.body)) {
+                            response.header("content-type", "application/json");
+                        }
+                        response.status(e.statusCode).send(e.body);
+                        middlewareErrorResult = this.handleReturn(request, response, e.body);
+                    }
+                    else {
+                        middlewareErrorResult = this.handleError(request, response, (_a = e.statusCode) !== null && _a !== void 0 ? _a : (response.statusCode >= 400 ? response.statusCode : ErrorHandler_1.ErrorHandler.httpStatus(e.reason)), e.reason);
+                    }
                     if (WebframezHooks_1.WebframezHooks.hasListeners("http.request.error")) {
                         yield WebframezHooks_1.WebframezHooks.emit("http.request.error", {
                             operationId: httpOperationId,
@@ -676,7 +692,7 @@ class RouterFacade {
                         query: request.query,
                     },
                 });
-                const errorResult = this.handleError(request, response, 500, e);
+                const errorResult = this.handleError(request, response, ErrorHandler_1.ErrorHandler.httpStatus(e), e);
                 if (routeOperationId) {
                     if (WebframezHooks_1.WebframezHooks.hasListeners("route.handler.error")) {
                         yield WebframezHooks_1.WebframezHooks.emit("route.handler.error", {
@@ -721,7 +737,7 @@ class RouterFacade {
                 }
                 yield new Promise((resolve, reject) => {
                     try {
-                        middleware(resolve, (reason) => reject(this.createMiddlewareRejectSignal(reason)), request, response);
+                        Promise.resolve(middleware(resolve, (reason, body) => reject(this.createMiddlewareRejectSignal(reason, body)), request, response)).catch(reject);
                     }
                     catch (e) {
                         reject(e);
@@ -882,11 +898,7 @@ class RouterFacade {
         if (response.res && response.res instanceof http_1.ServerResponse && response.res.writableEnded) {
             return;
         }
-        const errorMessage = error && typeof error === "string" && error.trim() !== ""
-            ? error.trim()
-            : error && error.toString() && error.toString().trim() !== ""
-                ? error.toString().trim()
-                : "Internal Server Error";
+        const errorMessage = ErrorHandler_1.ErrorHandler.publicMessage(error, statusCode);
         let data = "";
         const contentType = response.headers["content-type"] || request.headers["content-type"] || "";
         if (contentType.includes("application/json")) {
@@ -902,7 +914,7 @@ class RouterFacade {
             if (response.res && response.res instanceof http_1.ServerResponse) {
                 response.header("Content-Type", "text/html");
             }
-            data = "<div>" + errorMessage + "</div>";
+            data = "<div>" + errorMessage.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;") + "</div>";
         }
         if (response.res && response.res instanceof http_1.ServerResponse) {
             response.status(statusCode);

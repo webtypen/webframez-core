@@ -15,6 +15,8 @@ type RouteObject = {
 type MiddlewareRejectSignal = {
     __middlewareReject: true;
     reason?: any;
+    statusCode?: number;
+    body?: any;
 };
 type RouteDomainMatchResult = {
     matches: boolean;
@@ -114,7 +116,7 @@ declare class RouterFacade {
     matchDomainFilter(hostname: string, domainFilter: string): RouteDomainMatchResult;
     resolveDomainMatch(routeObj: RouteObject, request?: Request): RouteDomainMatchResult;
     applyDomainMatchToRequest(request: Request, domainMatch: RouteDomainMatchResult): void;
-    createMiddlewareRejectSignal(reason?: any): MiddlewareRejectSignal;
+    createMiddlewareRejectSignal(reason?: any, body?: any): MiddlewareRejectSignal;
     isMiddlewareRejectSignal(error: any): error is MiddlewareRejectSignal;
     /**
      * Dissolves the matching route based on the request-url and an object of routes
@@ -130,13 +132,8 @@ declare class RouterFacade {
      * @param req
      * @param res
      */
-    handleRequest(req: null | IncomingMessage, res: null | ServerResponse, options?: any): Promise<{
-        statusCode: number;
-        body: any;
-        headers: {
-            [key: string]: any;
-        };
-    } | undefined>;
+    handleRequest(req: null | IncomingMessage, res: null | ServerResponse, options?: any): Promise<any>;
+    private handleRequestScoped;
     handleMiddleware(route: RouteObject, request: Request, response: Response): Promise<void>;
     /**
      * Runs registered kernel middleware outside a regular route definition.

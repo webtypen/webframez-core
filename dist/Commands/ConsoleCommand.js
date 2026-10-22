@@ -35,6 +35,11 @@ class ConsoleCommand {
     }
     handleSystem() {
         return __awaiter(this, void 0, void 0, function* () {
+            return ErrorHandler_1.ErrorHandler.withContext({ applicationType: "ConsoleApplication", scope: "command", operationId: WebframezHooks_1.WebframezHooks.createOperationId("command"), command: { signature: this.constructor.signature, className: this.constructor.name } }, () => this.handleSystemScoped());
+        });
+    }
+    handleSystemScoped() {
+        return __awaiter(this, void 0, void 0, function* () {
             const commandSignature = String(this.constructor.signature || this.constructor.name || "command");
             const operationId = WebframezHooks_1.WebframezHooks.createOperationId("command");
             this.rl = readline_1.default.createInterface({
@@ -62,6 +67,7 @@ class ConsoleCommand {
                 });
             }
             catch (e) {
+                process.exitCode = process.exitCode || 1;
                 yield WebframezHooks_1.WebframezHooks.emit("console.command.error", {
                     operationId,
                     name: commandSignature,

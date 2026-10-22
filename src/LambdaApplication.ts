@@ -11,6 +11,13 @@ export class LambdaApplication {
      * Init the routes and handle the request
      */
     boot(event: any, context: any, options?: any) {
+        return ErrorHandler.withContext({ applicationType: "LambdaApplication", scope: "boot" }, () => {
+            try { return this.bootScoped(event, context, options); }
+            catch (error) { void ErrorHandler.report(error, { source: "lambda.boot" }); throw error; }
+        });
+    }
+
+    private bootScoped(event: any, context: any, options?: any) {
         const operationId = WebframezHooks.createOperationId("lambda");
         void WebframezHooks.emit("lambda.invoke.start", {
             operationId,
@@ -66,7 +73,8 @@ export class LambdaApplication {
                 });
                 return result;
             })
-            .catch((error) => {
+            .catch(async (error) => {
+                await ErrorHandler.report(error, { scope: "controller", source: "lambda.invoke" });
                 void WebframezHooks.emit("lambda.invoke.error", {
                     operationId,
                     name: "aws-lambda",

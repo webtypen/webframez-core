@@ -1,11 +1,21 @@
 import moment from "moment";
 import { QueueJob } from "./QueueJob";
+import type { QueueRetryOptions } from "./QueueRetryPolicy";
 
 export class BaseQueueJob {
+    static retry?: Partial<QueueRetryOptions>;
+    /** @deprecated Previously unused. Configure static retry or queue.jobs instead. */
     attempts: number = 3;
     currentLog = "";
 
     async handle(job: any): Promise<any> {}
+
+    async retryPolicy(job: any): Promise<Partial<QueueRetryOptions> | undefined> {
+        return undefined;
+    }
+
+    /** Called once on terminal budget exhaustion. Return "finished" if reconciliation resolved the job. */
+    async onRetryExhausted(job: any, error: Error): Promise<"finished" | void> {}
 
     static async create(props?: any) {
         const last = await QueueJob.where("number", "=", { $gte: 0 }).orderBy("number", "DESC").first();

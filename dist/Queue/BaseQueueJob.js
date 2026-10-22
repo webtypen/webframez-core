@@ -17,10 +17,20 @@ const moment_1 = __importDefault(require("moment"));
 const QueueJob_1 = require("./QueueJob");
 class BaseQueueJob {
     constructor() {
+        /** @deprecated Previously unused. Configure static retry or queue.jobs instead. */
         this.attempts = 3;
         this.currentLog = "";
     }
     handle(job) {
+        return __awaiter(this, void 0, void 0, function* () { });
+    }
+    retryPolicy(job) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return undefined;
+        });
+    }
+    /** Called once on terminal budget exhaustion. Return "finished" if reconciliation resolved the job. */
+    onRetryExhausted(job, error) {
         return __awaiter(this, void 0, void 0, function* () { });
     }
     static create(props) {

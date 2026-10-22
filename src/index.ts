@@ -30,6 +30,8 @@ export * from "./Datatable/Datatable";
 export * from "./Datatable/DatatableRegistry";
 export * from "./Datatable/DatatableController";
 export * from "./Queue/BaseQueueJob";
+export * from "./Queue/QueueRetryPolicy";
+export * from "./Queue/QueueRetryLimitError";
 export * from "./Queue/QueueJob";
 export * from "./Queue/QueueJobsRegisty";
 export * from "./Backup/BackupManager";

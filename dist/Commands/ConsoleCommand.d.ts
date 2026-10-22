@@ -21,6 +21,7 @@ export declare class ConsoleCommand {
     });
     handle(): Promise<void>;
     handleSystem(): Promise<void>;
+    private handleSystemScoped;
     finallySystem(): Promise<void>;
     getArguments(): string[];
     getOptions(): {

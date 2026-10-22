@@ -13,9 +13,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Queue = void 0;
+const ErrorHandler_1 = require("../ErrorHandling/ErrorHandler");
 const crypto_1 = __importDefault(require("crypto"));
 const DBConnection_1 = require("../Database/DBConnection");
 const QueueJobsRegisty_1 = require("./QueueJobsRegisty");
+const QueueRetryLimitError_1 = require("./QueueRetryLimitError");
+const QueueRetryPolicy_1 = require("./QueueRetryPolicy");
 /** Embedded worker for applications whose database must stay in one process (e.g. DuckDB).
  * Uses the same queue_jobs records and BaseQueueJob handlers as console workers. */
 class Queue {
@@ -34,7 +37,7 @@ class Queue {
         if (this.timer)
             return;
         const tick = () => { if (!this.running)
-            this.running = this.runOnce(jobclasses).catch(() => { }).finally(() => { this.running = undefined; }); };
+            this.running = this.runOnce(jobclasses).catch(error => ErrorHandler_1.ErrorHandler.report(error, { scope: "job", source: "queue.embedded.poll", job: { worker: this.worker } })).finally(() => { this.running = undefined; }); };
         this.timer = setInterval(tick, intervalMs);
         this.timer.unref();
         tick();
@@ -53,26 +56,90 @@ class Queue {
             const job = claimed;
             if (!job)
                 return;
-            const filter = { _id: job._id, lease_token: token, status: "running" };
-            const controller = new AbortController();
-            this.abort = controller;
-            const heartbeat = setInterval(() => { void jobs.updateOne(filter, { $set: { lease_until: new Date(Date.now() + 60000) } }).then((result) => { if (!result.matchedCount)
-                controller.abort(); }).catch(() => controller.abort()); }, 15000);
-            heartbeat.unref();
-            try {
-                const Handler = QueueJobsRegisty_1.QueueJobsRegisty.getJobOrFail(job.jobclass), handler = new Handler();
-                const result = yield handler.handle(Object.assign(Object.assign({}, job), { signal: controller.signal }));
-                yield jobs.updateOne(filter, { $set: (result === null || result === void 0 ? void 0 : result.__execute_again) ? { status: "pending", not_before: result.__execute_again, worker: null } : { status: "finished", ended_at: new Date(), worker: null } });
-            }
-            catch (error) {
-                // Handler owns log redaction. Do not persist raw exception output or credentials here.
-                yield jobs.updateOne(filter, { $set: { status: "failed", ended_at: new Date(), worker: null, error: "Queue job failed. See the domain status for details." } });
-            }
-            finally {
-                clearInterval(heartbeat);
-                if (this.abort === controller)
-                    this.abort = undefined;
-            }
+            return ErrorHandler_1.ErrorHandler.withContext({ scope: "job", operationId: token, source: "queue.embedded", job: { id: String(job._id), number: job.number, jobclass: job.jobclass, worker: this.worker, attempt: QueueRetryPolicy_1.QueueRetryPolicy.attempts(job) + 1 } }, () => __awaiter(this, void 0, void 0, function* () {
+                var _a;
+                const filter = { _id: job._id, lease_token: token, status: "running" };
+                const controller = new AbortController();
+                this.abort = controller;
+                const heartbeat = setInterval(() => { void jobs.updateOne(filter, { $set: { lease_until: new Date(Date.now() + 60000) } }).then((result) => { if (!result.matchedCount)
+                    controller.abort(); }).catch(() => controller.abort()); }, 15000);
+                heartbeat.unref();
+                const previousAttempts = QueueRetryPolicy_1.QueueRetryPolicy.attempts(job);
+                const previousFailures = QueueRetryPolicy_1.QueueRetryPolicy.failures(job);
+                job.first_started_at = QueueRetryPolicy_1.QueueRetryPolicy.startedAt(job, now);
+                job.attempts_made = previousAttempts + 1;
+                let policy = null;
+                let handler = null;
+                try {
+                    // Persist the attempt before calling user code, including across lease recovery.
+                    const reserved = yield jobs.updateOne(filter, { $set: {
+                            first_started_at: job.first_started_at,
+                            attempts_made: job.attempts_made,
+                            failed_attempts: previousFailures,
+                        } });
+                    if (!reserved.matchedCount)
+                        return;
+                    const Handler = QueueJobsRegisty_1.QueueJobsRegisty.getJobOrFail(job.jobclass);
+                    handler = new Handler();
+                    policy = QueueRetryPolicy_1.QueueRetryPolicy.resolve(job.jobclass, Handler, yield ((_a = handler.retryPolicy) === null || _a === void 0 ? void 0 : _a.call(handler, job)));
+                    if (job.retry_exhaustion_attempts)
+                        throw new QueueRetryLimitError_1.QueueRetryLimitError("Retry exhaustion finalization pending.");
+                    QueueRetryPolicy_1.QueueRetryPolicy.assertCanRun(policy, job, previousAttempts, now);
+                    const result = yield ErrorHandler_1.ErrorHandler.withContext({ scope: "job", operationId: token, source: "queue.embedded", job: { id: String(job._id), number: job.number, jobclass: job.jobclass, worker: this.worker, attempt: job.attempts_made } }, () => handler.handle(Object.assign(Object.assign({}, job), { signal: controller.signal })));
+                    const endedAt = new Date();
+                    const retryAt = (result === null || result === void 0 ? void 0 : result.__execute_again)
+                        ? QueueRetryPolicy_1.QueueRetryPolicy.rescheduleAt(policy, job, job.attempts_made, result.__execute_again, endedAt)
+                        : null;
+                    yield jobs.updateOne(filter, { $set: {
+                            status: retryAt ? "pending" : "finished",
+                            not_before: retryAt,
+                            ended_at: retryAt ? null : endedAt,
+                            worker: null,
+                            error: null,
+                        } });
+                }
+                catch (error) {
+                    const endedAt = new Date();
+                    const failures = previousFailures + 1;
+                    let retryAt = policy
+                        ? QueueRetryPolicy_1.QueueRetryPolicy.retryAt(policy, job, job.attempts_made, failures, error, endedAt)
+                        : null;
+                    let recovered = false;
+                    let finalizationFailed = false;
+                    const exhausted = policy && (error instanceof QueueRetryLimitError_1.QueueRetryLimitError
+                        || policy.retryOn !== "never" && (error === null || error === void 0 ? void 0 : error.retryable) !== false && (policy.retryOn === "all" || (error === null || error === void 0 ? void 0 : error.retryable) === true) && !retryAt);
+                    if (exhausted && (handler === null || handler === void 0 ? void 0 : handler.onRetryExhausted) && (job.retry_exhaustion_attempts || 0) < policy.maxFinalizationAttempts) {
+                        job.retry_exhaustion_attempts = (job.retry_exhaustion_attempts || 0) + 1;
+                        try {
+                            recovered = (yield handler.onRetryExhausted(job, error)) === "finished";
+                        }
+                        catch (finalizationError) {
+                            yield ErrorHandler_1.ErrorHandler.report(finalizationError, { scope: "job", source: "queue.embedded.finalization", job: { id: String(job._id), jobclass: job.jobclass, worker: this.worker } });
+                            finalizationFailed = true;
+                            if ((finalizationError === null || finalizationError === void 0 ? void 0 : finalizationError.retryable) !== false && job.retry_exhaustion_attempts < policy.maxFinalizationAttempts) {
+                                retryAt = new Date(endedAt.getTime() + policy.delaySeconds * 1000);
+                            }
+                        }
+                    }
+                    yield ErrorHandler_1.ErrorHandler.withContext({ operationId: token }, () => ErrorHandler_1.ErrorHandler.report(error, { scope: "job", source: "queue.embedded", job: { id: String(job._id), number: job.number, jobclass: job.jobclass, worker: this.worker, attempt: job.attempts_made, status: recovered ? "finished" : retryAt ? "pending" : "failed", retryAt: (retryAt === null || retryAt === void 0 ? void 0 : retryAt.toISOString()) || null } }));
+                    // Handler owns log redaction. Do not persist raw exception output or credentials here.
+                    yield jobs.updateOne(filter, { $set: {
+                            status: recovered ? "finished" : retryAt ? "pending" : "failed",
+                            not_before: retryAt,
+                            ended_at: retryAt ? null : endedAt,
+                            failed_attempts: failures,
+                            worker: null,
+                            retry_exhaustion_attempts: job.retry_exhaustion_attempts || 0,
+                            retry_exhaustion_error: finalizationFailed ? "Queue exhaustion finalization failed. See the domain status for details." : null,
+                            error: recovered ? null : retryAt ? "Queue job will be retried." : "Queue job failed or reached its retry limit. See the domain status for details.",
+                        } });
+                }
+                finally {
+                    clearInterval(heartbeat);
+                    if (this.abort === controller)
+                        this.abort = undefined;
+                }
+            }));
         });
     }
 }
