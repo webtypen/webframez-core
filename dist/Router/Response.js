@@ -18,6 +18,11 @@ const fs_1 = __importDefault(require("fs"));
 const promises_1 = require("stream/promises");
 const path_1 = __importDefault(require("path"));
 const mime_types_1 = __importDefault(require("mime-types"));
+function downloadDisposition(filename, inline = false) {
+    const fallback = filename.replace(/[^\x20-\x7e]|["\\]/g, "_");
+    const encoded = encodeURIComponent(filename).replace(/['()*]/g, char => "%" + char.charCodeAt(0).toString(16).toUpperCase());
+    return `${inline ? "inline" : "attachment"}; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+}
 class Response {
     constructor(options) {
         this.statusCode = 200;
@@ -166,7 +171,7 @@ class Response {
             this.header("Accept-Ranges", "bytes");
             this.header("Content-Length", String(range ? end - start + 1 : total));
             this.header("Content-Type", mimeType);
-            this.header("Content-Disposition", `attachment; filename="${filename.replace(/["\r\n\\]/g, "_")}"`);
+            this.header("Content-Disposition", downloadDisposition(filename));
             if (total === 0)
                 return this.end();
             yield (0, promises_1.pipeline)(fs_1.default.createReadStream(filepath, { start, end }), this.res);
@@ -178,8 +183,8 @@ class Response {
                 throw new Error("Cannot download: Original response object is missing");
             const stats = yield fs_1.default.promises.stat(filepath);
             const mimeType = (options === null || options === void 0 ? void 0 : options.contentType) || ((options === null || options === void 0 ? void 0 : options.inline) && mime_types_1.default.lookup(filepath)) || "application/octet-stream";
-            const filename = String((options === null || options === void 0 ? void 0 : options.filename) || path_1.default.basename(filepath)).replace(/["\r\n\\]/g, "_");
-            this.header("Content-Disposition", `${(options === null || options === void 0 ? void 0 : options.inline) ? "inline" : "attachment"}; filename="${filename}"`);
+            const filename = String((options === null || options === void 0 ? void 0 : options.filename) || path_1.default.basename(filepath));
+            this.header("Content-Disposition", downloadDisposition(filename, options === null || options === void 0 ? void 0 : options.inline));
             this.header("Content-Type", mimeType);
             this.header("Content-Length", String(stats.size));
             yield (0, promises_1.pipeline)(fs_1.default.createReadStream(filepath), this.res);

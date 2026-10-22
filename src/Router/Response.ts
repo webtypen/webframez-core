@@ -6,6 +6,12 @@ import mime from "mime-types";
 import { ServerResponse } from "http";
 import { Request } from "./Request";
 
+function downloadDisposition(filename: string, inline = false): string {
+    const fallback = filename.replace(/[^\x20-\x7e]|["\\]/g, "_");
+    const encoded = encodeURIComponent(filename).replace(/['()*]/g, char => "%" + char.charCodeAt(0).toString(16).toUpperCase());
+    return `${inline ? "inline" : "attachment"}; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+}
+
 export class Response {
     res?: ServerResponse;
     statusCode: number = 200;
@@ -168,7 +174,7 @@ export class Response {
         this.header("Accept-Ranges", "bytes");
         this.header("Content-Length", String(range ? end - start + 1 : total));
         this.header("Content-Type", mimeType);
-        this.header("Content-Disposition", `attachment; filename="${filename.replace(/["\r\n\\]/g, "_")}"`);
+        this.header("Content-Disposition", downloadDisposition(filename));
         if (total === 0) return this.end();
         await pipeline(fs.createReadStream(filepath, {start, end}), this.res);
     }
@@ -177,8 +183,8 @@ export class Response {
         if (!this.res) throw new Error("Cannot download: Original response object is missing");
         const stats = await fs.promises.stat(filepath);
         const mimeType = options?.contentType || (options?.inline && mime.lookup(filepath)) || "application/octet-stream";
-        const filename = String(options?.filename || path.basename(filepath)).replace(/["\r\n\\]/g, "_");
-        this.header("Content-Disposition", `${options?.inline ? "inline" : "attachment"}; filename="${filename}"`);
+        const filename = String(options?.filename || path.basename(filepath));
+        this.header("Content-Disposition", downloadDisposition(filename, options?.inline));
         this.header("Content-Type", mimeType);
         this.header("Content-Length", String(stats.size));
         await pipeline(fs.createReadStream(filepath), this.res);
