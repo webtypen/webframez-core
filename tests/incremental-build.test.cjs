@@ -50,6 +50,7 @@ test("compile-only skips application plugins and keeps the staging path stable f
         if (request === compiler) throw new Error("Compiler must run in its own process");
         return originalLoad.call(this, request, ...args);
     });
+    await fs.writeFile(path.join(root, "probe.js"), 'module.exports = require("./build/stale.js");');
     await first.compile();await second.compile();
     await assert.rejects(fs.access(path.join(root,"build/build")),{code:"ENOENT"});
     await assert.rejects(fs.access(path.join(root,"build/stale.js")),{code:"ENOENT"});

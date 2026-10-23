@@ -17,13 +17,23 @@ async function compile({projectRoot, tsconfig, outDir, buildRoot, root, stagingD
     // Compact runners may place the source checkout inside the shared cache root.
     const generated = [outDir, buildRoot, inside(root, projectRoot) ? cache : root, parsed.options.outDir].filter(Boolean);
     const files = parsed.fileNames.filter((file: string) => !generated.some(directory => inside(directory, file)));
-    const key = crypto.createHash("sha256").update(JSON.stringify([files, parsed.options, ts.version])).digest("hex");
+    const key = crypto.createHash("sha256").update(JSON.stringify(["bounded-generated-imports-v1", files, parsed.options, ts.version])).digest("hex");
     const previous = await fsp.readFile(path.join(cache, "key"), "utf8").catch(() => "");
     if (previous !== key) await fsp.rm(cache, {recursive: true, force: true});
     await fsp.mkdir(output, {recursive: true});
     console.log(`[webframez] TypeScript cache: ${previous === key ? "reuse" : "cold"} (${files.length} source files)`);
     try {
-        const builder = ts.createIncrementalProgram({rootNames: files, options: {...parsed.options, outDir: output, incremental: true, tsBuildInfoFile: path.join(cache, "build.tsbuildinfo")}, projectReferences: parsed.projectReferences});
+        const options = {...parsed.options, outDir: output, incremental: true, tsBuildInfoFile: path.join(cache, "build.tsbuildinfo")};
+        const host = ts.createIncrementalCompilerHost(options);
+        // JavaScript scripts may require the previous build for smoke checks.
+        // Do not let those imports pull generated code and a second dependency
+        // tree back into compilation. The last good output remains untouched.
+        const hidden = (file: string) => file !== options.tsBuildInfoFile && generated.some(directory => inside(directory, path.resolve(file)));
+        for (const name of ["fileExists", "directoryExists", "readFile"] as const) {
+            const original = host[name]?.bind(host);
+            if (original) host[name] = (file: string) => hidden(file) ? (name === "readFile" ? undefined : false) : original(file);
+        }
+        const builder = ts.createIncrementalProgram({rootNames: files, options, host, projectReferences: parsed.projectReferences});
         const diagnostics = [...(loaded.error ? [loaded.error] : []), ...parsed.errors, ...builder.getOptionsDiagnostics(), ...builder.getGlobalDiagnostics(), ...builder.getSyntacticDiagnostics(), ...builder.getSemanticDiagnostics()];
         if (diagnostics.length) console.error(ts.formatDiagnosticsWithColorAndContext(diagnostics, {getCanonicalFileName: (name: string) => name, getCurrentDirectory: () => projectRoot, getNewLine: () => "\n"}));
         if (diagnostics.some((entry: any) => entry.category === ts.DiagnosticCategory.Error)) throw new Error("tsc exited with code 1");

@@ -18,7 +18,7 @@ const node_path_1 = __importDefault(require("node:path"));
 const node_crypto_1 = __importDefault(require("node:crypto"));
 /** A separate process releases the compiler AST before runtime copies and bundling. */
 function compile({ projectRoot, tsconfig, outDir, buildRoot, root, stagingDir }) {
-    var _a;
+    var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
         const ts = require(require.resolve("typescript", { paths: [projectRoot, __dirname] }));
         const scope = node_crypto_1.default.createHash("sha256").update(tsconfig).digest("hex").slice(0, 24);
@@ -33,21 +33,32 @@ function compile({ projectRoot, tsconfig, outDir, buildRoot, root, stagingDir })
         // Compact runners may place the source checkout inside the shared cache root.
         const generated = [outDir, buildRoot, inside(root, projectRoot) ? cache : root, parsed.options.outDir].filter(Boolean);
         const files = parsed.fileNames.filter((file) => !generated.some(directory => inside(directory, file)));
-        const key = node_crypto_1.default.createHash("sha256").update(JSON.stringify([files, parsed.options, ts.version])).digest("hex");
+        const key = node_crypto_1.default.createHash("sha256").update(JSON.stringify(["bounded-generated-imports-v1", files, parsed.options, ts.version])).digest("hex");
         const previous = yield promises_1.default.readFile(node_path_1.default.join(cache, "key"), "utf8").catch(() => "");
         if (previous !== key)
             yield promises_1.default.rm(cache, { recursive: true, force: true });
         yield promises_1.default.mkdir(output, { recursive: true });
         console.log(`[webframez] TypeScript cache: ${previous === key ? "reuse" : "cold"} (${files.length} source files)`);
         try {
-            const builder = ts.createIncrementalProgram({ rootNames: files, options: Object.assign(Object.assign({}, parsed.options), { outDir: output, incremental: true, tsBuildInfoFile: node_path_1.default.join(cache, "build.tsbuildinfo") }), projectReferences: parsed.projectReferences });
+            const options = Object.assign(Object.assign({}, parsed.options), { outDir: output, incremental: true, tsBuildInfoFile: node_path_1.default.join(cache, "build.tsbuildinfo") });
+            const host = ts.createIncrementalCompilerHost(options);
+            // JavaScript scripts may require the previous build for smoke checks.
+            // Do not let those imports pull generated code and a second dependency
+            // tree back into compilation. The last good output remains untouched.
+            const hidden = (file) => file !== options.tsBuildInfoFile && generated.some(directory => inside(directory, node_path_1.default.resolve(file)));
+            for (const name of ["fileExists", "directoryExists", "readFile"]) {
+                const original = (_a = host[name]) === null || _a === void 0 ? void 0 : _a.bind(host);
+                if (original)
+                    host[name] = (file) => hidden(file) ? (name === "readFile" ? undefined : false) : original(file);
+            }
+            const builder = ts.createIncrementalProgram({ rootNames: files, options, host, projectReferences: parsed.projectReferences });
             const diagnostics = [...(loaded.error ? [loaded.error] : []), ...parsed.errors, ...builder.getOptionsDiagnostics(), ...builder.getGlobalDiagnostics(), ...builder.getSyntacticDiagnostics(), ...builder.getSemanticDiagnostics()];
             if (diagnostics.length)
                 console.error(ts.formatDiagnosticsWithColorAndContext(diagnostics, { getCanonicalFileName: (name) => name, getCurrentDirectory: () => projectRoot, getNewLine: () => "\n" }));
             if (diagnostics.some((entry) => entry.category === ts.DiagnosticCategory.Error))
                 throw new Error("tsc exited with code 1");
             const emitted = builder.emit();
-            if ((_a = emitted.diagnostics) === null || _a === void 0 ? void 0 : _a.length) {
+            if ((_b = emitted.diagnostics) === null || _b === void 0 ? void 0 : _b.length) {
                 console.error(ts.formatDiagnosticsWithColorAndContext(emitted.diagnostics, { getCanonicalFileName: (name) => name, getCurrentDirectory: () => projectRoot, getNewLine: () => "\n" }));
                 if (emitted.diagnostics.some((entry) => entry.category === ts.DiagnosticCategory.Error))
                     throw new Error("tsc exited with code 1");
