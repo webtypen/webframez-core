@@ -1,4 +1,27 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -15,7 +38,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.runWebframezCli = void 0;
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
-const ConsoleApplication_1 = require("./ConsoleApplication");
+const BuildDependencies_1 = require("./BuildDependencies");
 const BuildApplication_1 = require("./BuildApplication");
 function printHelp() {
     console.log([
@@ -73,7 +96,8 @@ function runConsole(projectRoot, cliArgs) {
         if (config.setup) {
             yield config.setup({ mode: "console", projectRoot });
         }
-        const app = new ConsoleApplication_1.ConsoleApplication();
+        const { ConsoleApplication } = yield Promise.resolve().then(() => __importStar(require("./ConsoleApplication")));
+        const app = new ConsoleApplication();
         const originalArgv = process.argv;
         process.argv = [process.argv[0], "webframez", ...cliArgs];
         try {
@@ -113,6 +137,22 @@ function runWebframezCli(argv = process.argv.slice(2), projectRoot = process.cwd
         }
         if (command === "run") {
             yield runConsole(projectRoot, argv.slice(1));
+            return;
+        }
+        if (command === "compile") {
+            const tsconfig = readOption(argv, "project") || "tsconfig.json";
+            const outDir = readOption(argv, "dir") || "build";
+            const relative = node_path_1.default.relative(projectRoot, node_path_1.default.resolve(projectRoot, outDir));
+            if (!relative || relative.startsWith("..") || node_path_1.default.isAbsolute(relative) || relative.split(node_path_1.default.sep).some(part => [".git", "node_modules", ".webframez-cache"].includes(part)))
+                throw new Error("Compile output must be a separate project directory.");
+            yield new BuildApplication_1.BuildApplication(projectRoot, { build: { tsconfig, cacheDirectory: process.env.WEBFRAMEZ_BUILD_CACHE_DIRECTORY || ".webframez-cache" } }, { outDir }).compile();
+            return;
+        }
+        if (command === "dependencies") {
+            const outDir = readOption(argv, "dir");
+            if (!outDir)
+                throw new Error("Production dependencies require --dir.");
+            yield (0, BuildDependencies_1.buildProductionDependencies)(projectRoot, outDir, argv.includes("--ignore-scripts"));
             return;
         }
         if (command === "build" || command === "buid") {

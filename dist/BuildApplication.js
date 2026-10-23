@@ -19,6 +19,7 @@ const node_path_1 = __importDefault(require("node:path"));
 const node_child_process_1 = require("node:child_process");
 const node_util_1 = require("node:util");
 const node_crypto_1 = __importDefault(require("node:crypto"));
+const BuildDependencies_1 = require("./BuildDependencies");
 const exec = (0, node_util_1.promisify)(node_child_process_1.execFile);
 function timestamp() {
     return new Date().toISOString().replace(/[-:TZ.]/g, "");
@@ -52,9 +53,55 @@ class BuildApplication {
         this.outDir = node_path_1.default.resolve(projectRoot, options.outDir || ((_a = config.build) === null || _a === void 0 ? void 0 : _a.dir) || "build");
         this.buildId = timestamp();
         this.buildRoot = node_path_1.default.resolve(projectRoot, ".webframez-build");
-        this.stagingDir = node_path_1.default.join(this.buildRoot, `.building-${this.buildId}`);
+        this.stagingDir = node_path_1.default.join(this.buildRoot, `.building-${node_crypto_1.default.createHash("sha256").update(this.outDir).digest("hex").slice(0, 24)}`);
+    }
+    /** Compile without booting application configuration or running asset/runtime plugins. */
+    compile() {
+        return __awaiter(this, void 0, void 0, function* () {
+            return this.withBuildLock(() => this.compileOnly());
+        });
+    }
+    withBuildLock(callback) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const lock = this.stagingDir + ".lock";
+            yield promises_1.default.mkdir(this.buildRoot, { recursive: true });
+            try {
+                yield promises_1.default.mkdir(lock);
+            }
+            catch (error) {
+                if (error.code === "EEXIST")
+                    throw new Error(`Build output is locked: ${lock}. Remove the lock only after the previous build has stopped.`);
+                throw error;
+            }
+            try {
+                return yield callback();
+            }
+            finally {
+                yield promises_1.default.rm(lock, { recursive: true, force: true });
+            }
+        });
+    }
+    compileOnly() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const context = this.createContext();
+            yield promises_1.default.rm(this.stagingDir, { recursive: true, force: true });
+            yield promises_1.default.mkdir(this.stagingDir, { recursive: true });
+            try {
+                yield this.runStep("typescript", () => this.runTypescriptBuild(context));
+                yield this.promoteBuild();
+            }
+            catch (error) {
+                yield promises_1.default.rm(this.stagingDir, { recursive: true, force: true });
+                throw error;
+            }
+        });
     }
     run() {
+        return __awaiter(this, void 0, void 0, function* () {
+            return this.withBuildLock(() => this.execute());
+        });
+    }
+    execute() {
         return __awaiter(this, void 0, void 0, function* () {
             const context = this.createContext();
             const plugins = this.loadPlugins();
@@ -119,27 +166,45 @@ class BuildApplication {
             }
         });
     }
-    runTypescriptBuild(context) {
-        var _a, _b;
+    runTypescriptBuild(_context) {
+        var _a, _b, _c;
         return __awaiter(this, void 0, void 0, function* () {
             const tsconfig = node_path_1.default.resolve(this.projectRoot, ((_a = this.config.build) === null || _a === void 0 ? void 0 : _a.tsconfig) || "tsconfig.json");
-            const configuredCache = ((_b = this.config.build) === null || _b === void 0 ? void 0 : _b.cacheDirectory) || process.env.WEBFRAMEZ_BUILD_CACHE_DIRECTORY;
-            if (!configuredCache)
-                return this.runOrFail(context, "tsc", ["-p", tsconfig, "--outDir", this.stagingDir]);
+            const ts = require(require.resolve("typescript", { paths: [this.projectRoot, __dirname] }));
+            const configuredCache = ((_b = this.config.build) === null || _b === void 0 ? void 0 : _b.cacheDirectory) || process.env.WEBFRAMEZ_BUILD_CACHE_DIRECTORY || node_path_1.default.join(this.buildRoot, "cache");
             const root = node_path_1.default.resolve(this.projectRoot, configuredCache);
-            const scope = node_crypto_1.default.createHash("sha256").update(node_path_1.default.relative(root, tsconfig)).digest("hex").slice(0, 24);
-            const cache = node_path_1.default.join(root, "typescript", scope);
-            // Resolved options and the complete source list invalidate deleted/renamed outputs.
-            const { stdout: config } = yield exec(this.resolveBinary("tsc"), ["-p", tsconfig, "--outDir", node_path_1.default.join(cache, "output"), "--showConfig"], { cwd: this.projectRoot, maxBuffer: 8 * 1024 * 1024 });
-            const { stdout: version } = yield exec(this.resolveBinary("tsc"), ["--version"], { cwd: this.projectRoot });
-            const key = node_crypto_1.default.createHash("sha256").update(config).update(version).digest("hex");
+            const scope = node_crypto_1.default.createHash("sha256").update(tsconfig).digest("hex").slice(0, 24);
+            const cache = node_path_1.default.join(root, "typescript", scope), output = node_path_1.default.join(cache, "output");
+            const loaded = ts.readConfigFile(tsconfig, ts.sys.readFile);
+            const parsed = ts.parseJsonConfigFileContent(loaded.config || {}, ts.sys, node_path_1.default.dirname(tsconfig), undefined, tsconfig);
+            if (parsed.options.noEmit)
+                throw new Error("Build compilation requires emitted output; remove noEmit from the build configuration.");
+            // Resolve the original project before redirecting output. Otherwise allowJs
+            // projects accidentally compile their previous build into build/build/.
+            const generated = [this.outDir, this.buildRoot, root, parsed.options.outDir].filter(Boolean);
+            const inside = (parent, file) => file === parent || file.startsWith(parent + node_path_1.default.sep);
+            const files = parsed.fileNames.filter((file) => !generated.some(directory => inside(directory, file)));
+            const key = node_crypto_1.default.createHash("sha256").update(JSON.stringify([files, parsed.options, ts.version])).digest("hex");
             const previous = yield promises_1.default.readFile(node_path_1.default.join(cache, "key"), "utf8").catch(() => "");
             if (previous !== key)
                 yield promises_1.default.rm(cache, { recursive: true, force: true });
-            const output = node_path_1.default.join(cache, "output");
             yield promises_1.default.mkdir(output, { recursive: true });
+            console.log(`[webframez] TypeScript cache: ${previous === key ? "reuse" : "cold"} (${files.length} source files)`);
             try {
-                yield this.runOrFail(context, "tsc", ["-p", tsconfig, "--outDir", output, "--incremental", "--tsBuildInfoFile", node_path_1.default.join(cache, "build.tsbuildinfo")]);
+                const builder = ts.createIncrementalProgram({ rootNames: files, options: Object.assign(Object.assign({}, parsed.options), { outDir: output, incremental: true, tsBuildInfoFile: node_path_1.default.join(cache, "build.tsbuildinfo") }), projectReferences: parsed.projectReferences });
+                const diagnostics = [...(loaded.error ? [loaded.error] : []), ...parsed.errors, ...builder.getOptionsDiagnostics(), ...builder.getGlobalDiagnostics(), ...builder.getSyntacticDiagnostics(), ...builder.getSemanticDiagnostics()];
+                if (diagnostics.length)
+                    console.error(ts.formatDiagnosticsWithColorAndContext(diagnostics, { getCanonicalFileName: (name) => name, getCurrentDirectory: () => this.projectRoot, getNewLine: () => "\n" }));
+                if (diagnostics.some((entry) => entry.category === ts.DiagnosticCategory.Error))
+                    throw new Error("tsc exited with code 1");
+                const emitted = builder.emit();
+                if ((_c = emitted.diagnostics) === null || _c === void 0 ? void 0 : _c.length) {
+                    console.error(ts.formatDiagnosticsWithColorAndContext(emitted.diagnostics, { getCanonicalFileName: (name) => name, getCurrentDirectory: () => this.projectRoot, getNewLine: () => "\n" }));
+                    if (emitted.diagnostics.some((entry) => entry.category === ts.DiagnosticCategory.Error))
+                        throw new Error("tsc exited with code 1");
+                }
+                if (emitted.emitSkipped)
+                    throw new Error("tsc exited without emitting output");
                 yield this.copyTree(output, this.stagingDir);
                 yield promises_1.default.writeFile(node_path_1.default.join(cache, "key"), key);
             }
@@ -162,7 +227,7 @@ class BuildApplication {
         });
     }
     copyRuntimeFiles() {
-        var _a, _b;
+        var _a, _b, _c;
         return __awaiter(this, void 0, void 0, function* () {
             const runtimeFiles = ((_a = this.config.build) === null || _a === void 0 ? void 0 : _a.runtimeFiles) || [
                 { from: ".env", optional: true },
@@ -181,6 +246,10 @@ class BuildApplication {
                     }
                     throw new Error(`Runtime file does not exist: ${from}`);
                 }
+                if (from === "node_modules" && to === "node_modules" && ((_b = this.config.build) === null || _b === void 0 ? void 0 : _b.productionDependencies)) {
+                    yield (0, BuildDependencies_1.buildProductionDependencies)(this.projectRoot, this.stagingDir, this.config.build.dependencyInstallScripts === false);
+                    continue;
+                }
                 yield promises_1.default.rm(targetPath, { recursive: true, force: true });
                 yield promises_1.default.mkdir(node_path_1.default.dirname(targetPath), { recursive: true });
                 if ((yield promises_1.default.lstat(sourcePath)).isDirectory())
@@ -188,7 +257,7 @@ class BuildApplication {
                 else
                     yield promises_1.default.cp(sourcePath, targetPath, { dereference: false, mode: node_fs_1.default.constants.COPYFILE_FICLONE });
             }
-            for (const prunePath of ((_b = this.config.build) === null || _b === void 0 ? void 0 : _b.prunePaths) || []) {
+            for (const prunePath of ((_c = this.config.build) === null || _c === void 0 ? void 0 : _c.prunePaths) || []) {
                 yield promises_1.default.rm(node_path_1.default.resolve(this.stagingDir, prunePath), { recursive: true, force: true });
             }
         });

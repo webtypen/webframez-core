@@ -22,6 +22,8 @@ export type WebframezBuildConfig = {
     dir?: string;
     tsconfig?: string;
     cacheDirectory?: string;
+    productionDependencies?: boolean;
+    dependencyInstallScripts?: boolean;
     entry?: string;
     runtimeFiles?: WebframezBuildRuntimeFile[];
     prunePaths?: string[];
@@ -54,7 +56,12 @@ export declare class BuildApplication {
     private readonly stagingDir;
     private readonly buildId;
     constructor(projectRoot: string, config: WebframezAppConfig, options: BuildApplicationOptions);
+    /** Compile without booting application configuration or running asset/runtime plugins. */
+    compile(): Promise<void>;
+    private withBuildLock;
+    private compileOnly;
     run(): Promise<void>;
+    private execute;
     private logBuildStep;
     private runStep;
     private createContext;

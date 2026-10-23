@@ -30,3 +30,22 @@ test("incremental build reuses compiler output, removes deleted files and preser
     await build();
     assert.match(await fs.readFile(path.join(root,"build","app.js"),"utf8"), /value = 3/);
 });
+
+test("compile-only skips application plugins and keeps the staging path stable for asset caches", async t => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "core-compile-"));
+    t.after(() => fs.rm(root, {recursive:true, force:true}));
+    await fs.mkdir(path.join(root,"node_modules/.bin"), {recursive:true});
+    await fs.symlink(require.resolve("typescript/bin/tsc"), path.join(root,"node_modules/.bin/tsc"));
+    await fs.writeFile(path.join(root,"tsconfig.json"), JSON.stringify({compilerOptions:{types:[],allowJs:true,outDir:"build"}}));
+    await fs.writeFile(path.join(root,"app.ts"), 'export const value = 42;');
+    const config={build:{cacheDirectory:".webframez-cache",plugins:[{beforeBuild(){throw new Error("must not boot");}}]}};
+    const first=new BuildApplication(root,config,{outDir:"build"}),second=new BuildApplication(root,config,{outDir:"build"});
+    assert.equal(first.stagingDir,second.stagingDir);
+    await fs.mkdir(path.join(root,"build"));await fs.writeFile(path.join(root,"build/stale.js"),"throw new Error('stale')");
+    await first.compile();await second.compile();
+    await assert.rejects(fs.access(path.join(root,"build/build")),{code:"ENOENT"});
+    await assert.rejects(fs.access(path.join(root,"build/stale.js")),{code:"ENOENT"});
+    assert.match(await fs.readFile(path.join(root,"build/app.js"),"utf8"),/42/);
+    await fs.mkdir(first.stagingDir+".lock");
+    await assert.rejects(first.compile(),/locked/);
+});

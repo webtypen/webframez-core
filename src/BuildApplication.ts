@@ -4,6 +4,7 @@ import path from "node:path";
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import crypto from "node:crypto";
+import { buildProductionDependencies } from "./BuildDependencies";
 
 const exec = promisify(execFile);
 
@@ -36,6 +37,8 @@ export type WebframezBuildConfig = {
     dir?: string;
     tsconfig?: string;
     cacheDirectory?: string;
+    productionDependencies?: boolean;
+    dependencyInstallScripts?: boolean;
     entry?: string;
     runtimeFiles?: WebframezBuildRuntimeFile[];
     prunePaths?: string[];
@@ -106,10 +109,44 @@ export class BuildApplication {
         this.outDir = path.resolve(projectRoot, options.outDir || config.build?.dir || "build");
         this.buildId = timestamp();
         this.buildRoot = path.resolve(projectRoot, ".webframez-build");
-        this.stagingDir = path.join(this.buildRoot, `.building-${this.buildId}`);
+        this.stagingDir = path.join(this.buildRoot, `.building-${crypto.createHash("sha256").update(this.outDir).digest("hex").slice(0, 24)}`);
+    }
+
+    /** Compile without booting application configuration or running asset/runtime plugins. */
+    async compile() {
+        return this.withBuildLock(() => this.compileOnly());
+    }
+
+    private async withBuildLock<T>(callback: () => Promise<T>) {
+        const lock = this.stagingDir + ".lock";
+        await fsp.mkdir(this.buildRoot, {recursive: true});
+        try { await fsp.mkdir(lock); }
+        catch (error: any) {
+            if (error.code === "EEXIST") throw new Error(`Build output is locked: ${lock}. Remove the lock only after the previous build has stopped.`);
+            throw error;
+        }
+        try { return await callback(); }
+        finally { await fsp.rm(lock, {recursive: true, force: true}); }
+    }
+
+    private async compileOnly() {
+        const context = this.createContext();
+        await fsp.rm(this.stagingDir, {recursive: true, force: true});
+        await fsp.mkdir(this.stagingDir, {recursive: true});
+        try {
+            await this.runStep("typescript", () => this.runTypescriptBuild(context));
+            await this.promoteBuild();
+        } catch (error) {
+            await fsp.rm(this.stagingDir, {recursive: true, force: true});
+            throw error;
+        }
     }
 
     async run() {
+        return this.withBuildLock(() => this.execute());
+    }
+
+    private async execute() {
         const context = this.createContext();
         const plugins = this.loadPlugins();
         const startedAt = Date.now();
@@ -184,28 +221,41 @@ export class BuildApplication {
         }
     }
 
-    private async runTypescriptBuild(context: WebframezBuildContext) {
+    private async runTypescriptBuild(_context: WebframezBuildContext) {
         const tsconfig = path.resolve(this.projectRoot, this.config.build?.tsconfig || "tsconfig.json");
-        const configuredCache = this.config.build?.cacheDirectory || process.env.WEBFRAMEZ_BUILD_CACHE_DIRECTORY;
-        if (!configuredCache) return this.runOrFail(context, "tsc", ["-p", tsconfig, "--outDir", this.stagingDir]);
-
+        const ts = require(require.resolve("typescript", {paths: [this.projectRoot, __dirname]}));
+        const configuredCache = this.config.build?.cacheDirectory || process.env.WEBFRAMEZ_BUILD_CACHE_DIRECTORY || path.join(this.buildRoot, "cache");
         const root = path.resolve(this.projectRoot, configuredCache);
-        const scope = crypto.createHash("sha256").update(path.relative(root, tsconfig)).digest("hex").slice(0, 24);
-        const cache = path.join(root, "typescript", scope);
-        // Resolved options and the complete source list invalidate deleted/renamed outputs.
-        const {stdout: config} = await exec(this.resolveBinary("tsc"), ["-p", tsconfig, "--outDir", path.join(cache, "output"), "--showConfig"], {cwd:this.projectRoot, maxBuffer:8*1024*1024});
-        const {stdout: version} = await exec(this.resolveBinary("tsc"), ["--version"], {cwd:this.projectRoot});
-        const key = crypto.createHash("sha256").update(config).update(version).digest("hex");
+        const scope = crypto.createHash("sha256").update(tsconfig).digest("hex").slice(0, 24);
+        const cache = path.join(root, "typescript", scope), output = path.join(cache, "output");
+        const loaded = ts.readConfigFile(tsconfig, ts.sys.readFile);
+        const parsed = ts.parseJsonConfigFileContent(loaded.config || {}, ts.sys, path.dirname(tsconfig), undefined, tsconfig);
+        if (parsed.options.noEmit) throw new Error("Build compilation requires emitted output; remove noEmit from the build configuration.");
+        // Resolve the original project before redirecting output. Otherwise allowJs
+        // projects accidentally compile their previous build into build/build/.
+        const generated = [this.outDir, this.buildRoot, root, parsed.options.outDir].filter(Boolean);
+        const inside = (parent: string, file: string) => file === parent || file.startsWith(parent + path.sep);
+        const files = parsed.fileNames.filter((file: string) => !generated.some(directory => inside(directory, file)));
+        const key = crypto.createHash("sha256").update(JSON.stringify([files, parsed.options, ts.version])).digest("hex");
         const previous = await fsp.readFile(path.join(cache, "key"), "utf8").catch(() => "");
-        if (previous !== key) await fsp.rm(cache, {recursive:true, force:true});
-        const output = path.join(cache, "output");
-        await fsp.mkdir(output, {recursive:true});
+        if (previous !== key) await fsp.rm(cache, {recursive: true, force: true});
+        await fsp.mkdir(output, {recursive: true});
+        console.log(`[webframez] TypeScript cache: ${previous === key ? "reuse" : "cold"} (${files.length} source files)`);
         try {
-            await this.runOrFail(context, "tsc", ["-p", tsconfig, "--outDir", output, "--incremental", "--tsBuildInfoFile", path.join(cache, "build.tsbuildinfo")]);
+            const builder = ts.createIncrementalProgram({rootNames: files, options: {...parsed.options, outDir: output, incremental: true, tsBuildInfoFile: path.join(cache, "build.tsbuildinfo")}, projectReferences: parsed.projectReferences});
+            const diagnostics = [...(loaded.error ? [loaded.error] : []), ...parsed.errors, ...builder.getOptionsDiagnostics(), ...builder.getGlobalDiagnostics(), ...builder.getSyntacticDiagnostics(), ...builder.getSemanticDiagnostics()];
+            if (diagnostics.length) console.error(ts.formatDiagnosticsWithColorAndContext(diagnostics, {getCanonicalFileName: (name: string) => name, getCurrentDirectory: () => this.projectRoot, getNewLine: () => "\n"}));
+            if (diagnostics.some((entry: any) => entry.category === ts.DiagnosticCategory.Error)) throw new Error("tsc exited with code 1");
+            const emitted = builder.emit();
+            if (emitted.diagnostics?.length) {
+                console.error(ts.formatDiagnosticsWithColorAndContext(emitted.diagnostics, {getCanonicalFileName: (name: string) => name, getCurrentDirectory: () => this.projectRoot, getNewLine: () => "\n"}));
+                if (emitted.diagnostics.some((entry: any) => entry.category === ts.DiagnosticCategory.Error)) throw new Error("tsc exited with code 1");
+            }
+            if (emitted.emitSkipped) throw new Error("tsc exited without emitting output");
             await this.copyTree(output, this.stagingDir);
             await fsp.writeFile(path.join(cache, "key"), key);
         } catch (error) {
-            await fsp.rm(cache, {recursive:true, force:true});
+            await fsp.rm(cache, {recursive: true, force: true});
             throw error;
         }
     }
@@ -241,6 +291,10 @@ export class BuildApplication {
                 throw new Error(`Runtime file does not exist: ${from}`);
             }
 
+            if (from === "node_modules" && to === "node_modules" && this.config.build?.productionDependencies) {
+                await buildProductionDependencies(this.projectRoot, this.stagingDir, this.config.build.dependencyInstallScripts === false);
+                continue;
+            }
             await fsp.rm(targetPath, { recursive: true, force: true });
             await fsp.mkdir(path.dirname(targetPath), { recursive: true });
             if ((await fsp.lstat(sourcePath)).isDirectory()) await this.copyTree(sourcePath, targetPath);

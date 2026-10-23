@@ -997,3 +997,30 @@ Metro consumers can call
 It applies `WEBFRAMEZ_BUILD_MAX_WORKERS` and `WEBFRAMEZ_METRO_CACHE_DIRECTORY`,
 preserving Expo's FileStore implementation and supporting old/new file-map option
 names. Do not pass Expo `--clear` on normal cached builds.
+
+
+### Reusable build workspaces
+
+`webframez compile --project tsconfig.json --dir build` compiles TypeScript without loading
+application configuration, console services or build plugins. It preserves incremental
+compiler output under `WEBFRAMEZ_BUILD_CACHE_DIRECTORY` (default `.webframez-cache`),
+invalidates deleted/renamed source files and promotes a successful output atomically.
+A failed compilation leaves the previous build intact. Include the compiler cache in
+persistent CI storage; remove it for a force-clear build.
+
+`webframez dependencies --dir build` prepares an independent, frozen production pnpm
+installation, then copies its dependencies into `build/node_modules`. Development
+modules remain untouched. A pinned pnpm version and an independent lockfile are
+required; monorepos should use `pnpm deploy`. Registry settings are read from
+`NPM_CONFIG_USERCONFIG` or the source `.npmrc`, never copied into the artifact.
+Dependency install scripts follow the package's pnpm policy; `--ignore-scripts` disables
+them. Root lifecycle scripts are excluded from the separate production installation.
+
+Full `webframez build` supports `build.productionDependencies: true` and
+`build.dependencyInstallScripts: false` for the same behavior. Runtime-required packages
+must be declared under dependencies, including browser or compiler packages.
+
+Asset builds use a stable staging directory so bundler caches can reuse module paths.
+An exclusive per-output lock prevents concurrent builds overwriting that directory.
+After a killed local build, remove its `.webframez-build/.building-*.lock` directory
+only after confirming that no previous build is running. WSM Force Clear removes it.

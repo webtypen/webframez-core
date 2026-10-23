@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { ConsoleApplication } from "./ConsoleApplication";
+import { buildProductionDependencies } from "./BuildDependencies";
 import { BuildApplication, WebframezAppConfig } from "./BuildApplication";
 
 function printHelp() {
@@ -70,6 +70,7 @@ async function runConsole(projectRoot: string, cliArgs: string[]) {
         await config.setup({ mode: "console", projectRoot });
     }
 
+    const { ConsoleApplication } = await import("./ConsoleApplication");
     const app = new ConsoleApplication();
     const originalArgv = process.argv;
     process.argv = [process.argv[0], "webframez", ...cliArgs];
@@ -110,6 +111,22 @@ export async function runWebframezCli(argv: string[] = process.argv.slice(2), pr
 
     if (command === "run") {
         await runConsole(projectRoot, argv.slice(1));
+        return;
+    }
+
+    if (command === "compile") {
+        const tsconfig = readOption(argv, "project") || "tsconfig.json";
+        const outDir = readOption(argv, "dir") || "build";
+        const relative = path.relative(projectRoot, path.resolve(projectRoot, outDir));
+        if (!relative || relative.startsWith("..") || path.isAbsolute(relative) || relative.split(path.sep).some(part => [".git", "node_modules", ".webframez-cache"].includes(part))) throw new Error("Compile output must be a separate project directory.");
+        await new BuildApplication(projectRoot, {build: {tsconfig, cacheDirectory: process.env.WEBFRAMEZ_BUILD_CACHE_DIRECTORY || ".webframez-cache"}}, {outDir}).compile();
+        return;
+    }
+
+    if (command === "dependencies") {
+        const outDir = readOption(argv, "dir");
+        if (!outDir) throw new Error("Production dependencies require --dir.");
+        await buildProductionDependencies(projectRoot, outDir, argv.includes("--ignore-scripts"));
         return;
     }
 
