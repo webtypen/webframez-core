@@ -11,7 +11,7 @@ test("Metro cache preserves Expo stores, custom stores and legacy configuration"
     class FileStore { constructor({root}) { this._root = root; } }
     class ExpoStore extends FileStore {}
     const remote = {get() {}, set() {}};
-    const config = {cacheStores:[new ExpoStore({root:"/tmp/old"}),remote]};
+    const config = {hasteMapCacheDirectory:undefined, cacheStores:[new ExpoStore({root:"/tmp/old"}),remote]};
     configureMetroCache(config, {WEBFRAMEZ_METRO_CACHE_DIRECTORY:root, WEBFRAMEZ_BUILD_MAX_WORKERS:"2"});
     assert.ok(config.cacheStores[0] instanceof ExpoStore);
     assert.equal(config.cacheStores[1], remote);
@@ -21,4 +21,12 @@ test("Metro cache preserves Expo stores, custom stores and legacy configuration"
     configureMetroCache(modern, {WEBFRAMEZ_METRO_CACHE_DIRECTORY:root});
     assert.equal(modern.fileMapCacheDirectory, path.join(root,"file-map"));
     assert.ok(modern.cacheStores({})[0] instanceof ExpoStore);
+});
+
+
+test("Metro configs without file-map schema fields retain only supported options",()=>{
+    const config={cacheStores:[]};
+    configureMetroCache(config,{WEBFRAMEZ_METRO_CACHE_DIRECTORY:"/tmp/cache"});
+    assert.equal("fileMapCacheDirectory" in config,false);
+    assert.equal("hasteMapCacheDirectory" in config,false);
 });

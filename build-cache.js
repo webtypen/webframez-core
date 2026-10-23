@@ -17,9 +17,13 @@ function configureMetroCache(config, env = process.env) {
     });
     const stores = config.cacheStores;
     config.cacheStores = typeof stores === "function" ? cache => relocate(stores(cache)) : relocate(stores || []);
-    const field = "fileMapCacheDirectory" in config ? "fileMapCacheDirectory" : "hasteMapCacheDirectory";
-    config[field] = path.join(root, "file-map");
-    fs.mkdirSync(config[field], {recursive:true});
+    // Some Metro releases accept these options at runtime but reject them in
+    // their schema. Only extend a field exposed by the caller/default config.
+    const field = "fileMapCacheDirectory" in config ? "fileMapCacheDirectory" : "hasteMapCacheDirectory" in config ? "hasteMapCacheDirectory" : null;
+    if (field) {
+        config[field] = path.join(root, "file-map");
+        fs.mkdirSync(config[field], {recursive:true});
+    }
     return config;
 }
 
