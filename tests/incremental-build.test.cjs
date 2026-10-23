@@ -57,3 +57,15 @@ test("compile-only skips application plugins and keeps the staging path stable f
     await fs.mkdir(first.stagingDir+".lock");
     await assert.rejects(first.compile(),/locked/);
 });
+
+
+test("compact builds retain source files when the project lives inside the cache root", async t => {
+    const cache = await fs.mkdtemp(path.join(os.tmpdir(), "core-compact-"));
+    t.after(() => fs.rm(cache, {recursive: true, force: true}));
+    const root = path.join(cache, "nodejs", "application");
+    await fs.mkdir(root, {recursive: true});
+    await fs.writeFile(path.join(root, "tsconfig.json"), JSON.stringify({compilerOptions: {types: [], outDir: "dist"}}));
+    await fs.writeFile(path.join(root, "app.ts"), "export const value = 42;");
+    await new BuildApplication(root, {build: {cacheDirectory: cache}}, {outDir: "dist"}).compile();
+    assert.match(await fs.readFile(path.join(root, "dist/app.js"), "utf8"), /42/);
+});

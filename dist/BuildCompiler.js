@@ -29,8 +29,9 @@ function compile({ projectRoot, tsconfig, outDir, buildRoot, root, stagingDir })
             throw new Error("Build compilation requires emitted output; remove noEmit from the build configuration.");
         // Resolve the original project before redirecting output. Otherwise allowJs
         // projects accidentally compile their previous build into build/build/.
-        const generated = [outDir, buildRoot, root, parsed.options.outDir].filter(Boolean);
         const inside = (parent, file) => file === parent || file.startsWith(parent + node_path_1.default.sep);
+        // Compact runners may place the source checkout inside the shared cache root.
+        const generated = [outDir, buildRoot, inside(root, projectRoot) ? cache : root, parsed.options.outDir].filter(Boolean);
         const files = parsed.fileNames.filter((file) => !generated.some(directory => inside(directory, file)));
         const key = node_crypto_1.default.createHash("sha256").update(JSON.stringify([files, parsed.options, ts.version])).digest("hex");
         const previous = yield promises_1.default.readFile(node_path_1.default.join(cache, "key"), "utf8").catch(() => "");
