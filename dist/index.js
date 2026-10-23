@@ -14,7 +14,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LegacyFieldTypeAdapter = exports.Forms = exports.Validates = exports.Field = exports.ModelForm = void 0;
+exports.defaultFormFields = exports.LegacyFieldTypeAdapter = exports.Forms = exports.Validates = exports.Field = exports.ModelForm = void 0;
 __exportStar(require("./Config"), exports);
 __exportStar(require("./Functions/DateFunctions"), exports);
 __exportStar(require("./Functions/FileFunctions"), exports);
@@ -96,3 +96,5 @@ Object.defineProperty(exports, "Validates", { enumerable: true, get: function ()
 Object.defineProperty(exports, "Forms", { enumerable: true, get: function () { return decorators_1.Forms; } });
 var LegacyFieldTypeAdapter_1 = require("./DataBuilder/LegacyFieldTypeAdapter");
 Object.defineProperty(exports, "LegacyFieldTypeAdapter", { enumerable: true, get: function () { return LegacyFieldTypeAdapter_1.LegacyFieldTypeAdapter; } });
+var formScope_1 = require("./DataBuilder/formScope");
+Object.defineProperty(exports, "defaultFormFields", { enumerable: true, get: function () { return formScope_1.defaultFormFields; } });

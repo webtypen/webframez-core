@@ -76,3 +76,4 @@ export { ModelForm, ModelFormContext, ModelFormConstructor } from "./DataBuilder
 export { Field, Validates, Forms, DataBuilderFieldOptions } from "./DataBuilder/decorators";
 export { DataBuilderRouteOptions } from "./DataBuilder/DataBuilderRoute";
 export { LegacyFieldTypeAdapter } from "./DataBuilder/LegacyFieldTypeAdapter";
+export { defaultFormFields } from "./DataBuilder/formScope";

@@ -32,6 +32,11 @@ Metadata is inherited without mutating parent definitions. Decorated definitions
 
 Without registered forms or legacy `__forms`, decorated models get a default form containing their fields, including child layouts. Existing `__schema` still carries version, collection, hooks, aggregation, uniqueness, new-data and deletion behavior. Defining `static forms = () => [UserProfileForm]` is an alternative to `@Forms()`; the decorator takes precedence.
 
+For dynamic sections inside an explicit layout, import `defaultFormFields` from
+`@webtypen/webframez-core` and use `{ field: "attributes", fields: defaultFormFields(attributeSchema) }`.
+It recursively supplies the `fields` layouts for object and array schemas, including
+objects inside array entries. It does not modify the schema or populate data values.
+
 ## Server-side form classes
 
 ```ts
