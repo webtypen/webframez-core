@@ -43,12 +43,49 @@ class Queue {
         tick();
     }
     static stop() {
-        var _a;
         return __awaiter(this, void 0, void 0, function* () { if (this.timer)
-            clearInterval(this.timer); this.timer = undefined; (_a = this.abort) === null || _a === void 0 ? void 0 : _a.abort(); yield this.running; });
+            clearInterval(this.timer); this.timer = undefined; for (const controller of this.controllers)
+            controller.abort(); yield this.running; });
     }
-    static runOnce(jobclasses) {
+    /** Independent bounded worker pool. Draining stops claims and lets active jobs finish. */
+    static createWorker(jobclasses, options = {}) {
+        var _a, _b;
+        const concurrency = (_a = options.concurrency) !== null && _a !== void 0 ? _a : 1;
+        const intervalMs = (_b = options.intervalMs) !== null && _b !== void 0 ? _b : 1000;
+        if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 32 || !Number.isFinite(intervalMs) || intervalMs < 10) {
+            throw new Error("Invalid queue worker concurrency or polling interval.");
+        }
+        const controller = new AbortController();
+        const active = new Set();
+        let stopped = false;
+        const tick = () => {
+            if (stopped)
+                return;
+            while (active.size < concurrency) {
+                const work = this.runOnce(jobclasses, controller.signal)
+                    .catch(error => ErrorHandler_1.ErrorHandler.report(error, { scope: "job", source: "queue.embedded.poll" }))
+                    .then(() => undefined)
+                    .finally(() => { active.delete(work); });
+                active.add(work);
+            }
+        };
+        const timer = setInterval(tick, intervalMs);
+        timer.unref();
+        tick();
+        return {
+            stop: ({ drain = false } = {}) => __awaiter(this, void 0, void 0, function* () {
+                stopped = true;
+                clearInterval(timer);
+                if (!drain)
+                    controller.abort();
+                yield Promise.all([...active]);
+            }),
+        };
+    }
+    static runOnce(jobclasses, signal) {
         return __awaiter(this, void 0, void 0, function* () {
+            if (signal === null || signal === void 0 ? void 0 : signal.aborted)
+                return;
             const jobs = yield this.collection(), now = new Date();
             yield jobs.updateMany({ status: "running", embedded_queue: true, lease_until: { $lt: now } }, { $set: { status: "pending", worker: null, recovered: true } });
             const token = crypto_1.default.randomUUID();
@@ -60,7 +97,11 @@ class Queue {
                 var _a;
                 const filter = { _id: job._id, lease_token: token, status: "running" };
                 const controller = new AbortController();
-                this.abort = controller;
+                this.controllers.add(controller);
+                const abort = () => controller.abort();
+                signal === null || signal === void 0 ? void 0 : signal.addEventListener("abort", abort, { once: true });
+                if (signal === null || signal === void 0 ? void 0 : signal.aborted)
+                    controller.abort();
                 const heartbeat = setInterval(() => { void jobs.updateOne(filter, { $set: { lease_until: new Date(Date.now() + 60000) } }).then((result) => { if (!result.matchedCount)
                     controller.abort(); }).catch(() => controller.abort()); }, 15000);
                 heartbeat.unref();
@@ -136,12 +177,13 @@ class Queue {
                 }
                 finally {
                     clearInterval(heartbeat);
-                    if (this.abort === controller)
-                        this.abort = undefined;
+                    this.controllers.delete(controller);
+                    signal === null || signal === void 0 ? void 0 : signal.removeEventListener("abort", abort);
                 }
             }));
         });
     }
 }
 exports.Queue = Queue;
+Queue.controllers = new Set();
 Queue.worker = "embedded-" + crypto_1.default.randomUUID();

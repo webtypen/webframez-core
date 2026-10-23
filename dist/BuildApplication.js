@@ -17,6 +17,9 @@ const node_fs_1 = __importDefault(require("node:fs"));
 const promises_1 = __importDefault(require("node:fs/promises"));
 const node_path_1 = __importDefault(require("node:path"));
 const node_child_process_1 = require("node:child_process");
+const node_util_1 = require("node:util");
+const node_crypto_1 = __importDefault(require("node:crypto"));
+const exec = (0, node_util_1.promisify)(node_child_process_1.execFile);
 function timestamp() {
     return new Date().toISOString().replace(/[-:TZ.]/g, "");
 }
@@ -117,9 +120,46 @@ class BuildApplication {
         });
     }
     runTypescriptBuild(context) {
-        var _a;
-        const tsconfig = node_path_1.default.resolve(this.projectRoot, ((_a = this.config.build) === null || _a === void 0 ? void 0 : _a.tsconfig) || "tsconfig.json");
-        return this.runOrFail(context, "tsc", ["-p", tsconfig, "--outDir", this.stagingDir]);
+        var _a, _b;
+        return __awaiter(this, void 0, void 0, function* () {
+            const tsconfig = node_path_1.default.resolve(this.projectRoot, ((_a = this.config.build) === null || _a === void 0 ? void 0 : _a.tsconfig) || "tsconfig.json");
+            const configuredCache = ((_b = this.config.build) === null || _b === void 0 ? void 0 : _b.cacheDirectory) || process.env.WEBFRAMEZ_BUILD_CACHE_DIRECTORY;
+            if (!configuredCache)
+                return this.runOrFail(context, "tsc", ["-p", tsconfig, "--outDir", this.stagingDir]);
+            const root = node_path_1.default.resolve(this.projectRoot, configuredCache);
+            const scope = node_crypto_1.default.createHash("sha256").update(node_path_1.default.relative(root, tsconfig)).digest("hex").slice(0, 24);
+            const cache = node_path_1.default.join(root, "typescript", scope);
+            // Resolved options and the complete source list invalidate deleted/renamed outputs.
+            const { stdout: config } = yield exec(this.resolveBinary("tsc"), ["-p", tsconfig, "--outDir", node_path_1.default.join(cache, "output"), "--showConfig"], { cwd: this.projectRoot, maxBuffer: 8 * 1024 * 1024 });
+            const { stdout: version } = yield exec(this.resolveBinary("tsc"), ["--version"], { cwd: this.projectRoot });
+            const key = node_crypto_1.default.createHash("sha256").update(config).update(version).digest("hex");
+            const previous = yield promises_1.default.readFile(node_path_1.default.join(cache, "key"), "utf8").catch(() => "");
+            if (previous !== key)
+                yield promises_1.default.rm(cache, { recursive: true, force: true });
+            const output = node_path_1.default.join(cache, "output");
+            yield promises_1.default.mkdir(output, { recursive: true });
+            try {
+                yield this.runOrFail(context, "tsc", ["-p", tsconfig, "--outDir", output, "--incremental", "--tsBuildInfoFile", node_path_1.default.join(cache, "build.tsbuildinfo")]);
+                yield this.copyTree(output, this.stagingDir);
+                yield promises_1.default.writeFile(node_path_1.default.join(cache, "key"), key);
+            }
+            catch (error) {
+                yield promises_1.default.rm(cache, { recursive: true, force: true });
+                throw error;
+            }
+        });
+    }
+    copyTree(source, target) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (process.platform === "linux") {
+                yield promises_1.default.mkdir(target, { recursive: true });
+                // Reflinks are independent copies; never share writable hardlinks with dependencies.
+                yield exec("cp", ["-a", "--reflink=auto", "--", source + "/.", target], { maxBuffer: 65536 });
+            }
+            else {
+                yield promises_1.default.cp(source, target, { recursive: true, dereference: false, mode: node_fs_1.default.constants.COPYFILE_FICLONE });
+            }
+        });
     }
     copyRuntimeFiles() {
         var _a, _b;
@@ -143,10 +183,10 @@ class BuildApplication {
                 }
                 yield promises_1.default.rm(targetPath, { recursive: true, force: true });
                 yield promises_1.default.mkdir(node_path_1.default.dirname(targetPath), { recursive: true });
-                yield promises_1.default.cp(sourcePath, targetPath, {
-                    recursive: true,
-                    dereference: false,
-                });
+                if ((yield promises_1.default.lstat(sourcePath)).isDirectory())
+                    yield this.copyTree(sourcePath, targetPath);
+                else
+                    yield promises_1.default.cp(sourcePath, targetPath, { dereference: false, mode: node_fs_1.default.constants.COPYFILE_FICLONE });
             }
             for (const prunePath of ((_b = this.config.build) === null || _b === void 0 ? void 0 : _b.prunePaths) || []) {
                 yield promises_1.default.rm(node_path_1.default.resolve(this.stagingDir, prunePath), { recursive: true, force: true });

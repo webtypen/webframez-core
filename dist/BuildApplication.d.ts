@@ -21,6 +21,7 @@ export type WebframezBuildPlugin = {
 export type WebframezBuildConfig = {
     dir?: string;
     tsconfig?: string;
+    cacheDirectory?: string;
     entry?: string;
     runtimeFiles?: WebframezBuildRuntimeFile[];
     prunePaths?: string[];
@@ -59,6 +60,7 @@ export declare class BuildApplication {
     private createContext;
     private callHook;
     private runTypescriptBuild;
+    private copyTree;
     private copyRuntimeFiles;
     private validateCoreBuild;
     private promoteBuild;

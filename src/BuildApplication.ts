@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, execFile } from "node:child_process";
+import { promisify } from "node:util";
+import crypto from "node:crypto";
+
+const exec = promisify(execFile);
 
 export type WebframezBuildRuntimeFile =
     | string
@@ -31,6 +35,7 @@ export type WebframezBuildPlugin = {
 export type WebframezBuildConfig = {
     dir?: string;
     tsconfig?: string;
+    cacheDirectory?: string;
     entry?: string;
     runtimeFiles?: WebframezBuildRuntimeFile[];
     prunePaths?: string[];
@@ -179,9 +184,40 @@ export class BuildApplication {
         }
     }
 
-    private runTypescriptBuild(context: WebframezBuildContext) {
+    private async runTypescriptBuild(context: WebframezBuildContext) {
         const tsconfig = path.resolve(this.projectRoot, this.config.build?.tsconfig || "tsconfig.json");
-        return this.runOrFail(context, "tsc", ["-p", tsconfig, "--outDir", this.stagingDir]);
+        const configuredCache = this.config.build?.cacheDirectory || process.env.WEBFRAMEZ_BUILD_CACHE_DIRECTORY;
+        if (!configuredCache) return this.runOrFail(context, "tsc", ["-p", tsconfig, "--outDir", this.stagingDir]);
+
+        const root = path.resolve(this.projectRoot, configuredCache);
+        const scope = crypto.createHash("sha256").update(path.relative(root, tsconfig)).digest("hex").slice(0, 24);
+        const cache = path.join(root, "typescript", scope);
+        // Resolved options and the complete source list invalidate deleted/renamed outputs.
+        const {stdout: config} = await exec(this.resolveBinary("tsc"), ["-p", tsconfig, "--outDir", path.join(cache, "output"), "--showConfig"], {cwd:this.projectRoot, maxBuffer:8*1024*1024});
+        const {stdout: version} = await exec(this.resolveBinary("tsc"), ["--version"], {cwd:this.projectRoot});
+        const key = crypto.createHash("sha256").update(config).update(version).digest("hex");
+        const previous = await fsp.readFile(path.join(cache, "key"), "utf8").catch(() => "");
+        if (previous !== key) await fsp.rm(cache, {recursive:true, force:true});
+        const output = path.join(cache, "output");
+        await fsp.mkdir(output, {recursive:true});
+        try {
+            await this.runOrFail(context, "tsc", ["-p", tsconfig, "--outDir", output, "--incremental", "--tsBuildInfoFile", path.join(cache, "build.tsbuildinfo")]);
+            await this.copyTree(output, this.stagingDir);
+            await fsp.writeFile(path.join(cache, "key"), key);
+        } catch (error) {
+            await fsp.rm(cache, {recursive:true, force:true});
+            throw error;
+        }
+    }
+
+    private async copyTree(source:string, target:string) {
+        if (process.platform === "linux") {
+            await fsp.mkdir(target, {recursive:true});
+            // Reflinks are independent copies; never share writable hardlinks with dependencies.
+            await exec("cp", ["-a", "--reflink=auto", "--", source + "/.", target], {maxBuffer:65536});
+        } else {
+            await fsp.cp(source, target, {recursive:true, dereference:false, mode:fs.constants.COPYFILE_FICLONE});
+        }
     }
 
     private async copyRuntimeFiles() {
@@ -207,10 +243,8 @@ export class BuildApplication {
 
             await fsp.rm(targetPath, { recursive: true, force: true });
             await fsp.mkdir(path.dirname(targetPath), { recursive: true });
-            await fsp.cp(sourcePath, targetPath, {
-                recursive: true,
-                dereference: false,
-            });
+            if ((await fsp.lstat(sourcePath)).isDirectory()) await this.copyTree(sourcePath, targetPath);
+            else await fsp.cp(sourcePath, targetPath, {dereference:false, mode:fs.constants.COPYFILE_FICLONE});
         }
 
         for (const prunePath of this.config.build?.prunePaths || []) {

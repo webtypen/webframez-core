@@ -10,22 +10,60 @@ import { QueueRetryPolicy, QueueRetryOptions } from "./QueueRetryPolicy";
 export class Queue {
     private static timer: ReturnType<typeof setInterval> | undefined;
     private static running: Promise<void> | undefined;
-    private static abort: AbortController | undefined;
+    private static controllers = new Set<AbortController>();
     private static worker = "embedded-" + crypto.randomUUID();
+
     private static async collection() {return (await DBConnection.getDocumentStore()).collection("queue_jobs");}
+
     static async enqueue(jobclass:string, props:Record<string,any>={}) {
         QueueJobsRegisty.getJobOrFail(jobclass);
         const jobs=await this.collection(), id=props._id || crypto.randomUUID();
         await jobs.updateOne({_id:id},{$setOnInsert:{...props,_id:id,jobclass,status:"pending",created_at:new Date(),not_before:null,worker:null}},{upsert:true});
         return jobs.findOne({_id:id});
     }
+
     static start(jobclasses:string[], intervalMs=1000) {
         if(this.timer)return;
         const tick=()=>{if(!this.running)this.running=this.runOnce(jobclasses).catch(error => ErrorHandler.report(error, { scope: "job", source: "queue.embedded.poll", job: { worker: this.worker } })).finally(()=>{this.running=undefined;});};
         this.timer=setInterval(tick,intervalMs);this.timer.unref();tick();
     }
-    static async stop(){if(this.timer)clearInterval(this.timer);this.timer=undefined;this.abort?.abort();await this.running;}
-    static async runOnce(jobclasses:string[]) {
+
+    static async stop(){if(this.timer)clearInterval(this.timer);this.timer=undefined;for (const controller of this.controllers) controller.abort();await this.running;}
+    /** Independent bounded worker pool. Draining stops claims and lets active jobs finish. */
+    static createWorker(jobclasses: string[], options: {concurrency?: number; intervalMs?: number} = {}) {
+        const concurrency = options.concurrency ?? 1;
+        const intervalMs = options.intervalMs ?? 1000;
+        if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 32 || !Number.isFinite(intervalMs) || intervalMs < 10) {
+            throw new Error("Invalid queue worker concurrency or polling interval.");
+        }
+        const controller = new AbortController();
+        const active = new Set<Promise<void>>();
+        let stopped = false;
+        const tick = () => {
+            if (stopped) return;
+            while (active.size < concurrency) {
+                const work = this.runOnce(jobclasses, controller.signal)
+                    .catch(error => ErrorHandler.report(error, {scope: "job", source: "queue.embedded.poll"}))
+                    .then(() => undefined)
+                    .finally(() => { active.delete(work); });
+                active.add(work);
+            }
+        };
+        const timer = setInterval(tick, intervalMs);
+        timer.unref();
+        tick();
+        return {
+            stop: async ({drain = false}: {drain?: boolean} = {}) => {
+                stopped = true;
+                clearInterval(timer);
+                if (!drain) controller.abort();
+                await Promise.all([...active]);
+            },
+        };
+    }
+
+    static async runOnce(jobclasses:string[], signal?: AbortSignal) {
+        if (signal?.aborted) return;
         const jobs=await this.collection(),now=new Date();
         await jobs.updateMany({status:"running",embedded_queue:true,lease_until:{$lt:now}},{$set:{status:"pending",worker:null,recovered:true}});
         const token=crypto.randomUUID();
@@ -34,7 +72,10 @@ export class Queue {
         if(!job)return;
         return ErrorHandler.withContext({ scope: "job", operationId: token, source: "queue.embedded", job: { id: String(job._id), number: job.number, jobclass: job.jobclass, worker: this.worker, attempt: QueueRetryPolicy.attempts(job) + 1 } }, async () => {
             const filter={_id:job._id,lease_token:token,status:"running"};
-            const controller=new AbortController();this.abort=controller;
+            const controller=new AbortController();this.controllers.add(controller);
+            const abort = () => controller.abort();
+            signal?.addEventListener("abort", abort, {once:true});
+            if (signal?.aborted) controller.abort();
             const heartbeat=setInterval(()=>{void jobs.updateOne(filter,{$set:{lease_until:new Date(Date.now()+60000)}}).then((result:any)=>{if(!result.matchedCount)controller.abort();}).catch(()=>controller.abort());},15000);heartbeat.unref();
             const previousAttempts = QueueRetryPolicy.attempts(job);
             const previousFailures = QueueRetryPolicy.failures(job);
@@ -101,7 +142,7 @@ export class Queue {
                     retry_exhaustion_error: finalizationFailed ? "Queue exhaustion finalization failed. See the domain status for details." : null,
                     error: recovered ? null : retryAt ? "Queue job will be retried." : "Queue job failed or reached its retry limit. See the domain status for details.",
                 } });
-            } finally {clearInterval(heartbeat);if(this.abort===controller)this.abort=undefined;}
+            } finally {clearInterval(heartbeat);this.controllers.delete(controller);signal?.removeEventListener("abort", abort);}
         });
     }
 }

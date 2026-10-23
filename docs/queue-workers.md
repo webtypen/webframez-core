@@ -122,3 +122,11 @@ Do not reset histories to bypass limits, automatically resume all failed jobs, o
 create another external operation as part of recovery. Finalizers may have domain
 side effects, so inspect them before retrying. Error capture and the Server Manager
 error group's status are separate from job recovery: see [Error reporting](errors.md).
+
+## Embedded worker pools
+
+`Queue.createWorker(jobClasses, {concurrency: 2, intervalMs: 1000})` starts an
+independent bounded pool using the same atomic claims and renewable leases as
+`Queue.runOnce`. `await worker.stop({drain: true})` stops new claims and waits for
+active handlers; `worker.stop()` aborts that pool's handlers. Pools do not share
+abort controllers. Host-wide resource limits remain the application's concern.

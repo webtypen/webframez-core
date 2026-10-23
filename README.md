@@ -982,3 +982,18 @@ Lifecycle hooks skip event normalization when no listeners are registered. Use
 Registered handlers retain their ordered, awaited execution and snapshot behavior.
 The router applies this check before building telemetry payloads. Middleware keeps
 its existing `next`/`reject` callback contract.
+
+### Persistent build caches
+
+Set `build.cacheDirectory` or `WEBFRAMEZ_BUILD_CACHE_DIRECTORY` to opt into
+incremental TypeScript compilation. Compiler output and build information live
+outside the published build. Resolved configuration, compiler version and source
+file list invalidate the cache; failed compilation discards it and leaves the
+previous successful release intact. Each directory requires an exclusive build
+owner. Linux runtime copies use independent reflinks where supported.
+
+Metro consumers can call
+`require('@webtypen/webframez-core/build-cache').configureMetroCache(config)`.
+It applies `WEBFRAMEZ_BUILD_MAX_WORKERS` and `WEBFRAMEZ_METRO_CACHE_DIRECTORY`,
+preserving Expo's FileStore implementation and supporting old/new file-map option
+names. Do not pass Expo `--clear` on normal cached builds.
