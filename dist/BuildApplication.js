@@ -167,51 +167,23 @@ class BuildApplication {
         });
     }
     runTypescriptBuild(_context) {
-        var _a, _b, _c;
+        var _a, _b;
         return __awaiter(this, void 0, void 0, function* () {
-            const tsconfig = node_path_1.default.resolve(this.projectRoot, ((_a = this.config.build) === null || _a === void 0 ? void 0 : _a.tsconfig) || "tsconfig.json");
-            const ts = require(require.resolve("typescript", { paths: [this.projectRoot, __dirname] }));
-            const configuredCache = ((_b = this.config.build) === null || _b === void 0 ? void 0 : _b.cacheDirectory) || process.env.WEBFRAMEZ_BUILD_CACHE_DIRECTORY || node_path_1.default.join(this.buildRoot, "cache");
-            const root = node_path_1.default.resolve(this.projectRoot, configuredCache);
-            const scope = node_crypto_1.default.createHash("sha256").update(tsconfig).digest("hex").slice(0, 24);
-            const cache = node_path_1.default.join(root, "typescript", scope), output = node_path_1.default.join(cache, "output");
-            const loaded = ts.readConfigFile(tsconfig, ts.sys.readFile);
-            const parsed = ts.parseJsonConfigFileContent(loaded.config || {}, ts.sys, node_path_1.default.dirname(tsconfig), undefined, tsconfig);
-            if (parsed.options.noEmit)
-                throw new Error("Build compilation requires emitted output; remove noEmit from the build configuration.");
-            // Resolve the original project before redirecting output. Otherwise allowJs
-            // projects accidentally compile their previous build into build/build/.
-            const generated = [this.outDir, this.buildRoot, root, parsed.options.outDir].filter(Boolean);
-            const inside = (parent, file) => file === parent || file.startsWith(parent + node_path_1.default.sep);
-            const files = parsed.fileNames.filter((file) => !generated.some(directory => inside(directory, file)));
-            const key = node_crypto_1.default.createHash("sha256").update(JSON.stringify([files, parsed.options, ts.version])).digest("hex");
-            const previous = yield promises_1.default.readFile(node_path_1.default.join(cache, "key"), "utf8").catch(() => "");
-            if (previous !== key)
-                yield promises_1.default.rm(cache, { recursive: true, force: true });
-            yield promises_1.default.mkdir(output, { recursive: true });
-            console.log(`[webframez] TypeScript cache: ${previous === key ? "reuse" : "cold"} (${files.length} source files)`);
-            try {
-                const builder = ts.createIncrementalProgram({ rootNames: files, options: Object.assign(Object.assign({}, parsed.options), { outDir: output, incremental: true, tsBuildInfoFile: node_path_1.default.join(cache, "build.tsbuildinfo") }), projectReferences: parsed.projectReferences });
-                const diagnostics = [...(loaded.error ? [loaded.error] : []), ...parsed.errors, ...builder.getOptionsDiagnostics(), ...builder.getGlobalDiagnostics(), ...builder.getSyntacticDiagnostics(), ...builder.getSemanticDiagnostics()];
-                if (diagnostics.length)
-                    console.error(ts.formatDiagnosticsWithColorAndContext(diagnostics, { getCanonicalFileName: (name) => name, getCurrentDirectory: () => this.projectRoot, getNewLine: () => "\n" }));
-                if (diagnostics.some((entry) => entry.category === ts.DiagnosticCategory.Error))
-                    throw new Error("tsc exited with code 1");
-                const emitted = builder.emit();
-                if ((_c = emitted.diagnostics) === null || _c === void 0 ? void 0 : _c.length) {
-                    console.error(ts.formatDiagnosticsWithColorAndContext(emitted.diagnostics, { getCanonicalFileName: (name) => name, getCurrentDirectory: () => this.projectRoot, getNewLine: () => "\n" }));
-                    if (emitted.diagnostics.some((entry) => entry.category === ts.DiagnosticCategory.Error))
-                        throw new Error("tsc exited with code 1");
-                }
-                if (emitted.emitSkipped)
-                    throw new Error("tsc exited without emitting output");
-                yield this.copyTree(output, this.stagingDir);
-                yield promises_1.default.writeFile(node_path_1.default.join(cache, "key"), key);
-            }
-            catch (error) {
-                yield promises_1.default.rm(cache, { recursive: true, force: true });
-                throw error;
-            }
+            const options = {
+                projectRoot: this.projectRoot,
+                tsconfig: node_path_1.default.resolve(this.projectRoot, ((_a = this.config.build) === null || _a === void 0 ? void 0 : _a.tsconfig) || "tsconfig.json"),
+                outDir: this.outDir,
+                buildRoot: this.buildRoot,
+                root: node_path_1.default.resolve(this.projectRoot, ((_b = this.config.build) === null || _b === void 0 ? void 0 : _b.cacheDirectory) || process.env.WEBFRAMEZ_BUILD_CACHE_DIRECTORY || node_path_1.default.join(this.buildRoot, "cache")),
+                stagingDir: this.stagingDir,
+            };
+            yield new Promise((resolve, reject) => {
+                const child = (0, node_child_process_1.spawn)(process.execPath, [node_path_1.default.join(__dirname, "BuildCompiler.js"), JSON.stringify(options)], {
+                    cwd: this.projectRoot, stdio: "inherit", env: process.env,
+                });
+                child.once("error", reject);
+                child.once("exit", (code, signal) => code === 0 ? resolve() : reject(new Error(`tsc exited with code ${code}${signal ? ` (${signal})` : ""}`)));
+            });
         });
     }
     copyTree(source, target) {

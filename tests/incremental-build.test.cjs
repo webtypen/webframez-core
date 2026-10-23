@@ -42,6 +42,14 @@ test("compile-only skips application plugins and keeps the staging path stable f
     const first=new BuildApplication(root,config,{outDir:"build"}),second=new BuildApplication(root,config,{outDir:"build"});
     assert.equal(first.stagingDir,second.stagingDir);
     await fs.mkdir(path.join(root,"build"));await fs.writeFile(path.join(root,"build/stale.js"),"throw new Error('stale')");
+    // Loading the compiler in the application process retains its AST beside
+    // the runtime configuration and can exceed the bounded runner heap.
+    const Module = require("node:module"), originalLoad = Module._load;
+    const compiler = require.resolve("typescript");
+    t.mock.method(Module, "_load", function(request, ...args) {
+        if (request === compiler) throw new Error("Compiler must run in its own process");
+        return originalLoad.call(this, request, ...args);
+    });
     await first.compile();await second.compile();
     await assert.rejects(fs.access(path.join(root,"build/build")),{code:"ENOENT"});
     await assert.rejects(fs.access(path.join(root,"build/stale.js")),{code:"ENOENT"});
