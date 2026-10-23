@@ -996,7 +996,10 @@ Metro consumers can call
 `require('@webtypen/webframez-core/build-cache').configureMetroCache(config)`.
 It applies `WEBFRAMEZ_BUILD_MAX_WORKERS` and `WEBFRAMEZ_METRO_CACHE_DIRECTORY`,
 preserving Expo's FileStore implementation and supporting old/new file-map option
-names. Do not pass Expo `--clear` on normal cached builds.
+names. Transform and file-map caches are separated by a stable hash of sorted
+`EXPO_PUBLIC_*`, `NODE_ENV` and `BABEL_ENV` values. The cache version also includes
+this hash for custom/remote stores; public values are not written into path names.
+Private registry credentials do not participate in this build identity. Do not pass Expo `--clear` on normal cached builds.
 
 
 ### Reusable build workspaces
