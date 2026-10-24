@@ -97,6 +97,11 @@ export class RouteFacade {
         this.registerWithGroupContext("GET", path, component, options);
     }
 
+    /** Register a HEAD route, for metadata without a response body. */
+    head(path: string, component: any, options?: RouteRegistrationOptions) {
+        this.registerWithGroupContext("HEAD", path, component, options);
+    }
+
     /** Register the existing DataBuilder POST protocol with request-local configuration. */
     databuilder(path: string, options: DataBuilderRouteOptions = {}) {
         this.registerWithGroupContext("POST", path, dataBuilderRoute(options), { middleware: options.middleware, domains: options.domains });
