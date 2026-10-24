@@ -27,6 +27,8 @@ export declare class RouteFacade {
      * @param options
      */
     get(path: string, component: any, options?: RouteRegistrationOptions): void;
+    /** Register a HEAD route, for metadata without a response body. */
+    head(path: string, component: any, options?: RouteRegistrationOptions): void;
     /** Register the existing DataBuilder POST protocol with request-local configuration. */
     databuilder(path: string, options?: DataBuilderRouteOptions): void;
     /** Register CSRF, model login, logout and refresh using the browser auth contract. */

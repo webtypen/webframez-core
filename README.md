@@ -1027,3 +1027,9 @@ Asset builds use a stable staging directory so bundler caches can reuse module p
 An exclusive per-output lock prevents concurrent builds overwriting that directory.
 After a killed local build, remove its `.webframez-build/.building-*.lock` directory
 only after confirming that no previous build is running. WSM Force Clear removes it.
+
+### Explicit HEAD routes
+
+`Route.head(path, handler, options)` registers metadata-only requests separately from GET.
+Group prefixes, middleware, domain filters and OPTIONS preflight resolution work as for other routes.
+Return headers with `res.header(...)` and finish with `res.end()`; no response body is needed.

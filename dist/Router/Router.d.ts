@@ -43,6 +43,10 @@ declare class RouterFacade {
     routesGET: {
         [key: string]: RouteObject[];
     };
+    /** Explicit HEAD routes, with the same middleware and domain matching as GET. */
+    routesHEAD: {
+        [key: string]: RouteObject[];
+    };
     /**
      * POST Route Store
      */

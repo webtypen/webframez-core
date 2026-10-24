@@ -69,6 +69,11 @@ class RouterFacade {
         [key: string]: RouteObject[];
     } = {};
 
+    /** Explicit HEAD routes, with the same middleware and domain matching as GET. */
+    routesHEAD: {
+        [key: string]: RouteObject[];
+    } = {};
+
     /**
      * POST Route Store
      */
@@ -114,6 +119,7 @@ class RouterFacade {
                 ? options.maxRequestBodySizeBytes
                 : 10 * 1024 * 1024;
         this.routesGET = {};
+        this.routesHEAD = {};
         this.routesPOST = {};
         this.routesPUT = {};
         this.routesPATCH = {};
@@ -188,6 +194,11 @@ class RouterFacade {
                 this.routesGET[path] = [];
             }
             this.routesGET[path].push(routeConf);
+        } else if (type === "HEAD") {
+            if (!this.routesHEAD[path]) {
+                this.routesHEAD[path] = [];
+            }
+            this.routesHEAD[path].push(routeConf);
         } else if (type === "POST") {
             if (!this.routesPOST[path]) {
                 this.routesPOST[path] = [];
@@ -231,6 +242,8 @@ class RouterFacade {
 
         if (req.method === "GET") {
             return this.dissolveRoute(this.routesGET, cleanUrl, req);
+        } else if (req.method === "HEAD") {
+            return this.dissolveRoute(this.routesHEAD, cleanUrl, req);
         } else if (req.method === "POST") {
             return this.dissolveRoute(this.routesPOST, cleanUrl, req);
         } else if (req.method === "PUT") {
@@ -242,6 +255,8 @@ class RouterFacade {
         } else if (req.method === "OPTIONS") {
             if (req.headers["access-control-request-method"] === "GET") {
                 return this.dissolveRoute(this.routesGET, cleanUrl, req);
+            } else if (req.headers["access-control-request-method"] === "HEAD") {
+                return this.dissolveRoute(this.routesHEAD, cleanUrl, req);
             } else if (req.headers["access-control-request-method"] === "POST") {
                 return this.dissolveRoute(this.routesPOST, cleanUrl, req);
             } else if (req.headers["access-control-request-method"] === "PUT") {
