@@ -10,6 +10,15 @@ export interface DatatableColumnPreference {
     key: string;
     /** Omit to retain the current backend default. */
     width?: DatatableColumnWidth;
+    title?: string;
+    displayField?: string;
+}
+export interface DatatableDisplayOption {
+    value: string;
+    label: string;
+    type?: string;
+    plain?: boolean;
+    options?: any[];
 }
 export interface DatatableColumnPreferencesConfig {
     collection?: string;
@@ -26,5 +35,6 @@ export interface DatatableColumnContext {
 }
 export declare class DatatableColumnPreferences {
     static validate(value: unknown, columns: Record<string, any>): DatatableColumnPreference[];
+    static display(definition: any, selected?: string): any;
     static apply(columns: Record<string, any>, preferences: unknown): Record<string, any>;
 }

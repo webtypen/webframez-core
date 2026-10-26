@@ -54,6 +54,9 @@ export declare class Datatable {
     } | null;
     getInit(req: Request): Promise<any>;
     private loadColumnState;
+    /** Options may be declared inline or loaded from an authenticated host callback. */
+    getColumnDisplayOptions(req: Request, key: string): Promise<any>;
+    private resolveDisplayOptions;
     private getColumnState;
     saveColumnPreferences(req: Request, columns: unknown): Promise<any>;
     resetColumnPreferences(req: Request): Promise<any>;

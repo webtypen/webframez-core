@@ -131,3 +131,47 @@ test('custom getData overrides receive the resolved context from the controller'
     const result = await new DatatableController().restApi(req, { send: body => body });
     assert.deepEqual(result.data, { visible: ['name'], email: false });
 });
+
+test('display fields are lazy, whitelisted per request, persisted with titles and resilient to removed options', async t => {
+    database(t);
+    let loads = 0;
+    let options = [{ value: 'name', label: 'Name' }, { value: 'city', label: 'Stadt' }];
+    class Relations extends Customers {
+        columns = { name: { label: 'Name' }, winery: { label: 'Winzer', hidden: true, mapping: 'display.winery', displayOptions: async req => { loads++; return req.user._id === 'alice' ? options : []; } } };
+    }
+    const table = new Relations();
+    const init = await table.getInit(request());
+    assert.equal(loads, 0);
+    assert.equal(init.availableColumns[1].displayOptions, true);
+    assert.deepEqual(await table.getColumnDisplayOptions(request(), 'winery'), options);
+    await assert.rejects(table.getColumnDisplayOptions(request(), '__proto__'), { status: 400 });
+    const selection = [{ key: 'winery', title: '  Herkunft  ', displayField: 'city', width: { mode: 'px', value: 120 } }];
+    const saved = await table.saveColumnPreferences(request(), selection);
+    assert.equal(saved.columns[0].label, 'Herkunft');
+    assert.equal(saved.columns[0].mapping, 'display.winery');
+    assert.equal(saved.columns[0].displayField, 'city');
+    assert.equal(saved.columnSelection[0].title, 'Herkunft');
+    await assert.rejects(new Relations().saveColumnPreferences(request('bob'), selection), { status: 400 });
+    await assert.rejects(new Relations().saveColumnPreferences(request(), [{ key: 'winery', displayField: 'password' }]), { status: 400 });
+    await assert.rejects(new Relations().saveColumnPreferences(request(), [{ key: 'name', title: 'x'.repeat(161) }]), { status: 400 });
+    options = options.slice(0, 1);
+    const stale = await new Relations().getInit(request());
+    assert.equal(stale.columns[0].label, 'Herkunft');
+    assert.equal(stale.columns[0].displayField, 'name');
+    assert.equal(stale.columnSelection[0].displayField, undefined);
+    const reset = await new Relations().saveColumnPreferences(request(), [{ key: 'winery', title: '', displayField: '' }]);
+    assert.equal(reset.columns[0].label, 'Winzer');
+    assert.equal(reset.columns[0].displayField, 'name');
+});
+
+test('schema columns preserve nested scalar types and let hosts supply inline or lazy relation mappings', () => {
+    const { DatatableSchemaColumns } = require('../dist/Datatable/DatatableSchemaColumns');
+    const columns = DatatableSchemaColumns.fromSchema({ name: { type: 'string' }, amount: { type: 'currency' }, secret: { type: 'password' },
+        address: { type: 'object', schema: { city: { type: 'string', label: 'Stadt' } } }, winery: { type: 'relation' } }, {
+        prefix: 'attributes', prepare: (column, field) => field.type === 'relation' ? { ...column, displayOptions: [{ value: 'name', label: 'Name' }] } : column,
+    });
+    assert.equal(columns['attributes.amount'].plain, true);
+    assert.equal(columns['attributes.address.city'].label, 'address · Stadt');
+    assert.equal(columns['attributes.secret'], undefined);
+    assert.equal(columns['attributes.winery'].displayOptions[0].value, 'name');
+});

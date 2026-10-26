@@ -40,11 +40,13 @@ class DatatableController extends Controller_1.Controller {
             if (req.body.init_request || req.body.mode === "columns-get") {
                 return res.send({ status: "success", data: yield table.getInit(req) });
             }
-            if (req.body.mode === "columns-save" || req.body.mode === "columns-reset") {
+            if (["columns-save", "columns-reset", "columns-options"].includes(req.body.mode)) {
                 try {
-                    const data = req.body.mode === "columns-save"
-                        ? yield table.saveColumnPreferences(req, req.body.columns)
-                        : yield table.resetColumnPreferences(req);
+                    const data = req.body.mode === "columns-options"
+                        ? yield table.getColumnDisplayOptions(req, req.body.column)
+                        : req.body.mode === "columns-save"
+                            ? yield table.saveColumnPreferences(req, req.body.columns)
+                            : yield table.resetColumnPreferences(req);
                     return res.send({ status: "success", data });
                 }
                 catch (error) {

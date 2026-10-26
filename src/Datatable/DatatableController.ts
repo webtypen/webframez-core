@@ -33,9 +33,11 @@ export class DatatableController extends Controller {
         if (req.body.init_request || req.body.mode === "columns-get") {
             return res.send({ status: "success", data: await table.getInit(req) });
         }
-        if (req.body.mode === "columns-save" || req.body.mode === "columns-reset") {
+        if (["columns-save", "columns-reset", "columns-options"].includes(req.body.mode)) {
             try {
-                const data = req.body.mode === "columns-save"
+                const data = req.body.mode === "columns-options"
+                    ? await table.getColumnDisplayOptions(req, req.body.column)
+                    : req.body.mode === "columns-save"
                     ? await table.saveColumnPreferences(req, req.body.columns)
                     : await table.resetColumnPreferences(req);
                 return res.send({ status: "success", data });

@@ -64,13 +64,13 @@ class Datatable {
                 this.getFilter(req), this.getColumnState(req), this.getOnPressLink(req),
             ]);
             out.filter = filter;
-            out.columns = Object.entries(state.visible).map(([key, column]) => (Object.assign(Object.assign({}, column), { key })));
-            out.availableColumns = Object.entries(state.all).map(([key, column]) => (Object.assign(Object.assign({}, column), { key })));
+            out.columns = Object.entries(state.visible).map(([key, column]) => (Object.assign(Object.assign({}, column), { displayOptions: typeof column.displayOptions === "function" ? true : column.displayOptions, key })));
+            out.availableColumns = Object.entries(state.all).map(([key, column]) => (Object.assign(Object.assign({}, column), { displayOptions: typeof column.displayOptions === "function" ? true : column.displayOptions, key })));
             out.columnPreferences = Boolean(state.scope) && Object.keys(state.all).length > 0;
             out.columnSelection = out.columns.map((column) => {
-                var _a, _b;
-                return (Object.assign({ key: column.key }, (((_b = (_a = state.preferences) === null || _a === void 0 ? void 0 : _a.find((entry) => entry.key === column.key)) === null || _b === void 0 ? void 0 : _b.width)
-                    ? { width: state.preferences.find((entry) => entry.key === column.key).width } : {})));
+                var _a;
+                const saved = (_a = state.preferences) === null || _a === void 0 ? void 0 : _a.find((entry) => entry.key === column.key);
+                return Object.assign(Object.assign(Object.assign({ key: column.key }, ((saved === null || saved === void 0 ? void 0 : saved.width) ? { width: saved.width } : {})), ((saved === null || saved === void 0 ? void 0 : saved.title) ? { title: saved.title } : {})), ((saved === null || saved === void 0 ? void 0 : saved.displayField) && saved.displayField === column.displayField ? { displayField: saved.displayField } : {}));
             });
             out.onPressLink = onPressLink;
             if (this.exports) {
@@ -97,7 +97,35 @@ class Datatable {
             const store = new DatatablePreferencesStore_1.DatatablePreferencesStore(config || {});
             const scope = config === false ? null : yield store.scope(req);
             const preferences = scope ? yield store.load(scope) : null;
-            return { all, visible: DatatableColumnPreferences_1.DatatableColumnPreferences.apply(all, preferences), preferences, store, scope };
+            const savedKeys = Array.isArray(preferences) ? preferences.map(entry => entry === null || entry === void 0 ? void 0 : entry.key).filter(key => Object.prototype.hasOwnProperty.call(all, key)) : [];
+            const selected = savedKeys.length ? savedKeys : Object.keys(all).filter(key => !all[key].hidden);
+            const resolved = yield this.resolveDisplayOptions(req, all, selected);
+            return { all, visible: DatatableColumnPreferences_1.DatatableColumnPreferences.apply(resolved, preferences), preferences, store, scope };
+        });
+    }
+    /** Options may be declared inline or loaded from an authenticated host callback. */
+    getColumnDisplayOptions(req, key) {
+        var _a;
+        return __awaiter(this, void 0, void 0, function* () {
+            const all = (_a = yield this.getColumns(req)) !== null && _a !== void 0 ? _a : {};
+            if (typeof key !== "string" || !Object.prototype.hasOwnProperty.call(all, key)) {
+                throw Object.assign(new Error("Unbekannte Spalte."), { status: 400 });
+            }
+            const resolved = yield this.resolveDisplayOptions(req, all, [key]);
+            return resolved[key].displayOptions || [];
+        });
+    }
+    resolveDisplayOptions(req, columns, keys) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const resolved = Object.assign({}, columns);
+            yield Promise.all(Array.from(new Set(keys)).filter(key => typeof key === "string" && Object.prototype.hasOwnProperty.call(columns, key)).map((key) => __awaiter(this, void 0, void 0, function* () {
+                const column = columns[key];
+                if (typeof column.displayOptions === "function") {
+                    const options = yield column.displayOptions(req, key);
+                    resolved[key] = Object.assign(Object.assign({}, column), { displayOptions: Array.isArray(options) ? options : [] });
+                }
+            })));
+            return resolved;
         });
     }
     getColumnState(req) {
@@ -115,7 +143,8 @@ class Datatable {
                 throw Object.assign(new Error("Spalteneinstellungen sind für diesen Benutzer nicht verfügbar."), { status: 403 });
             let preferences;
             try {
-                preferences = DatatableColumnPreferences_1.DatatableColumnPreferences.validate(columns, state.all);
+                const resolved = yield this.resolveDisplayOptions(req, state.all, Array.isArray(columns) ? columns.map(entry => entry === null || entry === void 0 ? void 0 : entry.key) : []);
+                preferences = DatatableColumnPreferences_1.DatatableColumnPreferences.validate(columns, resolved);
             }
             catch (error) {
                 throw Object.assign(error, { status: 400 });

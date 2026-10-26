@@ -101,3 +101,28 @@ mappings, active filter/search/sort fields and sums, as well as model-selector
 preview fields. This avoids breaking a sort/filter on a hidden column. Dependencies
 inside custom expressions, custom filters, exports or other calculated columns
 remain the table author's responsibility.
+
+## Relation display fields and custom titles
+
+A column can declare `displayOptions: [{ value: "name", label: "Name", type: "string" }]`
+or an async `displayOptions(req, columnKey)` callback. The callback receives the
+normal authenticated request. Initialization advertises lazy options with `true`;
+`mode: "columns-options", column: "key"` resolves them when the editor needs them.
+Only visible columns resolve options during normal loading. `displayField` selects
+the backend default; otherwise the first option is used.
+
+Saved preferences accept `title` (up to 160 characters) and `displayField` in
+addition to width. Empty values restore the backend defaults. An unknown display
+field is rejected on save; if a previously saved field disappears, loading falls
+back to the default while preserving the other layout settings.
+
+Core validates the selection and exposes it through `context.columns[key].displayField`;
+the host performs the relation lookup and writes the value to the column's stable
+`mapping`. Options can supply `type`, `plain` and `options` for typed rendering.
+Never interpret an unchecked client field as a database projection.
+
+`DatatableSchemaColumns.fromSchema(schema, { prefix, labelPrefix, prepare })`
+creates an optional column catalog from nested DataBuilder/DataSchema fields.
+The `prepare(column, field, path)` callback can attach inline or lazy display
+options, change the mapping, or return null to omit a field. Plugin installation,
+tenant checks and relation hydration belong in the host adapter.

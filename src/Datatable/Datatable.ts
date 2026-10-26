@@ -66,13 +66,16 @@ export class Datatable {
             this.getFilter(req), this.getColumnState(req), this.getOnPressLink(req),
         ]);
         out.filter = filter;
-        out.columns = Object.entries(state.visible).map(([key, column]) => ({ ...column, key }));
-        out.availableColumns = Object.entries(state.all).map(([key, column]) => ({ ...column, key }));
+        out.columns = Object.entries(state.visible).map(([key, column]) => ({ ...column, displayOptions: typeof column.displayOptions === "function" ? true : column.displayOptions, key }));
+        out.availableColumns = Object.entries(state.all).map(([key, column]) => ({ ...column, displayOptions: typeof column.displayOptions === "function" ? true : column.displayOptions, key }));
         out.columnPreferences = Boolean(state.scope) && Object.keys(state.all).length > 0;
-        out.columnSelection = out.columns.map((column: any) => ({ key: column.key,
-            ...(state.preferences?.find((entry: any) => entry.key === column.key)?.width
-                ? { width: state.preferences.find((entry: any) => entry.key === column.key).width } : {}),
-        }));
+        out.columnSelection = out.columns.map((column: any) => {
+            const saved = state.preferences?.find((entry: any) => entry.key === column.key);
+            return { key: column.key, ...(saved?.width ? { width: saved.width } : {}),
+                ...(saved?.title ? { title: saved.title } : {}),
+                ...(saved?.displayField && saved.displayField === column.displayField ? { displayField: saved.displayField } : {}),
+            };
+        });
         out.onPressLink = onPressLink;
 
         if (this.exports) {
@@ -99,7 +102,32 @@ export class Datatable {
         const store = new DatatablePreferencesStore(config || {});
         const scope = config === false ? null : await store.scope(req);
         const preferences = scope ? await store.load(scope) : null;
-        return { all, visible: DatatableColumnPreferences.apply(all, preferences), preferences, store, scope };
+        const savedKeys = Array.isArray(preferences) ? preferences.map(entry => entry?.key).filter(key => Object.prototype.hasOwnProperty.call(all, key)) : [];
+        const selected = savedKeys.length ? savedKeys : Object.keys(all).filter(key => !all[key].hidden);
+        const resolved = await this.resolveDisplayOptions(req, all, selected);
+        return { all, visible: DatatableColumnPreferences.apply(resolved, preferences), preferences, store, scope };
+    }
+
+    /** Options may be declared inline or loaded from an authenticated host callback. */
+    async getColumnDisplayOptions(req: Request, key: string) {
+        const all = await this.getColumns(req) ?? {};
+        if (typeof key !== "string" || !Object.prototype.hasOwnProperty.call(all, key)) {
+            throw Object.assign(new Error("Unbekannte Spalte."), { status: 400 });
+        }
+        const resolved = await this.resolveDisplayOptions(req, all, [key]);
+        return resolved[key].displayOptions || [];
+    }
+
+    private async resolveDisplayOptions(req: Request, columns: Record<string, any>, keys: string[]) {
+        const resolved = { ...columns };
+        await Promise.all(Array.from(new Set(keys)).filter(key => typeof key === "string" && Object.prototype.hasOwnProperty.call(columns, key)).map(async key => {
+            const column = columns[key];
+            if (typeof column.displayOptions === "function") {
+                const options = await column.displayOptions(req, key);
+                resolved[key] = { ...column, displayOptions: Array.isArray(options) ? options : [] };
+            }
+        }));
+        return resolved;
     }
 
     private getColumnState(req: Request) {
@@ -116,7 +144,8 @@ export class Datatable {
         if (!state.scope) throw Object.assign(new Error("Spalteneinstellungen sind für diesen Benutzer nicht verfügbar."), { status: 403 });
         let preferences;
         try {
-            preferences = DatatableColumnPreferences.validate(columns, state.all);
+            const resolved = await this.resolveDisplayOptions(req, state.all, Array.isArray(columns) ? columns.map(entry => entry?.key) : []);
+            preferences = DatatableColumnPreferences.validate(columns, resolved);
         } catch (error) {
             throw Object.assign(error as Error, { status: 400 });
         }

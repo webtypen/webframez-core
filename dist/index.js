@@ -46,6 +46,7 @@ __exportStar(require("./DataBuilder/DataBuilder"), exports);
 __exportStar(require("./DataBuilder/DataBuilderController"), exports);
 __exportStar(require("./Datatable/Datatable"), exports);
 __exportStar(require("./Datatable/DatatableColumnPreferences"), exports);
+__exportStar(require("./Datatable/DatatableSchemaColumns"), exports);
 __exportStar(require("./Datatable/DatatablePreferencesStore"), exports);
 __exportStar(require("./Datatable/DatatableRegistry"), exports);
 __exportStar(require("./Datatable/DatatableController"), exports);
