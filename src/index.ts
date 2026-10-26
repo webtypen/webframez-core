@@ -28,6 +28,8 @@ export * from "./Facades/Storage";
 export * from "./DataBuilder/DataBuilder";
 export * from "./DataBuilder/DataBuilderController";
 export * from "./Datatable/Datatable";
+export * from "./Datatable/DatatableColumnPreferences";
+export * from "./Datatable/DatatablePreferencesStore";
 export * from "./Datatable/DatatableRegistry";
 export * from "./Datatable/DatatableController";
 export * from "./Queue/BaseQueueJob";

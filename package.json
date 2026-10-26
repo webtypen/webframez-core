@@ -1,6 +1,6 @@
 {
     "name": "@webtypen/webframez-core",
-    "version": "0.3.100",
+    "version": "0.3.101",
     "description": "The core package of the typescript based webframez (web-framework) by webtypen.de",
     "homepage": "https://webtypen.de/",
     "license": "MIT",
@@ -36,7 +36,8 @@
         "docs/queue-workers.md",
         "docs/errors.md",
         "build-cache.js",
-        "build-cache.d.ts"
+        "build-cache.d.ts",
+        "docs/datatables.md"
     ],
     "scripts": {
         "build": "tsc",

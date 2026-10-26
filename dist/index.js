@@ -45,6 +45,8 @@ __exportStar(require("./Facades/Storage"), exports);
 __exportStar(require("./DataBuilder/DataBuilder"), exports);
 __exportStar(require("./DataBuilder/DataBuilderController"), exports);
 __exportStar(require("./Datatable/Datatable"), exports);
+__exportStar(require("./Datatable/DatatableColumnPreferences"), exports);
+__exportStar(require("./Datatable/DatatablePreferencesStore"), exports);
 __exportStar(require("./Datatable/DatatableRegistry"), exports);
 __exportStar(require("./Datatable/DatatableController"), exports);
 __exportStar(require("./Queue/BaseQueueJob"), exports);

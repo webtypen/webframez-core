@@ -1,4 +1,5 @@
 import { Request } from "../Router/Request";
+import { DatatableColumnContext, DatatableColumnPreferencesConfig } from "./DatatableColumnPreferences";
 export interface DatatableModelSelectorConfig {
     value?: string;
     label?: string;
@@ -10,6 +11,9 @@ export interface NormalizedDatatableModelSelectorConfig {
     subtitle?: string;
 }
 export declare class Datatable {
+    static columnPreferences: DatatableColumnPreferencesConfig | false;
+    columnPreferences?: DatatableColumnPreferencesConfig | false;
+    private columnStates;
     collection: string | Function;
     aggregation: {
         [key: string]: any;
@@ -49,6 +53,15 @@ export declare class Datatable {
         };
     } | null;
     getInit(req: Request): Promise<any>;
+    private loadColumnState;
+    private getColumnState;
+    saveColumnPreferences(req: Request, columns: unknown): Promise<any>;
+    resetColumnPreferences(req: Request): Promise<any>;
+    /** All definitions remain available through getColumns(); this returns the user's ordered layout. */
+    getVisibleColumns(req: Request): Promise<Record<string, any>>;
+    getVisibleColumnKeys(req: Request): Promise<string[]>;
+    isColumnVisible(req: Request, key: string): Promise<boolean>;
+    getColumnContext(req: Request): Promise<DatatableColumnContext>;
     getModelSelectorConfig(): NormalizedDatatableModelSelectorConfig | null;
     getModelSelectorPreview(req: Request): Promise<any>;
     getSelectableFunctionsDef(req: Request): Promise<{
@@ -62,7 +75,7 @@ export declare class Datatable {
     getAggregation(req: Request): Promise<any>;
     getSubAggregation(req: Request): Promise<any>;
     getCollection(req: Request): Promise<any>;
-    getData(req: Request): Promise<{
+    getData(req: Request, context?: DatatableColumnContext): Promise<{
         page: number;
         max_entries: any;
         total_pages: number;

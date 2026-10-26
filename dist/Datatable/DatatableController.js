@@ -13,36 +13,47 @@ exports.DatatableController = void 0;
 const Controller_1 = require("../Controller/Controller");
 const DatatableRegistry_1 = require("./DatatableRegistry");
 class DatatableController extends Controller_1.Controller {
+    getTableClass(req) {
+        return DatatableRegistry_1.DatatableRegistry.getTable(req.body._table);
+    }
+    configureTable(table, req) { }
     restApi(req, res) {
-        var _a;
+        var _a, _b, _c;
         return __awaiter(this, void 0, void 0, function* () {
-            if (!req.body._table || req.body._table.trim() === "") {
+            if (typeof ((_a = req.body) === null || _a === void 0 ? void 0 : _a._table) !== "string" || req.body._table.trim() === "") {
                 return res.status(404).send({
                     status: "error",
                     message: "Missing table-key ...",
                 });
             }
-            const tableClass = DatatableRegistry_1.DatatableRegistry.getTable(req.body._table);
+            const tableClass = this.getTableClass(req);
             if (!tableClass) {
                 return res.status(404).send({
                     status: "error",
                     message: "Table '" + req.body._table + "' not found ...",
                 });
             }
-            if (req.body.init_request) {
-                const table = new tableClass();
-                return res.send({
-                    status: "success",
-                    data: yield table.getInit(req),
-                });
-            }
-            if (!req.body._table || req.body._table.trim() === "") {
-                return res.status(404).send({
-                    status: "error",
-                    message: "Missing table-key ...",
-                });
-            }
+            if (req.body.export)
+                return this.tableExport(req, res);
             const table = new tableClass();
+            yield this.configureTable(table, req);
+            if (req.body.init_request || req.body.mode === "columns-get") {
+                return res.send({ status: "success", data: yield table.getInit(req) });
+            }
+            if (req.body.mode === "columns-save" || req.body.mode === "columns-reset") {
+                try {
+                    const data = req.body.mode === "columns-save"
+                        ? yield table.saveColumnPreferences(req, req.body.columns)
+                        : yield table.resetColumnPreferences(req);
+                    return res.send({ status: "success", data });
+                }
+                catch (error) {
+                    const status = error === null || error === void 0 ? void 0 : error.status;
+                    if (status !== 400 && status !== 403)
+                        throw error;
+                    return res.status(status).send({ status: "error", message: error.message });
+                }
+            }
             if (req.body.mode === "model-selector-preview") {
                 if (!table.getModelSelectorConfig()) {
                     return res.status(403).send({
@@ -62,7 +73,7 @@ class DatatableController extends Controller_1.Controller {
                 });
             }
             if (req.body.apiFunction && typeof req.body.apiFunction === "string" && req.body.apiFunction.trim() !== "") {
-                const func = (_a = table.selectableFunctions) === null || _a === void 0 ? void 0 : _a[req.body.apiFunction];
+                const func = (_b = table.selectableFunctions) === null || _b === void 0 ? void 0 : _b[req.body.apiFunction];
                 if (!func || !func.handle) {
                     return res.status(404).send({
                         status: "error",
@@ -96,25 +107,28 @@ class DatatableController extends Controller_1.Controller {
                         message: e instanceof Error ? e.message : "Unknown error ...",
                     });
                 }
+                if (res.content !== undefined || ((_c = res.res) === null || _c === void 0 ? void 0 : _c.headersSent) || res.headersSent || res.writableEnded)
+                    return;
                 return res.send({
                     status: "success",
                 });
             }
             return res.send({
                 status: "success",
-                data: yield table.getData(req),
+                data: yield table.getData(req, yield table.getColumnContext(req)),
             });
         });
     }
     tableExport(req, res) {
+        var _a;
         return __awaiter(this, void 0, void 0, function* () {
-            if (!req.body._table || req.body._table.trim() === "") {
+            if (typeof ((_a = req.body) === null || _a === void 0 ? void 0 : _a._table) !== "string" || req.body._table.trim() === "") {
                 return res.status(404).send({
                     status: "error",
                     message: "Missing table-key ...",
                 });
             }
-            const tableClass = DatatableRegistry_1.DatatableRegistry.getTable(req.body._table);
+            const tableClass = this.getTableClass(req);
             if (!tableClass) {
                 return res.status(404).send({
                     status: "error",
@@ -122,6 +136,7 @@ class DatatableController extends Controller_1.Controller {
                 });
             }
             const table = new tableClass();
+            yield this.configureTable(table, req);
             if (!req.body.export || !table.exports || (table.exports && !table.exports[req.body.export])) {
                 return res.status(404).send({
                     status: "error",
@@ -130,7 +145,7 @@ class DatatableController extends Controller_1.Controller {
             }
             const exp = table.exports[req.body.export];
             const cols = [];
-            const colsData = yield table.getColumns(req);
+            const colsData = yield table.getVisibleColumns(req);
             if (colsData && Object.keys(colsData).length > 0) {
                 for (let i in colsData) {
                     cols.push(Object.assign(Object.assign({}, colsData[i]), { key: i }));

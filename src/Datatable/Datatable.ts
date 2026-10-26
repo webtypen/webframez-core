@@ -2,6 +2,8 @@ import moment from "moment";
 import { DBConnection } from "../Database/DBConnection";
 import { NumericFunctions } from "../Functions/NumericFunctions";
 import { Request } from "../Router/Request";
+import { DatatableColumnContext, DatatableColumnPreferences, DatatableColumnPreferencesConfig } from "./DatatableColumnPreferences";
+import { DatatablePreferencesStore } from "./DatatablePreferencesStore";
 
 export interface DatatableModelSelectorConfig {
     value?: string;
@@ -16,6 +18,9 @@ export interface NormalizedDatatableModelSelectorConfig {
 }
 
 export class Datatable {
+    static columnPreferences: DatatableColumnPreferencesConfig | false = {};
+    columnPreferences?: DatatableColumnPreferencesConfig | false;
+    private columnStates = new WeakMap<Request, ReturnType<Datatable["loadColumnState"]>>();
     collection: string | Function = "";
     aggregation: { [key: string]: any } | Function | null = null;
     subAggregation: { [key: string]: any } | Function | null = null;
@@ -57,32 +62,18 @@ export class Datatable {
         if (modelSelector) {
             out.modelSelector = modelSelector;
         }
-        const promises = [];
-        promises.push(
-            new Promise(async (resolve) => {
-                out.filter = await this.getFilter(req);
-                resolve(true);
-            })
-        );
-        promises.push(
-            new Promise(async (resolve) => {
-                const cols: any = [];
-                const colsData = await this.getColumns(req);
-                if (colsData && Object.keys(colsData).length > 0) {
-                    for (let i in colsData) {
-                        cols.push({ ...colsData[i], key: i });
-                    }
-                }
-                out.columns = cols;
-                resolve(true);
-            })
-        );
-        promises.push(
-            new Promise(async (resolve) => {
-                out.onPressLink = await this.getOnPressLink(req);
-                resolve(true);
-            })
-        );
+        const [filter, state, onPressLink] = await Promise.all([
+            this.getFilter(req), this.getColumnState(req), this.getOnPressLink(req),
+        ]);
+        out.filter = filter;
+        out.columns = Object.entries(state.visible).map(([key, column]) => ({ ...column, key }));
+        out.availableColumns = Object.entries(state.all).map(([key, column]) => ({ ...column, key }));
+        out.columnPreferences = Boolean(state.scope) && Object.keys(state.all).length > 0;
+        out.columnSelection = out.columns.map((column: any) => ({ key: column.key,
+            ...(state.preferences?.find((entry: any) => entry.key === column.key)?.width
+                ? { width: state.preferences.find((entry: any) => entry.key === column.key).width } : {}),
+        }));
+        out.onPressLink = onPressLink;
 
         if (this.exports) {
             out.export_definitions = [];
@@ -96,12 +87,85 @@ export class Datatable {
             }
         }
 
-        await Promise.all(promises);
-
         if (typeof this.onInit === "function") {
             await this.onInit(req, out);
         }
         return out;
+    }
+
+    private async loadColumnState(req: Request) {
+        const all: Record<string, any> = await this.getColumns(req) ?? {};
+        const config = this.columnPreferences ?? Datatable.columnPreferences;
+        const store = new DatatablePreferencesStore(config || {});
+        const scope = config === false ? null : await store.scope(req);
+        const preferences = scope ? await store.load(scope) : null;
+        return { all, visible: DatatableColumnPreferences.apply(all, preferences), preferences, store, scope };
+    }
+
+    private getColumnState(req: Request) {
+        let state = this.columnStates.get(req);
+        if (!state) {
+            state = this.loadColumnState(req);
+            this.columnStates.set(req, state);
+        }
+        return state;
+    }
+
+    async saveColumnPreferences(req: Request, columns: unknown) {
+        const state = await this.getColumnState(req);
+        if (!state.scope) throw Object.assign(new Error("Spalteneinstellungen sind für diesen Benutzer nicht verfügbar."), { status: 403 });
+        let preferences;
+        try {
+            preferences = DatatableColumnPreferences.validate(columns, state.all);
+        } catch (error) {
+            throw Object.assign(error as Error, { status: 400 });
+        }
+        await state.store.save(state.scope, preferences);
+        this.columnStates.delete(req);
+        return this.getInit(req);
+    }
+
+    async resetColumnPreferences(req: Request) {
+        const state = await this.getColumnState(req);
+        if (!state.scope) throw Object.assign(new Error("Spalteneinstellungen sind für diesen Benutzer nicht verfügbar."), { status: 403 });
+        await state.store.reset(state.scope);
+        this.columnStates.delete(req);
+        return this.getInit(req);
+    }
+
+    /** All definitions remain available through getColumns(); this returns the user's ordered layout. */
+    async getVisibleColumns(req: Request): Promise<Record<string, any>> {
+        return (await this.getColumnState(req)).visible;
+    }
+
+    async getVisibleColumnKeys(req: Request): Promise<string[]> {
+        return Object.keys(await this.getVisibleColumns(req));
+    }
+
+    async isColumnVisible(req: Request, key: string): Promise<boolean> {
+        return Object.prototype.hasOwnProperty.call(await this.getVisibleColumns(req), key);
+    }
+
+    async getColumnContext(req: Request): Promise<DatatableColumnContext> {
+        const { all, visible: columns } = await this.getColumnState(req);
+        const columnKeys = Object.keys(columns);
+        const filters = await this.getFilter(req) ?? {};
+        const required = new Set<string>(columnKeys);
+        for (const key of columnKeys) required.add(columns[key].mapping ?? key);
+        for (const key of Object.keys(req.body?.sort ?? {})) required.add(key);
+        for (const key of Object.keys(req.body?.search ?? {})) required.add(all[key]?.mapping ?? key);
+        for (const key of Object.keys(req.body?.filter ?? {})) required.add(filters[key]?.mapping ?? key);
+        for (const [key, sum] of Object.entries(req.body?.sums ?? {})) required.add((sum as any)?.mapping ?? key);
+        if (req.body?.mode === "model-selector-preview") {
+            const selector = this.getModelSelectorConfig();
+            for (const field of [selector?.value, selector?.label, selector?.subtitle]) if (field) required.add(field);
+        }
+        const matches = (field: string) => Array.from(required).some(key => key === field || key.startsWith(field + ".") || field.startsWith(key + "."));
+        return {
+            columns, columnKeys,
+            isColumnVisible: key => Object.prototype.hasOwnProperty.call(columns, key),
+            isColumnRequired: key => matches(key) || (typeof all[key]?.mapping === "string" && matches(all[key].mapping)),
+        };
     }
 
     getModelSelectorConfig(): NormalizedDatatableModelSelectorConfig | null {
@@ -219,7 +283,7 @@ export class Datatable {
             prefix.push({ $unwind: this.defaultUnwind });
         }
 
-        const aggr = typeof this.aggregation === "function" ? await this.aggregation(req) : this.aggregation;
+        const aggr = typeof this.aggregation === "function" ? await this.aggregation(req, await this.getColumnContext(req)) : this.aggregation;
         if (this.autoApplyFilter && req.body.filter && typeof req.body.filter === "object") {
             const filterMatch = await this.getFilterMatch(req, req.body.filter);
             if (this.autoApplyFilter === "begin") {
@@ -251,7 +315,7 @@ export class Datatable {
     }
 
     async getSubAggregation(req: Request) {
-        return typeof this.subAggregation === "function" ? await this.subAggregation(req) : this.subAggregation;
+        return typeof this.subAggregation === "function" ? await this.subAggregation(req, await this.getColumnContext(req)) : this.subAggregation;
     }
 
     async getCollection(req: Request) {
@@ -261,7 +325,8 @@ export class Datatable {
         return this.collection;
     }
 
-    async getData(req: Request) {
+    async getData(req: Request, context?: DatatableColumnContext) {
+        const columns = context ?? await this.getColumnContext(req);
         const page = req.body.page && parseInt(req.body.page) > 0 ? parseInt(req.body.page) : 0;
         const aggregation: any = [];
         const aggregationStats: any = [];
@@ -355,11 +420,11 @@ export class Datatable {
         if (this.onRow || this.onAttributes) {
             for (let i in results) {
                 if (this.onRow) {
-                    results[i] = await this.onRow(results[i]);
+                    results[i] = await this.onRow(results[i], req, columns);
                 }
 
                 if (this.onAttributes) {
-                    results[i].__cellattr = await this.onAttributes(results[i]);
+                    results[i].__cellattr = await this.onAttributes(results[i], req, columns);
                 }
             }
         }
@@ -415,7 +480,7 @@ export class Datatable {
         };
 
         if (typeof this.onData === "function") {
-            await this.onData(req, data);
+            await this.onData(req, data, columns);
         }
         return data;
     }
