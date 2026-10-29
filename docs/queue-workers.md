@@ -130,3 +130,8 @@ independent bounded pool using the same atomic claims and renewable leases as
 `Queue.runOnce`. `await worker.stop({drain: true})` stops new claims and waits for
 active handlers; `worker.stop()` aborts that pool's handlers. Pools do not share
 abort controllers. Host-wide resource limits remain the application's concern.
+
+Dedicated workers with an explicit `jobclasses` allowlist may set
+`includeBackupJobs: false` to prevent the automatic addition of `BackupRunJob`.
+This keeps long backups out of a latency-sensitive worker. Existing workers keep
+the previous default; explicitly listed backup jobs remain allowed.

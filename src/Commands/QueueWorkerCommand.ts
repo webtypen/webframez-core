@@ -402,7 +402,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
         }
 
         const jobclasses = [...this.workerConfig.jobclasses];
-        if (Config.get("backup") && !jobclasses.includes("BackupRunJob")) {
+        if (this.workerConfig.includeBackupJobs !== false && Config.get("backup") && !jobclasses.includes("BackupRunJob")) {
             jobclasses.push("BackupRunJob");
         }
         return jobclasses;
