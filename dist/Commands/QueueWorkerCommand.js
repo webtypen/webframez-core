@@ -13,6 +13,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.QueueWorkerCommand = void 0;
+const QueueExecutionContext_1 = require("../Queue/QueueExecutionContext");
 const fs_1 = __importDefault(require("fs"));
 const crypto_1 = __importDefault(require("crypto"));
 const path_1 = __importDefault(require("path"));
@@ -662,7 +663,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                         if (!jobType) {
                             throw new Error(`QueueError: Invalid job-type ${job.jobclass}`);
                         }
-                        const result = yield ErrorHandler_1.ErrorHandler.withContext({ scope: "job", operationId: jobOperationId, job: { id: String(job._id), number: job.number, jobclass: job.jobclass, worker: this.workerKey, instance: process.env.WEBFRAMEZ_QUEUE_INSTANCE, attempt: job.attempts_made } }, () => jobInstance.handle(job));
+                        const result = yield ErrorHandler_1.ErrorHandler.withContext({ scope: "job", operationId: jobOperationId, job: { id: String(job._id), number: job.number, jobclass: job.jobclass, worker: this.workerKey, instance: process.env.WEBFRAMEZ_QUEUE_INSTANCE, attempt: job.attempts_made } }, () => QueueExecutionContext_1.QueueExecutionContext.run(job.execution_context, () => jobInstance.handle(job)));
                         const endedAt = new Date();
                         job.status = "finished";
                         job.ended_at = endedAt;
@@ -727,7 +728,7 @@ class QueueWorkerCommand extends ConsoleCommand_1.ConsoleCommand {
                         if (exhausted && (jobInstance === null || jobInstance === void 0 ? void 0 : jobInstance.onRetryExhausted) && (job.retry_exhaustion_attempts || 0) < retryPolicy.maxFinalizationAttempts) {
                             job.retry_exhaustion_attempts = (job.retry_exhaustion_attempts || 0) + 1;
                             try {
-                                recovered = (yield jobInstance.onRetryExhausted(job, e)) === "finished";
+                                recovered = (yield QueueExecutionContext_1.QueueExecutionContext.run(job.execution_context, () => jobInstance.onRetryExhausted(job, e))) === "finished";
                                 job.retry_exhaustion_error = null;
                             }
                             catch (finalizationError) {

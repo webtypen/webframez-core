@@ -168,3 +168,36 @@ test('console notification remains pending during retries and becomes error on e
     const now = new Date(+start + 30 * 86400000);
     assert.doesNotThrow(() => QueueRetryPolicy.assertCanRun(policy, { created_at: start }, 0, now));
 });
+
+
+for (const engine of ['embedded', 'console']) {
+    test(`${engine}: queued execution context survives dispatch and reaches child jobs`, async t => {
+        configuration(t);
+        const { QueueExecutionContext, QueueJob, Model } = require('../dist');
+        const context = { aiEmployee: { tenantId: 'tenant', employeeId: 'ada' } };
+        const captured = [];
+        t.mock.method(Model.prototype, 'save', async function () { captured.push(this.execution_context); });
+        class MailJob extends BaseQueueJob {
+            async handle() {
+                assert.deepEqual(QueueExecutionContext.capture(), context);
+                const child = new QueueJob(); await child.save();
+            }
+        }
+        const h = harness(t, engine, MailJob, { execution_context: context });
+        await h.run();
+        assert.equal(h.row().status, 'finished');
+        assert.deepEqual(captured, [context]);
+        assert.equal(QueueExecutionContext.capture(), undefined);
+    });
+}
+
+test('queue execution contexts are detached snapshots and concurrent jobs remain isolated', async () => {
+    const { QueueExecutionContext } = require('../dist');
+    await Promise.all(['a', 'b'].map(tenant => QueueExecutionContext.run({ tenant }, async () => {
+        const snapshot = QueueExecutionContext.capture(); snapshot.tenant = 'forged';
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(QueueExecutionContext.capture().tenant, tenant);
+        await QueueExecutionContext.run(undefined, async () => assert.deepEqual(QueueExecutionContext.capture(), {}));
+    })));
+    assert.equal(QueueExecutionContext.capture(), undefined);
+});

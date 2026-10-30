@@ -135,3 +135,14 @@ Dedicated workers with an explicit `jobclasses` allowlist may set
 `includeBackupJobs: false` to prevent the automatic addition of `BackupRunJob`.
 This keeps long backups out of a latency-sensitive worker. Existing workers keep
 the previous default; explicitly listed backup jobs remain allowed.
+
+### Server-owned execution context
+
+`QueueExecutionContext.run(context, callback)` carries JSON-serializable server-owned
+attribution through asynchronous calls. Jobs saved via `QueueJob.save()` or
+`Queue.enqueue()` capture it in `execution_context`; console and embedded workers
+restore it for handlers and retry-exhaustion callbacks. Child jobs inherit it.
+`QueueExecutionContext.capture()` returns a detached snapshot. Do not populate this
+field from client payloads or treat it as authorization: reload the referenced
+account and current permissions before protected effects. Raw database inserts
+must explicitly capture the context when used instead of the queue APIs.

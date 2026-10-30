@@ -13,6 +13,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Queue = void 0;
+const QueueExecutionContext_1 = require("./QueueExecutionContext");
 const ErrorHandler_1 = require("../ErrorHandling/ErrorHandler");
 const crypto_1 = __importDefault(require("crypto"));
 const DBConnection_1 = require("../Database/DBConnection");
@@ -29,7 +30,7 @@ class Queue {
         return __awaiter(this, void 0, void 0, function* () {
             QueueJobsRegisty_1.QueueJobsRegisty.getJobOrFail(jobclass);
             const jobs = yield this.collection(), id = props._id || crypto_1.default.randomUUID();
-            yield jobs.updateOne({ _id: id }, { $setOnInsert: Object.assign(Object.assign({}, props), { _id: id, jobclass, status: "pending", created_at: new Date(), not_before: null, worker: null }) }, { upsert: true });
+            yield jobs.updateOne({ _id: id }, { $setOnInsert: Object.assign(Object.assign({}, props), { execution_context: QueueExecutionContext_1.QueueExecutionContext.capture(), _id: id, jobclass, status: "pending", created_at: new Date(), not_before: null, worker: null }) }, { upsert: true });
             return jobs.findOne({ _id: id });
         });
     }
@@ -126,7 +127,7 @@ class Queue {
                     if (job.retry_exhaustion_attempts)
                         throw new QueueRetryLimitError_1.QueueRetryLimitError("Retry exhaustion finalization pending.");
                     QueueRetryPolicy_1.QueueRetryPolicy.assertCanRun(policy, job, previousAttempts, now);
-                    const result = yield ErrorHandler_1.ErrorHandler.withContext({ scope: "job", operationId: token, source: "queue.embedded", job: { id: String(job._id), number: job.number, jobclass: job.jobclass, worker: this.worker, attempt: job.attempts_made } }, () => handler.handle(Object.assign(Object.assign({}, job), { signal: controller.signal })));
+                    const result = yield ErrorHandler_1.ErrorHandler.withContext({ scope: "job", operationId: token, source: "queue.embedded", job: { id: String(job._id), number: job.number, jobclass: job.jobclass, worker: this.worker, attempt: job.attempts_made } }, () => QueueExecutionContext_1.QueueExecutionContext.run(job.execution_context, () => handler.handle(Object.assign(Object.assign({}, job), { signal: controller.signal }))));
                     const endedAt = new Date();
                     const retryAt = (result === null || result === void 0 ? void 0 : result.__execute_again)
                         ? QueueRetryPolicy_1.QueueRetryPolicy.rescheduleAt(policy, job, job.attempts_made, result.__execute_again, endedAt)
@@ -152,7 +153,7 @@ class Queue {
                     if (exhausted && (handler === null || handler === void 0 ? void 0 : handler.onRetryExhausted) && (job.retry_exhaustion_attempts || 0) < policy.maxFinalizationAttempts) {
                         job.retry_exhaustion_attempts = (job.retry_exhaustion_attempts || 0) + 1;
                         try {
-                            recovered = (yield handler.onRetryExhausted(job, error)) === "finished";
+                            recovered = (yield QueueExecutionContext_1.QueueExecutionContext.run(job.execution_context, () => handler.onRetryExhausted(job, error))) === "finished";
                         }
                         catch (finalizationError) {
                             yield ErrorHandler_1.ErrorHandler.report(finalizationError, { scope: "job", source: "queue.embedded.finalization", job: { id: String(job._id), jobclass: job.jobclass, worker: this.worker } });

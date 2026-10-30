@@ -1,3 +1,4 @@
+import { QueueExecutionContext } from "../Queue/QueueExecutionContext";
 import fs from "fs";
 import crypto from "crypto";
 import path from "path";
@@ -765,7 +766,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
                         throw new Error(`QueueError: Invalid job-type ${job.jobclass}`);
                     }
 
-                    const result: any = await ErrorHandler.withContext({ scope: "job", operationId: jobOperationId, job: { id: String(job._id), number: job.number, jobclass: job.jobclass, worker: this.workerKey, instance: process.env.WEBFRAMEZ_QUEUE_INSTANCE, attempt: job.attempts_made } }, () => jobInstance.handle(job));
+                    const result: any = await ErrorHandler.withContext({ scope: "job", operationId: jobOperationId, job: { id: String(job._id), number: job.number, jobclass: job.jobclass, worker: this.workerKey, instance: process.env.WEBFRAMEZ_QUEUE_INSTANCE, attempt: job.attempts_made } }, () => QueueExecutionContext.run(job.execution_context, () => jobInstance.handle(job)));
 
                     const endedAt = new Date();
                     job.status = "finished";
@@ -841,7 +842,7 @@ export class QueueWorkerCommand extends ConsoleCommand {
                     if (exhausted && jobInstance?.onRetryExhausted && (job.retry_exhaustion_attempts || 0) < retryPolicy!.maxFinalizationAttempts) {
                         job.retry_exhaustion_attempts = (job.retry_exhaustion_attempts || 0) + 1;
                         try {
-                            recovered = await jobInstance.onRetryExhausted(job, e as Error) === "finished";
+                            recovered = await QueueExecutionContext.run(job.execution_context, () => jobInstance.onRetryExhausted(job, e as Error)) === "finished";
                             job.retry_exhaustion_error = null;
                         } catch (finalizationError) {
                             if ((finalizationError as any)?.retryable !== false && job.retry_exhaustion_attempts < retryPolicy!.maxFinalizationAttempts) {

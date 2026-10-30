@@ -6,4 +6,5 @@ export declare class QueueJob extends Model {
     _notification?: DatabaseId;
     notification?: Notification;
     __table: string;
+    save(): Promise<any>;
 }
