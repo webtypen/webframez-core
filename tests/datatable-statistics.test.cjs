@@ -44,7 +44,6 @@ test('Model.aggregate passes execution limits and options to the database driver
     assert.deepEqual(await Receipt.aggregate(pipeline, options), [{ count: 1 }]);
 });
 
-
 test('exports include deferred display fields and use the same collation without injecting pagination', async t => {
     const table = new Datatable();
     table.columnPreferences = false;
@@ -60,7 +59,6 @@ test('exports include deferred display fields and use the same collation without
     assert.deepEqual(await table.getTotalData({ body: { page: 3, perPage: 1 } }), [{ customer: 'Ada' }]);
     assert.equal(table.subAggregation[0].skipStats, true);
 });
-
 
 test('opt-in defers display stages after page bounds but keeps filtering dependencies and sorting', async t => {
     const table = new Datatable();
@@ -90,4 +88,19 @@ test('opt-in defers display stages after page bounds but keeps filtering depende
     await table.getData({ body: {} });
     assert.equal(calls[2].filter(stage => stage.$limit !== undefined).length, 1);
     assert.deepEqual(calls[2].find(stage => stage.$limit !== undefined), { $limit: 5 });
+});
+
+test('page counts use the same collation as page rows', async t => {
+    const table = new Datatable();
+    table.columnPreferences = false;
+    table.aggregation = [{ $match: { name: 'ALICE' } }];
+    table.collation = () => ({ locale: 'de', strength: 2 });
+    t.mock.method(DBConnection, 'getConnection', async () => ({}));
+    const calls = [];
+    t.mock.method(DBConnection, 'documentStore', () => ({ collection: () => ({ aggregate: (pipeline, options) => {
+        calls.push(options);
+        return { toArray: async () => [] };
+    } }) }));
+    await table.getData({ body: {} });
+    assert.deepEqual(calls[1]?.collation, calls[0].collation);
 });

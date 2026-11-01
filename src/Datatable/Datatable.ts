@@ -427,10 +427,11 @@ export class Datatable {
         }
 
         const connection = await DBConnection.getConnection();
+        const collation = typeof this.collation === "function" ? await this.collation(req) : this.collation;
         const results = await DBConnection.documentStore(connection)
             .collection(await this.getCollection(req))
             .aggregate(aggr, {
-                collation: typeof this.collation === "function" ? await this.collation(req) : this.collation,
+                collation,
             })
             .toArray();
 
@@ -450,7 +451,7 @@ export class Datatable {
 
         const stats = await DBConnection.documentStore(connection)
             .collection(await this.getCollection(req))
-            .aggregate([...(aggregationStats ? aggregationStats : []), statsGroup])
+            .aggregate([...(aggregationStats ? aggregationStats : []), statsGroup], { collation })
             .toArray();
 
         if (this.onRow || this.onAttributes) {

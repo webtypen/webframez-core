@@ -435,10 +435,11 @@ class Datatable {
                 log("[DATATABLE_AGGREGATION" + (req.body._table ? "-" + req.body._table : "") + "]", aggr);
             }
             const connection = yield DBConnection_1.DBConnection.getConnection();
+            const collation = typeof this.collation === "function" ? yield this.collation(req) : this.collation;
             const results = yield DBConnection_1.DBConnection.documentStore(connection)
                 .collection(yield this.getCollection(req))
                 .aggregate(aggr, {
-                collation: typeof this.collation === "function" ? yield this.collation(req) : this.collation,
+                collation,
             })
                 .toArray();
             const sumsAfter = [];
@@ -457,7 +458,7 @@ class Datatable {
             }
             const stats = yield DBConnection_1.DBConnection.documentStore(connection)
                 .collection(yield this.getCollection(req))
-                .aggregate([...(aggregationStats ? aggregationStats : []), statsGroup])
+                .aggregate([...(aggregationStats ? aggregationStats : []), statsGroup], { collation })
                 .toArray();
             if (this.onRow || this.onAttributes) {
                 for (let i in results) {
