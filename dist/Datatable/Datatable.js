@@ -43,6 +43,7 @@ class Datatable {
         this.autoApplyFilter = "begin";
         this.autoApplySearch = null;
         this.logAggregation = false;
+        this.collation = { locale: "de", strength: 2 };
         this.defaultUnwind = null;
         this.disablePerPageConfig = false;
         this.selectable = false;
@@ -252,10 +253,7 @@ class Datatable {
             const results = yield DBConnection_1.DBConnection.documentStore(connection)
                 .collection(yield this.getCollection(req))
                 .aggregate(aggregation, {
-                collation: {
-                    locale: "de",
-                    strength: 2,
-                },
+                collation: typeof this.collation === "function" ? yield this.collation(req) : this.collation,
             })
                 .toArray();
             if (!results[0]) {
@@ -353,6 +351,17 @@ class Datatable {
             return typeof this.subAggregation === "function" ? yield this.subAggregation(req, yield this.getColumnContext(req)) : this.subAggregation;
         });
     }
+    /** Filtered source for whole-result statistics; presentation and pagination are excluded. */
+    getStatisticsAggregation(req) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return [...(yield this.getAggregation(req)) || [], ...(yield this.getSubAggregation(req)) || []]
+                .filter(stage => !stage.skipStats && !stage.$sort && stage.$skip === undefined && stage.$limit === undefined)
+                .map((_a) => {
+                var { skipStats } = _a, stage = __rest(_a, ["skipStats"]);
+                return stage;
+            });
+        });
+    }
     getCollection(req) {
         return __awaiter(this, void 0, void 0, function* () {
             if (this.collection && typeof this.collection === "function") {
@@ -373,15 +382,15 @@ class Datatable {
             let hasSkip = false;
             let hasLimit = false;
             if (aggregationDef && aggregationDef.length > 0) {
-                for (let entry of aggregationDef) {
+                for (const definition of aggregationDef) {
+                    const { skipStats } = definition, entry = __rest(definition, ["skipStats"]);
                     if (entry.$skip !== undefined) {
                         hasSkip = true;
                     }
                     if (entry.$limit !== undefined) {
                         hasLimit = true;
                     }
-                    if (entry.skipStats) {
-                        delete entry.skipStats;
+                    if (skipStats) {
                         aggregation.push(entry);
                     }
                     else {
@@ -391,15 +400,15 @@ class Datatable {
                 }
             }
             if (subAggregationDef && subAggregationDef.length > 0) {
-                for (let entry of subAggregationDef) {
+                for (const definition of subAggregationDef) {
+                    const { skipStats } = definition, entry = __rest(definition, ["skipStats"]);
                     if (entry.$skip !== undefined) {
                         hasSkip = true;
                     }
                     if (entry.$limit !== undefined) {
                         hasLimit = true;
                     }
-                    if (entry.skipStats) {
-                        delete entry.skipStats;
+                    if (skipStats) {
                         subAggregation.push(entry);
                     }
                     else {
@@ -423,10 +432,7 @@ class Datatable {
             const results = yield DBConnection_1.DBConnection.documentStore(connection)
                 .collection(yield this.getCollection(req))
                 .aggregate(aggr, {
-                collation: {
-                    locale: "de",
-                    strength: 2,
-                },
+                collation: typeof this.collation === "function" ? yield this.collation(req) : this.collation,
             })
                 .toArray();
             const sumsAfter = [];
@@ -514,9 +520,9 @@ class Datatable {
             const aggregation = [];
             const aggregationDef = yield this.getAggregation(req);
             if (aggregationDef && aggregationDef.length > 0) {
-                for (let entry of aggregationDef) {
-                    if (entry.skipStats) {
-                        delete entry.skipStats;
+                for (const definition of aggregationDef) {
+                    const { skipStats } = definition, entry = __rest(definition, ["skipStats"]);
+                    if (skipStats) {
                         aggregation.push(entry);
                     }
                     else {

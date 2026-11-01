@@ -36,6 +36,7 @@ export class Datatable {
     autoApplyFilter: "begin" | "end" | null = "begin";
     autoApplySearch: "begin" | "end" | null = null;
     logAggregation = false;
+    collation: Record<string, any> | ((req: Request) => Record<string, any> | Promise<Record<string, any>>) = { locale: "de", strength: 2 };
     defaultUnwind?: string | null = null;
     disablePerPageConfig = false;
     selectable = false;
@@ -246,10 +247,7 @@ export class Datatable {
         const results = await DBConnection.documentStore(connection)
             .collection(await this.getCollection(req))
             .aggregate(aggregation, {
-                collation: {
-                    locale: "de",
-                    strength: 2,
-                },
+                collation: typeof this.collation === "function" ? await this.collation(req) : this.collation,
             })
             .toArray();
 
@@ -347,6 +345,13 @@ export class Datatable {
         return typeof this.subAggregation === "function" ? await this.subAggregation(req, await this.getColumnContext(req)) : this.subAggregation;
     }
 
+    /** Filtered source for whole-result statistics; presentation and pagination are excluded. */
+    async getStatisticsAggregation(req: Request) {
+        return [...await this.getAggregation(req) || [], ...await this.getSubAggregation(req) || []]
+            .filter(stage => !stage.skipStats && !stage.$sort && stage.$skip === undefined && stage.$limit === undefined)
+            .map(({ skipStats, ...stage }) => stage);
+    }
+
     async getCollection(req: Request) {
         if (this.collection && typeof this.collection === "function") {
             return await this.collection(req);
@@ -366,7 +371,8 @@ export class Datatable {
         let hasLimit = false;
 
         if (aggregationDef && aggregationDef.length > 0) {
-            for (let entry of aggregationDef) {
+            for (const definition of aggregationDef) {
+                const { skipStats, ...entry } = definition;
                 if (entry.$skip !== undefined) {
                     hasSkip = true;
                 }
@@ -374,8 +380,7 @@ export class Datatable {
                     hasLimit = true;
                 }
 
-                if (entry.skipStats) {
-                    delete entry.skipStats;
+                if (skipStats) {
                     aggregation.push(entry);
                 } else {
                     aggregation.push(entry);
@@ -385,7 +390,8 @@ export class Datatable {
         }
 
         if (subAggregationDef && subAggregationDef.length > 0) {
-            for (let entry of subAggregationDef) {
+            for (const definition of subAggregationDef) {
+                const { skipStats, ...entry } = definition;
                 if (entry.$skip !== undefined) {
                     hasSkip = true;
                 }
@@ -393,8 +399,7 @@ export class Datatable {
                     hasLimit = true;
                 }
 
-                if (entry.skipStats) {
-                    delete entry.skipStats;
+                if (skipStats) {
                     subAggregation.push(entry);
                 } else {
                     subAggregation.push(entry);
@@ -420,10 +425,7 @@ export class Datatable {
         const results = await DBConnection.documentStore(connection)
             .collection(await this.getCollection(req))
             .aggregate(aggr, {
-                collation: {
-                    locale: "de",
-                    strength: 2,
-                },
+                collation: typeof this.collation === "function" ? await this.collation(req) : this.collation,
             })
             .toArray();
 
@@ -523,9 +525,9 @@ export class Datatable {
         const aggregationDef = await this.getAggregation(req);
 
         if (aggregationDef && aggregationDef.length > 0) {
-            for (let entry of aggregationDef) {
-                if (entry.skipStats) {
-                    delete entry.skipStats;
+            for (const definition of aggregationDef) {
+                const { skipStats, ...entry } = definition;
+                if (skipStats) {
                     aggregation.push(entry);
                 } else {
                     aggregation.push(entry);

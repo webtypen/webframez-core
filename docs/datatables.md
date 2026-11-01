@@ -126,3 +126,15 @@ creates an optional column catalog from nested DataBuilder/DataSchema fields.
 The `prepare(column, field, path)` callback can attach inline or lazy display
 options, change the mapping, or return null to omit a field. Plugin installation,
 tenant checks and relation hydration belong in the host adapter.
+
+## Statistics and collation
+
+`getStatisticsAggregation(req)` returns the filtered aggregation and sub-aggregation,
+excluding stages marked `skipStats: true`, sorting and pagination. It does not mutate
+stage definitions. Keep tenant and filter dependencies unmarked; calculate statistic-only
+fields in the statistics service instead of depending on presentation projections.
+
+`collation` defaults to `{ locale: "de", strength: 2 }` for compatibility. It can be
+an object or an async request callback. Tables sorting numeric/date fields can return
+`{ locale: "simple" }` to use matching binary indexes. Keep language collation for
+text sorting or filters that depend on it; collation applies to the entire data query.

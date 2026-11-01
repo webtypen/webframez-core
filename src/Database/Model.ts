@@ -263,7 +263,8 @@ export class Model {
                 table: collection ? collection : model ? model.__table : undefined,
                 aggregation: aggregation,
             },
-            model.__connection
+            model.__connection,
+            options
         );
     }
 

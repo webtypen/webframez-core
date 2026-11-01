@@ -37,6 +37,7 @@ export declare class Datatable {
     autoApplyFilter: "begin" | "end" | null;
     autoApplySearch: "begin" | "end" | null;
     logAggregation: boolean;
+    collation: Record<string, any> | ((req: Request) => Record<string, any> | Promise<Record<string, any>>);
     defaultUnwind?: string | null;
     disablePerPageConfig: boolean;
     selectable: boolean;
@@ -77,6 +78,8 @@ export declare class Datatable {
     }[] | null>;
     getAggregation(req: Request): Promise<any>;
     getSubAggregation(req: Request): Promise<any>;
+    /** Filtered source for whole-result statistics; presentation and pagination are excluded. */
+    getStatisticsAggregation(req: Request): Promise<any[]>;
     getCollection(req: Request): Promise<any>;
     getData(req: Request, context?: DatatableColumnContext): Promise<{
         page: number;
