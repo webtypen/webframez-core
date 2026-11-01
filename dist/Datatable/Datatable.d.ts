@@ -37,6 +37,7 @@ export declare class Datatable {
     autoApplyFilter: "begin" | "end" | null;
     autoApplySearch: "begin" | "end" | null;
     logAggregation: boolean;
+    deferPresentation: boolean;
     collation: Record<string, any> | ((req: Request) => Record<string, any> | Promise<Record<string, any>>);
     defaultUnwind?: string | null;
     disablePerPageConfig: boolean;

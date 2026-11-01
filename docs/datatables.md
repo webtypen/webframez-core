@@ -138,3 +138,14 @@ fields in the statistics service instead of depending on presentation projection
 an object or an async request callback. Tables sorting numeric/date fields can return
 `{ locale: "simple" }` to use matching binary indexes. Keep language collation for
 text sorting or filters that depend on it; collation applies to the entire data query.
+
+Exports (`getTotalData`) execute both aggregation phases with the same collation as
+the table, without injecting page limits. Explicit limits in the table definition
+remain effective, including bounded notification exports.
+
+Tables can opt into `deferPresentation = true` to execute aggregation stages marked
+`skipStats: true` after pagination, before explicit `subAggregation`. Sort/skip/limit
+stages stay in the selection phase. Only mark cardinality-preserving display stages:
+any join or calculation required by a filter, sort, or later selection stage must
+remain unmarked. Exports retain all stages in their original order. The default is
+false, so existing definitions keep their behavior until explicitly reviewed.

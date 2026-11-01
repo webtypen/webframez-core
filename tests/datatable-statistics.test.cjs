@@ -43,3 +43,51 @@ test('Model.aggregate passes execution limits and options to the database driver
     });
     assert.deepEqual(await Receipt.aggregate(pipeline, options), [{ count: 1 }]);
 });
+
+
+test('exports include deferred display fields and use the same collation without injecting pagination', async t => {
+    const table = new Datatable();
+    table.columnPreferences = false;
+    table.collation = { locale: 'simple' };
+    table.aggregation = [{ $match: { tenant: 'a' } }, { skipStats: true, $sort: { created_at: -1 } }];
+    table.subAggregation = [{ skipStats: true, $lookup: { from: 'customers' } }];
+    t.mock.method(DBConnection, 'getConnection', async () => ({}));
+    t.mock.method(DBConnection, 'documentStore', () => ({ collection: () => ({ aggregate: (pipeline, options) => {
+        assert.deepEqual(pipeline, [{ $match: { tenant: 'a' } }, { $sort: { created_at: -1 } }, { $lookup: { from: 'customers' } }]);
+        assert.deepEqual(options.collation, { locale: 'simple' });
+        return { toArray: async () => [{ customer: 'Ada' }] };
+    } }) }));
+    assert.deepEqual(await table.getTotalData({ body: { page: 3, perPage: 1 } }), [{ customer: 'Ada' }]);
+    assert.equal(table.subAggregation[0].skipStats, true);
+});
+
+
+test('opt-in defers display stages after page bounds but keeps filtering dependencies and sorting', async t => {
+    const table = new Datatable();
+    table.columnPreferences = false;
+    table.deferPresentation = true;
+    table.aggregation = [
+        { $match: { tenant: 'a' } },
+        { $lookup: { from: 'filter_dependency' } },
+        { $match: { 'dependency.active': true } },
+        { skipStats: true, $lookup: { from: 'display' } },
+        { skipStats: true, $sort: { created_at: -1 } },
+    ];
+    table.subAggregation = [{ skipStats: true, $project: { _id: 1, display: 1 } }];
+    const original = JSON.stringify(table.aggregation);
+    t.mock.method(DBConnection, 'getConnection', async () => ({}));
+    const calls = [];
+    t.mock.method(DBConnection, 'documentStore', () => ({ collection: () => ({ aggregate: (pipeline) => {
+        calls.push(pipeline);
+        return { toArray: async () => [] };
+    } }) }));
+    await table.getData({ body: { page: 1, perPage: 10 } });
+    assert.deepEqual(calls[0].map(stage => Object.keys(stage)[0]), ['$match', '$lookup', '$match', '$sort', '$skip', '$limit', '$lookup', '$project']);
+    assert.deepEqual(calls[0][4], { $skip: 10 });
+    assert.deepEqual(calls[1].map(stage => Object.keys(stage)[0]), ['$match', '$lookup', '$match', '$group']);
+    assert.equal(JSON.stringify(table.aggregation), original);
+    table.aggregation.push({ skipStats: true, $limit: 5 });
+    await table.getData({ body: {} });
+    assert.equal(calls[2].filter(stage => stage.$limit !== undefined).length, 1);
+    assert.deepEqual(calls[2].find(stage => stage.$limit !== undefined), { $limit: 5 });
+});

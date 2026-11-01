@@ -43,6 +43,7 @@ class Datatable {
         this.autoApplyFilter = "begin";
         this.autoApplySearch = null;
         this.logAggregation = false;
+        this.deferPresentation = false;
         this.collation = { locale: "de", strength: 2 };
         this.defaultUnwind = null;
         this.disablePerPageConfig = false;
@@ -391,7 +392,12 @@ class Datatable {
                         hasLimit = true;
                     }
                     if (skipStats) {
-                        aggregation.push(entry);
+                        if (this.deferPresentation && !entry.$sort && entry.$skip === undefined && entry.$limit === undefined) {
+                            subAggregation.push(entry);
+                        }
+                        else {
+                            aggregation.push(entry);
+                        }
                     }
                     else {
                         aggregation.push(entry);
@@ -517,23 +523,17 @@ class Datatable {
     }
     getTotalData(req) {
         return __awaiter(this, void 0, void 0, function* () {
-            const aggregation = [];
-            const aggregationDef = yield this.getAggregation(req);
-            if (aggregationDef && aggregationDef.length > 0) {
-                for (const definition of aggregationDef) {
-                    const { skipStats } = definition, entry = __rest(definition, ["skipStats"]);
-                    if (skipStats) {
-                        aggregation.push(entry);
-                    }
-                    else {
-                        aggregation.push(entry);
-                    }
-                }
-            }
+            const aggregation = [...(yield this.getAggregation(req)) || [], ...(yield this.getSubAggregation(req)) || []]
+                .map((_a) => {
+                var { skipStats } = _a, stage = __rest(_a, ["skipStats"]);
+                return stage;
+            });
             const connection = yield DBConnection_1.DBConnection.getConnection();
             return yield DBConnection_1.DBConnection.documentStore(connection)
                 .collection(yield this.getCollection(req))
-                .aggregate([...(aggregation ? aggregation : [])])
+                .aggregate(aggregation, {
+                collation: typeof this.collation === "function" ? yield this.collation(req) : this.collation,
+            })
                 .toArray();
         });
     }

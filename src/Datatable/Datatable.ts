@@ -36,6 +36,7 @@ export class Datatable {
     autoApplyFilter: "begin" | "end" | null = "begin";
     autoApplySearch: "begin" | "end" | null = null;
     logAggregation = false;
+    deferPresentation = false;
     collation: Record<string, any> | ((req: Request) => Record<string, any> | Promise<Record<string, any>>) = { locale: "de", strength: 2 };
     defaultUnwind?: string | null = null;
     disablePerPageConfig = false;
@@ -381,7 +382,11 @@ export class Datatable {
                 }
 
                 if (skipStats) {
-                    aggregation.push(entry);
+                    if (this.deferPresentation && !entry.$sort && entry.$skip === undefined && entry.$limit === undefined) {
+                        subAggregation.push(entry);
+                    } else {
+                        aggregation.push(entry);
+                    }
                 } else {
                     aggregation.push(entry);
                     aggregationStats.push(entry);
@@ -521,24 +526,14 @@ export class Datatable {
     }
 
     async getTotalData(req: Request) {
-        const aggregation: any = [];
-        const aggregationDef = await this.getAggregation(req);
-
-        if (aggregationDef && aggregationDef.length > 0) {
-            for (const definition of aggregationDef) {
-                const { skipStats, ...entry } = definition;
-                if (skipStats) {
-                    aggregation.push(entry);
-                } else {
-                    aggregation.push(entry);
-                }
-            }
-        }
-
+        const aggregation = [...await this.getAggregation(req) || [], ...await this.getSubAggregation(req) || []]
+            .map(({ skipStats, ...stage }) => stage);
         const connection = await DBConnection.getConnection();
         return await DBConnection.documentStore(connection)
             .collection(await this.getCollection(req))
-            .aggregate([...(aggregation ? aggregation : [])])
+            .aggregate(aggregation, {
+                collation: typeof this.collation === "function" ? await this.collation(req) : this.collation,
+            })
             .toArray();
     }
 
