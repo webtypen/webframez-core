@@ -554,10 +554,9 @@ export class Datatable {
             return null;
         }
 
-        if (typeof this.columns === "function") {
-            return await this.columns(req);
-        }
-        return this.columns;
+        const columns = typeof this.columns === "function" ? await this.columns(req) : this.columns;
+        // Conditional definitions are absent columns, including for saved layouts and display options.
+        return columns ? Object.fromEntries(Object.entries(columns).filter(([, column]) => column != null && column !== false)) : columns;
     }
 
     async getOnPressLink(req: Request) {

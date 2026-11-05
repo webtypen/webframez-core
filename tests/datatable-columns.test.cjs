@@ -175,3 +175,29 @@ test('schema columns preserve nested scalar types and let hosts supply inline or
     assert.equal(columns['attributes.secret'], undefined);
     assert.equal(columns['attributes.winery'].displayOptions[0].value, 'name');
 });
+
+
+test('conditional columns are omitted from initialization, preferences and display options', async t => {
+    database(t);
+    for (const asynchronous of [false, true]) {
+        const definitions = { name: { label: 'Name' }, customer: undefined, location: null, optional: false, total: { label: 'Total', hidden: true } };
+        const table = new Datatable();
+        table.columns = asynchronous ? async () => definitions : definitions;
+        const req = request('alice', 'conditional-' + asynchronous);
+        const init = await table.getInit(req);
+        assert.deepEqual(init.columns.map(column => column.key), ['name']);
+        assert.deepEqual(init.availableColumns.map(column => column.key), ['name', 'total']);
+        assert.deepEqual(Object.keys(await table.getColumns(req)), ['name', 'total']);
+        assert.equal(Object.hasOwn(definitions, 'customer'), true);
+        for (const key of ['customer', 'location', 'optional']) {
+            await assert.rejects(table.getColumnDisplayOptions(req, key), { status: 400 });
+            await assert.rejects(table.saveColumnPreferences(req, [{ key }]), { status: 400 });
+        }
+        table.columns = { ...definitions, customer: { label: 'Customer' } };
+        await table.saveColumnPreferences(request('alice', req.body._table), [{ key: 'customer' }, { key: 'total' }]);
+        table.columns = asynchronous ? async () => definitions : definitions;
+        assert.deepEqual(await table.getVisibleColumnKeys(request('alice', req.body._table)), ['total']);
+        await table.resetColumnPreferences(request('alice', req.body._table));
+        assert.deepEqual(await table.getVisibleColumnKeys(request('alice', req.body._table)), ['name']);
+    }
+});
