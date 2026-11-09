@@ -1,4 +1,4 @@
-export type WebframezHookOperation = "http.request" | "route.handler" | "console.command" | "queue.job" | "queue.worker" | "app.boot" | "lambda.invoke";
+export type WebframezHookOperation = "http.request" | "route.handler" | "console.command" | "queue.job" | "queue.worker" | "app.boot" | "lambda.invoke" | "socket.event";
 export type WebframezHookPhase = "start" | "end" | "error";
 export type WebframezHookEventName = `${WebframezHookOperation}.${WebframezHookPhase}`;
 export type WebframezHookAttributeValue = string | number | boolean | null;

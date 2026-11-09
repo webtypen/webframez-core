@@ -11,11 +11,37 @@ import { WebframezHooks } from "./Hooks/WebframezHooks";
 import { HttpKernelHandlerRegistry } from "./Http/HttpKernelHandlerRegistry";
 import { ApiScopeRegistry } from "./Api/ApiScopeRegistry";
 import { NotificationService } from "./Notifications/NotificationService";
+import type { WebServerExtension } from "./Http/WebServerExtension";
 // import { SigNozTelemetry } from "./Telemetry/SigNozTelemetry";
 
 export class WebApplication {
     private server!: Server;
     modulesLoader: ModulesLoader | null = null;
+    private serverExtensions: WebServerExtension[] = [];
+    private closing: Promise<void> | null = null;
+
+    /** Close optional transports before waiting for the HTTP server to stop. */
+    close(): Promise<void> {
+        if (this.closing) return this.closing;
+
+        this.closing = (async () => {
+            let failure: unknown;
+            for (const extension of this.serverExtensions.splice(0).reverse()) {
+                try { await extension.close(); }
+                catch (error) { failure = failure || error; }
+            }
+
+            if (this.server) {
+                await new Promise<void>((resolve, reject) => this.server.close((error?: Error) => {
+                    if (error && (error as NodeJS.ErrnoException).code !== "ERR_SERVER_NOT_RUNNING") reject(error);
+                    else resolve();
+                }));
+            }
+
+            if (failure) throw failure;
+        })();
+        return this.closing;
+    }
 
     /**
      * Init the routes and start the http-server
@@ -28,6 +54,13 @@ export class WebApplication {
     }
 
     private bootScoped(options?: any) {
+        if (this.server || this.closing) throw new Error("WebApplication instances can only boot once.");
+        const extensions: WebServerExtension[] = options?.extensions || [];
+        if (!Array.isArray(extensions) || extensions.some(extension =>
+            !extension || typeof extension.attach !== "function" || typeof extension.close !== "function")) {
+            throw new Error("WebApplication extensions must implement attach(context) and close().");
+        }
+
         const bootOperationId = WebframezHooks.createOperationId("app");
         void WebframezHooks.emit("app.boot.start", {
             operationId: bootOperationId,
@@ -90,7 +123,7 @@ export class WebApplication {
             QueueJobsRegisty.registerJob(options.jobs);
         }
 
-        const port = options && options.port ? options.port : 3000;
+        const port = options?.port !== undefined ? options.port : 3000;
         this.server = http.createServer((req: http.IncomingMessage, res: http.ServerResponse) => ErrorHandler.withContext({ applicationType: "WebApplication", scope: "controller", operationId: WebframezHooks.createOperationId("http") }, async () => {
             try {
                 const handled = await HttpKernelHandlerRegistry.handle({
@@ -125,6 +158,7 @@ export class WebApplication {
         }));
 
         this.server.on("error", (error) => {
+            void this.close().catch(closeError => ErrorHandler.report(closeError, { source: "http.server.close" }));
             void ErrorHandler.report(error, { applicationType: "WebApplication", scope: "boot", source: "http.server" });
             void WebframezHooks.emit("app.boot.error", {
                 operationId: bootOperationId,
@@ -146,30 +180,48 @@ export class WebApplication {
         //     void SigNozTelemetry.shutdown();
         // });
 
-        this.server.listen(port, () => {
-            void WebframezHooks.emit("app.boot.end", {
-                operationId: bootOperationId,
-                name: "web",
-                status: "ok",
-                attributes: {
-                    "server.port": port,
-                    "webframez.mode": options && options.mode ? options.mode : "web",
-                },
+        try {
+            for (const extension of extensions) {
+                this.serverExtensions.push(extension);
+                extension.attach({ server: this.server, basename: Router.basename,
+                    kernel: options?.kernel || null, modulesLoader: this.modulesLoader });
+            }
+        } catch (error) {
+            void this.close().catch(closeError => ErrorHandler.report(closeError, { source: "http.server.close" }));
+            throw error;
+        }
+
+        try {
+            this.server.listen(port, () => {
+                const address = this.server.address();
+                const listeningPort = address && typeof address === "object" ? address.port : port;
+                void WebframezHooks.emit("app.boot.end", {
+                    operationId: bootOperationId,
+                    name: "web",
+                    status: "ok",
+                    attributes: {
+                        "server.port": listeningPort,
+                        "webframez.mode": options && options.mode ? options.mode : "web",
+                    },
+                });
+
+                const runtimeConsole = typeof globalThis !== "undefined" ? (globalThis as any).console : undefined;
+                if (runtimeConsole && typeof runtimeConsole.log === "function") {
+                    runtimeConsole.log(
+                        "Server started and listening on port " +
+                            listeningPort +
+                            (Router.basename ? " (Basename: " + Router.basename + ")" : "")
+                    );
+                }
+
+                if (options && options.onBoot) {
+                    options.onBoot(listeningPort);
+                }
             });
-
-            const runtimeConsole = typeof globalThis !== "undefined" ? (globalThis as any).console : undefined;
-            if (runtimeConsole && typeof runtimeConsole.log === "function") {
-                runtimeConsole.log(
-                    "Server started and listening on port " +
-                        port +
-                        (Router.basename ? " (Basename: " + Router.basename + ")" : "")
-                );
-            }
-
-            if (options && options.onBoot) {
-                options.onBoot(port);
-            }
-        });
+        } catch (error) {
+            void this.close().catch(closeError => ErrorHandler.report(closeError, { source: "http.server.close" }));
+            throw error;
+        }
         return this.server;
     }
 }

@@ -5,7 +5,8 @@ export type WebframezHookOperation =
     | "queue.job"
     | "queue.worker"
     | "app.boot"
-    | "lambda.invoke";
+    | "lambda.invoke"
+    | "socket.event";
 
 export type WebframezHookPhase = "start" | "end" | "error";
 export type WebframezHookEventName = `${WebframezHookOperation}.${WebframezHookPhase}`;

@@ -4,6 +4,10 @@ import { ModulesLoader } from "./Modules/ModulesLoader";
 export declare class WebApplication {
     private server;
     modulesLoader: ModulesLoader | null;
+    private serverExtensions;
+    private closing;
+    /** Close optional transports before waiting for the HTTP server to stop. */
+    close(): Promise<void>;
     /**
      * Init the routes and start the http-server
      */

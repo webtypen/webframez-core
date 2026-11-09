@@ -23,6 +23,24 @@ This README reflects the current API in this repository and focuses on:
 npm i @webtypen/webframez-core
 ```
 
+## Optional server extensions
+
+`WebApplication.boot({ extensions: [...] })` accepts `WebServerExtension` instances.
+Their synchronous `attach({ server, basename, kernel, modulesLoader })` method runs
+after routes are registered and before the HTTP server listens. This allows optional
+transports such as `@webtypen/webframez-sockets` to share the application's port
+without adding their dependencies to Core.
+
+Call `await application.close()` to release extensions in reverse order before
+closing HTTP. Cleanup continues if an extension fails, and the returned promise
+reports the failure. Partially attached extensions are also closed after startup
+failure. Application instances boot once; create a new instance after shutdown.
+`port: 0` selects an ephemeral port, and `onBoot(port)` receives the actual port.
+
+Socket integrations can report `socket.event.start`, `socket.event.end` and
+`socket.event.error` through `WebframezHooks` using the same operation context as
+HTTP and queue execution.
+
 ## Authentication
 
 New integrations can use `SessionAuth` for hashed, revocable device sessions,

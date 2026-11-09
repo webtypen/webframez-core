@@ -78,6 +78,7 @@ __exportStar(require("./Api/ApiScopeRegistry"), exports);
 __exportStar(require("./Ai/AiTypes"), exports);
 __exportStar(require("./Mcp/McpTypes"), exports);
 __exportStar(require("./Http/HttpKernelHandlerRegistry"), exports);
+__exportStar(require("./Http/WebServerExtension"), exports);
 __exportStar(require("./Auth"), exports);
 __exportStar(require("./Notifications/Notification"), exports);
 __exportStar(require("./Notifications/BaseNotificationsController"), exports);

@@ -61,6 +61,7 @@ export * from "./Api/ApiScopeRegistry";
 export * from "./Ai/AiTypes";
 export * from "./Mcp/McpTypes";
 export * from "./Http/HttpKernelHandlerRegistry";
+export * from "./Http/WebServerExtension";
 export * from "./Auth";
 export * from "./Notifications/Notification";
 export * from "./Notifications/BaseNotificationsController";
