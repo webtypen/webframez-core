@@ -13,3 +13,4 @@ export * from "./PasswordReset";
 export * from "./AuthMembership";
 
 export * from "./AuthHandoff";
+export * from "./AuthResourceAccess";

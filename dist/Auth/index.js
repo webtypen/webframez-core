@@ -25,3 +25,4 @@ __exportStar(require("./Auth"), exports);
 __exportStar(require("./PasswordReset"), exports);
 __exportStar(require("./AuthMembership"), exports);
 __exportStar(require("./AuthHandoff"), exports);
+__exportStar(require("./AuthResourceAccess"), exports);

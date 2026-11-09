@@ -584,3 +584,43 @@ checked by `isSessionAllowed` on every authentication/refresh. To enforce logout
 request, do not cache positive introspection results. This requires one authority round trip
 per check and fails closed when the authority is unavailable. No browser push is implied;
 clients detect logout when making their next authenticated request.
+
+
+## Owned and assigned resource scopes
+
+`AuthResourceAccess` composes document filters for global, creator-owned and
+explicitly assigned records. It complements `AuthMembership` (separate membership
+models) with embedded administrator assignments and list/detail query parity.
+
+```ts
+const access = new AuthResourceAccess({
+    model: Project,
+    ownerField: "created_by",
+    membersField: "administrators.user",
+    userConditions: [{ field: "is_active", operator: "!=", value: false }],
+    resourceConditions: [{ field: "is_deleted", operator: "!=", value: true }],
+});
+const grants = {
+    all: user.can("projects.read"),
+    own: user.can("projects.own.read"),
+    assigned: user.can("projects.assigned.read"),
+};
+const rows = await Project.aggregate([{ $match: access.filter(user, grants) }]);
+const project = await access.find(user, req.params.id, grants);
+if (!project) return res.status(403).send({ code: "forbidden" });
+```
+
+Grants are server-derived booleans; own and assigned are a union. Missing identity,
+missing references and invalid resource IDs fail closed. `all` still respects the
+configured status conditions. `filter` must run before pagination, counts, exports,
+selectors and lookups that could expose other records. `find` performs a fresh
+lookup, so revoked assignments take effect on the next request. Neither method
+caches authorization or authenticates a supplied model. User identity fields are
+scalar model fields; resource mappings may use document paths.
+
+Set creator references server-side on creation and keep them immutable. Protect
+assignment changes separately from scoped editing, and never derive grants from
+submitted form values. Use the filter in conditional writes where concurrent
+revocation must also constrain an already running operation. Existing records
+without a creator or assignment gain no scoped access. Scope membership itself
+does not grant another application's login or tenant membership.
