@@ -28,6 +28,7 @@ const DBConnection_1 = require("../Database/DBConnection");
 const DataBuilderForms_1 = require("./DataBuilderForms");
 const DataBuilderFieldsProcessor_1 = require("./DataBuilderFieldsProcessor");
 const DataBuilderFrontend_1 = require("./DataBuilderFrontend");
+const DataBuilderDocument_1 = require("./DataBuilderDocument");
 const formScope_1 = require("./formScope");
 __exportStar(require("./DataBuilderTypes"), exports);
 var DataBuilderFieldType_1 = require("./DataBuilderFieldType");
@@ -197,6 +198,7 @@ class DataBuilder {
             }
             let element = null;
             let updateId = null;
+            let legacyKeys = [];
             if (req.body.__builder_id === "new") {
                 element = {};
                 if (type.schema.primaryKey && type.schema.primaryKey.trim() !== "" && type.schema.primaryKey !== "_id") {
@@ -211,6 +213,11 @@ class DataBuilder {
             else {
                 element = yield this.loadElement(db, type, req);
                 updateId = element[type.schema.primaryKey || "_id"];
+                if (structured) {
+                    const expanded = (0, DataBuilderDocument_1.expandFormDocument)(schemaFields, element);
+                    element = expanded.document;
+                    legacyKeys = expanded.legacyKeys;
+                }
             }
             element = yield this.applyFields(schemaFields, element, req.body.data, req.body.payload, undefined, structured, req);
             if (!element.__builder) {
@@ -227,7 +234,7 @@ class DataBuilder {
                 delete element[type.schema.primaryKey ? type.schema.primaryKey : "_id"];
                 const status = yield db.collection(collection).updateOne({
                     _id: type.schema.primaryKeyPlain ? updateId.toString() : yield this.objectId(updateId),
-                }, { $set: Object.assign({}, element) });
+                }, (0, DataBuilderDocument_1.formDocumentUpdate)(element, legacyKeys), legacyKeys.length ? { ignoreUndefined: true } : undefined);
                 if (status && status.matchedCount) {
                     changedId = updateId;
                     element[type.schema.primaryKey ? type.schema.primaryKey : "_id"] = type.schema.primaryKeyPlain
@@ -336,7 +343,7 @@ class DataBuilder {
             return {
                 status: "success",
                 data: structured
-                    ? Object.assign(Object.assign({}, (0, formScope_1.projectFormData)(type.schema.fields, element)), { [type.schema.primaryKey || "_id"]: element[type.schema.primaryKey || "_id"] }) : element,
+                    ? Object.assign(Object.assign({}, (0, formScope_1.projectFormData)(type.schema.fields, (0, DataBuilderDocument_1.expandFormDocument)(type.schema.fields, element).document)), { [type.schema.primaryKey || "_id"]: element[type.schema.primaryKey || "_id"] }) : element,
             };
         });
     }
