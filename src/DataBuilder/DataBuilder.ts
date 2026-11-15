@@ -6,6 +6,7 @@ import { DataBuilderValidationType } from "./DataBuilderValidationType";
 import { DataBuilderForms } from "./DataBuilderForms";
 import { DataBuilderFieldsProcessor } from "./DataBuilderFieldsProcessor";
 import { fieldsForFrontend, typeForFrontend } from "./DataBuilderFrontend";
+import { expandFormDocument, formDocumentUpdate } from "./DataBuilderDocument";
 import { projectFormData, unexpectedFormFields } from "./formScope";
 import type { DataBuilderType, DataBuilderFields, DataBuilderErrors } from "./DataBuilderTypes";
 
@@ -239,6 +240,7 @@ export class DataBuilder {
 
         let element: any = null;
         let updateId: any = null;
+        let legacyKeys: string[] = [];
         if (req.body.__builder_id === "new") {
             element = {};
             if (type.schema.primaryKey && type.schema.primaryKey.trim() !== "" && type.schema.primaryKey !== "_id") {
@@ -253,6 +255,11 @@ export class DataBuilder {
         } else {
             element = await this.loadElement(db, type, req);
             updateId = element[type.schema.primaryKey || "_id"];
+            if (structured) {
+                const expanded = expandFormDocument(schemaFields, element);
+                element = expanded.document;
+                legacyKeys = expanded.legacyKeys;
+            }
         }
 
         element = await this.applyFields(schemaFields, element, req.body.data, req.body.payload, undefined, structured, req);
@@ -275,7 +282,8 @@ export class DataBuilder {
                 {
                     _id: type.schema.primaryKeyPlain ? updateId.toString() : await this.objectId(updateId),
                 },
-                { $set: { ...element } },
+                formDocumentUpdate(element, legacyKeys),
+                legacyKeys.length ? { ignoreUndefined: true } : undefined,
             );
             if (status && status.matchedCount) {
                 changedId = updateId;
@@ -395,7 +403,7 @@ export class DataBuilder {
             status: "success",
             data: structured
                 ? {
-                      ...projectFormData(type.schema.fields as DataBuilderFields, element),
+                      ...projectFormData(type.schema.fields as DataBuilderFields, expandFormDocument(type.schema.fields as DataBuilderFields, element).document),
                       [type.schema.primaryKey || "_id"]: element[type.schema.primaryKey || "_id"],
                   }
                 : element,
