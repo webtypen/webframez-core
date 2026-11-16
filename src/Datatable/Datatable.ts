@@ -3,6 +3,8 @@ import { DBConnection } from "../Database/DBConnection";
 import { NumericFunctions } from "../Functions/NumericFunctions";
 import { Request } from "../Router/Request";
 import { DatatableColumnContext, DatatableColumnPreferences, DatatableColumnPreferencesConfig } from "./DatatableColumnPreferences";
+import { datatableDateFilterMatch } from "./DatatableDateFilter";
+import { datatableDateTimeFilterMatch } from "./DatatableDateTimeFilter";
 import { DatatablePreferencesStore } from "./DatatablePreferencesStore";
 
 export interface DatatableModelSelectorConfig {
@@ -665,6 +667,28 @@ export class Datatable {
             // Handle type
             const tempType = filterEl && filterEl.type ? filterEl.type : entryType;
 
+            const mappingKey = filterEl?.mapping?.trim() ? filterEl.mapping : key;
+            const withTime = tempType === "datetime" || tempType === "datetime-range";
+            const dateMatch = withTime
+                ? datatableDateTimeFilterMatch(operator, valueClean, filterEl?.cast === "date", filterEl?.timezone)
+                : datatableDateFilterMatch(tempType, operator, valueClean, filterEl?.cast === "date");
+            if (dateMatch === undefined) continue;
+            if (dateMatch !== null && typeof dateMatch === "object") {
+                if ((withTime || operator === "between" && typeof valueClean === "object") && typeof filterEl?.cast === "function") {
+                    const upper = "$lte" in dateMatch ? "$lte" : "$lt";
+                    const start = await filterEl.cast(dateMatch.$gte, entry, req);
+                    const end = await filterEl.cast("$lte" in dateMatch ? dateMatch.$lte : dateMatch.$lt, entry, req);
+                    if (start !== undefined && end !== undefined) out[mappingKey] = { $gte: start, [upper]: end };
+                } else {
+                    out[mappingKey] = dateMatch;
+                }
+                continue;
+            }
+            if (typeof dateMatch === "string" && typeof valueClean === "string" && tempType !== "date") {
+                out[mappingKey] = dateMatch;
+                continue;
+            }
+
             // Handle integer/float range
             if (
                 (tempType === "integer-range" ||
@@ -672,11 +696,10 @@ export class Datatable {
                     tempType === "float-range" ||
                     tempType === "date-range" ||
                     tempType === "daterange") &&
-                valueClean !== undefined &&
-                valueClean.toString().trim() !== ""
+                dateMatch === null &&
+                typeof valueClean === "string" &&
+                valueClean.trim() !== ""
             ) {
-                const mappingKey = filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key;
-
                 const cleanVal = (val: any) => {
                     return tempType === "float-range" || tempType === "currency"
                         ? parseFloat(val.toString().replace(",", "."))
@@ -792,8 +815,10 @@ export class Datatable {
                     break;
             }
 
-            if (tempType === "date") {
-                value = value.date1;
+            if (dateMatch !== null) {
+                value = dateMatch;
+            } else if (tempType === "date") {
+                value = value?.date1;
             }
 
             if (value !== undefined && filterEl && filterEl.cast) {
@@ -817,7 +842,7 @@ export class Datatable {
             }
 
             if (value !== undefined) {
-                out[filterEl && filterEl.mapping && filterEl.mapping.trim() !== "" ? filterEl.mapping : key] = value;
+                out[mappingKey] = value;
             }
         }
         return out;

@@ -149,3 +149,31 @@ stages stay in the selection phase. Only mark cardinality-preserving display sta
 any join or calculation required by a filter, sort, or later selection stage must
 remain unmarked. Exports retain all stages in their original order. The default is
 false, so existing definitions keep their behavior until explicitly reviewed.
+
+## Date filters
+
+Declare `type: "date"` for a calendar date. A single-date query accepts
+`{ operator: "==", value: { date1: "2026-11-01" } }`. For an inclusive range,
+send `{ operator: "between", value: { date1: "2026-11-01", date2: "2026-11-10" } }`.
+Both bounds are required. ISO dates (`YYYY-MM-DD`) and German dates
+(`DD.MM.YYYY`) are accepted. The same range request works with the older
+`"date-range"` and `"daterange"` types, which also accept legacy text ranges
+such as `01.11.2026 - 10.11.2026`.
+
+With `cast: "date"`, structured ranges use local calendar days, from midnight
+on the first day up to (but excluding) midnight after the last day. Without
+the cast, Core compares inclusive ISO date strings. Filters with
+`ignore: true` delegate matching to the table's own aggregation.
+
+Use `type: "datetime"` for a single minute, or `"datetime-range"` for a
+date-and-time range picker. A `datetime` filter can also opt into the picker
+with `allowRange: true`. Both types use the same request shape with local
+timestamps in `YYYY-MM-DD HH:mm` or `YYYY-MM-DDTHH:mm` format. Core matches the
+full selected minute, including the end minute of a range. For stored Date
+values configure `cast: "date"` and preferably an IANA `timezone` such as
+`"Europe/Berlin"`. If omitted, Core uses the server timezone. Without a cast,
+Core compares strings stored as `YYYY-MM-DD HH:mm`.
+
+Native Design range filters use the grouped calendar presets from the dashboards.
+Set `rangePresets: false` on a filter definition to hide these presets.
+An explicit `timezone` determines the local dates and times of the presets.
